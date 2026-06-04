@@ -1,3 +1,23 @@
+# BugCase workspace
+node_modules
+.pnpm-store
+dist
+.turbo
+.vite
+.cache
+coverage
+playwright-report
+test-results
+*.log
+.DS_Store
+docs/
+.env
+.env.local
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

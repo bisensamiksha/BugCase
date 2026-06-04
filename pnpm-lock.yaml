@@ -1,0 +1,19 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/privacy-site: {}
+
+  packages/dashboard: {}
+
+  packages/extension: {}
+
+  packages/report-template: {}
+
+  packages/schema: {}
