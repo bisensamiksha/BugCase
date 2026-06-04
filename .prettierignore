@@ -1,0 +1,11 @@
+dist
+node_modules
+.pnpm-store
+.turbo
+.vite
+coverage
+playwright-report
+test-results
+docs
+pnpm-lock.yaml
+*.min.*
