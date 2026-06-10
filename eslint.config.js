@@ -8,6 +8,8 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      '**/dist-chrome/**',
+      '**/dist-firefox/**',
       '**/node_modules/**',
       '**/.pnpm-store/**',
       '**/.turbo/**',

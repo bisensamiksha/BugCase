@@ -2,15 +2,19 @@ import { crx } from '@crxjs/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-import manifest from './src/manifest';
+import { buildManifest, type Target } from './src/manifest';
+
+const target = (process.env.BROWSER as Target) ?? 'chrome';
+const outDir = target === 'firefox' ? 'dist-firefox' : 'dist-chrome';
 
 export default defineConfig({
-  plugins: [react(), crx({ manifest })],
+  plugins: [
+    react(),
+    crx({
+      manifest: buildManifest(target),
+      browser: target === 'firefox' ? 'firefox' : 'chrome',
+    }),
+  ],
   server: { port: 5173, strictPort: true, hmr: { port: 5173 } },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    sourcemap: true,
-    rollupOptions: { input: { popup: 'src/popup/popup.html' } },
-  },
+  build: { outDir, emptyOutDir: true, sourcemap: true },
 });
