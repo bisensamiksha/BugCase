@@ -36,6 +36,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+!packages/extension/src/lib/
+!packages/extension/src/lib/browser.ts
 parts/
 sdist/
 var/
