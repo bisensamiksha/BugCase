@@ -7,8 +7,16 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "echo \"(no build yet)\"",
-    "test": "echo \"(no tests yet)\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "vitest": "^2.1.4"
   }
 }

@@ -13,3 +13,5 @@ export * from './reproduction';
 export * from './screenshots';
 export * from './storage';
 export * from './user-input';
+
+export * from './schemas';
