@@ -10,5 +10,8 @@
     "test": "echo \"(no tests yet)\"",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bugcase/schema": "workspace:*"
   }
 }
