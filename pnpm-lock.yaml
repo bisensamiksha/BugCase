@@ -44,10 +44,17 @@ importers:
 
   apps/privacy-site: {}
 
-  packages/dashboard: {}
+  packages/dashboard:
+    dependencies:
+      '@bugcase/schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/extension:
     dependencies:
+      '@bugcase/schema':
+        specifier: workspace:*
+        version: link:../schema
       react:
         specifier: ^18.3.1
         version: 18.3.1
