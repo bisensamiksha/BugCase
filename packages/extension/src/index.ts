@@ -1,1 +1,1 @@
-// Placeholder for the extension package.
+export * from './capture';

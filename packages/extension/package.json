@@ -12,7 +12,8 @@
     "build:firefox": "cross-env BROWSER=firefox vite build",
     "build:all": "pnpm run build && pnpm run build:firefox",
     "lint:firefox-manifest": "web-ext lint --source-dir=dist-firefox",
-    "test": "echo \"(tests come in S1-19)\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -33,6 +34,7 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "vite": "^5.4.10",
+    "vitest": "^2.1.4",
     "web-ext": "^8.3.0"
   }
 }
