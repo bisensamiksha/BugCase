@@ -39,7 +39,7 @@ describe('BugReportV1Schema', () => {
   });
 
   it('rejects missing required field', () => {
-    const partial: Partial<typeof validMinimal> = { ...validMinimal };
+    const partial: Record<string, unknown> = { ...validMinimal };
     delete partial.userInput;
     expect(() => BugReportV1Schema.parse(partial)).toThrow(/userInput/);
   });
