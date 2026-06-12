@@ -16,4 +16,8 @@ export * from './user-input';
 export * from './zip-layout';
 export * from './zip-writer';
 
+export * from './scrubbers/types';
+export * from './scrubbers/pipeline';
+export * from './scrubbers/password-placeholder';
+
 export * from './schemas';
