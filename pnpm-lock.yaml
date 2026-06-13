@@ -42,7 +42,14 @@ importers:
         specifier: ^8.10.0
         version: 8.60.1(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
 
-  apps/privacy-site: {}
+  apps/privacy-site:
+    devDependencies:
+      vite:
+        specifier: ^5.4.10
+        version: 5.4.21(@types/node@20.19.41)
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@20.19.41)(jsdom@29.1.1)
 
   packages/dashboard:
     dependencies:

@@ -44,9 +44,7 @@ export default tseslint.config(
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: {
-        projectService: {
-          allowDefaultProject: ['packages/*/*.config.ts'],
-        },
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
       globals: { ...globals.browser, ...globals.node },
@@ -68,5 +66,10 @@ export default tseslint.config(
       'import/order': ['warn', { 'newlines-between': 'always', alphabetize: { order: 'asc' } }],
     },
     settings: { react: { version: '18.2' } },
+  },
+  {
+    // Build/test config files live outside any tsconfig; lint them without type-aware rules.
+    files: ['**/*.config.{ts,cts,mts}'],
+    ...tseslint.configs.disableTypeChecked,
   },
 );
