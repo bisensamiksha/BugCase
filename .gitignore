@@ -40,6 +40,8 @@ lib/
 lib64/
 !packages/extension/src/lib/
 !packages/extension/src/lib/browser.ts
+!packages/dashboard/src/lib/
+!packages/dashboard/src/lib/**
 parts/
 sdist/
 var/
