@@ -4,9 +4,13 @@ import { captureVisibleViewport } from '../capture';
 
 import {
   isCaptureVisibleTabRequest,
+  isOverlayInjectRequest,
   type CaptureVisibleTabRequest,
   type CaptureVisibleTabResponse,
 } from './messages';
+import { createOverlayController } from './overlay-controller';
+
+const overlay = createOverlayController();
 
 browser.runtime.onInstalled.addListener(() => {
   console.info('[BugCase] installed');
@@ -29,8 +33,11 @@ async function handleCaptureRequest(
 }
 
 browser.runtime.onMessage.addListener((message: unknown) => {
-  if (!isCaptureVisibleTabRequest(message)) {
-    return undefined;
+  if (isCaptureVisibleTabRequest(message)) {
+    return handleCaptureRequest(message);
   }
-  return handleCaptureRequest(message);
+  if (isOverlayInjectRequest(message)) {
+    return overlay.injectActiveTab();
+  }
+  return undefined;
 });

@@ -21,13 +21,34 @@ export interface CaptureVisibleTabResponse {
   readonly captureMethod: VisibleTabCapture['captureMethod'];
 }
 
+/** Runtime message: popup → service worker, asking it to inject the overlay into the active tab. */
+export const OVERLAY_INJECT = 'bugcase/overlay-inject';
+
+export interface OverlayInjectRequest {
+  readonly type: typeof OVERLAY_INJECT;
+}
+
+/** Serializable result of an overlay inject attempt; `ok` is false on a handled failure. */
+export interface OverlayInjectResponse {
+  readonly ok: boolean;
+  readonly reason?: string;
+}
+
 /** Union of all messages the service worker understands (grows in later tickets). */
-export type ExtensionMessage = CaptureVisibleTabRequest;
+export type ExtensionMessage = CaptureVisibleTabRequest | OverlayInjectRequest;
 
 export function isCaptureVisibleTabRequest(value: unknown): value is CaptureVisibleTabRequest {
   return (
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === CAPTURE_VISIBLE_TAB
+  );
+}
+
+export function isOverlayInjectRequest(value: unknown): value is OverlayInjectRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === OVERLAY_INJECT
   );
 }
