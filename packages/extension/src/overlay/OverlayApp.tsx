@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react';
 
+import { CaptureButton } from './CaptureButton';
+
 export interface OverlayAppProps {
   readonly onClose: () => void;
 }
@@ -56,7 +58,10 @@ export function OverlayApp({ onClose }: OverlayAppProps) {
           ×
         </button>
       </header>
-      <p style={{ margin: 0, color: '#475569' }}>Capture controls land in S1-13.</p>
+      <p style={{ margin: '0 0 8px', color: '#475569' }}>
+        Capture the visible tab and download a bug report ZIP.
+      </p>
+      <CaptureButton onComplete={onClose} />
     </div>
   );
 }

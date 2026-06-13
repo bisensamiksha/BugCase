@@ -1,3 +1,5 @@
+import type { CaptureMetadata, UserInput } from '@bugcase/schema';
+
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 
 /** Runtime message: popup/overlay → service worker, asking it to capture the visible tab. */
@@ -34,8 +36,29 @@ export interface OverlayInjectResponse {
   readonly reason?: string;
 }
 
+/** Runtime message: overlay → service worker, asking it to run the full capture → ZIP → download. */
+export const CAPTURE_REPORT = 'bugcase/capture-report';
+
+export interface CaptureReportRequest {
+  readonly type: typeof CAPTURE_REPORT;
+  /** Collected in the page/overlay context (needs the DOM); the worker has no window. */
+  readonly metadata: CaptureMetadata;
+  readonly userInput: UserInput;
+}
+
+/** Serializable capture-flow result; `ok` is false on a handled failure. */
+export interface CaptureReportResponse {
+  readonly ok: boolean;
+  readonly downloadId?: number;
+  readonly filename?: string;
+  readonly reason?: string;
+}
+
 /** Union of all messages the service worker understands (grows in later tickets). */
-export type ExtensionMessage = CaptureVisibleTabRequest | OverlayInjectRequest;
+export type ExtensionMessage =
+  | CaptureVisibleTabRequest
+  | OverlayInjectRequest
+  | CaptureReportRequest;
 
 export function isCaptureVisibleTabRequest(value: unknown): value is CaptureVisibleTabRequest {
   return (
@@ -50,5 +73,13 @@ export function isOverlayInjectRequest(value: unknown): value is OverlayInjectRe
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === OVERLAY_INJECT
+  );
+}
+
+export function isCaptureReportRequest(value: unknown): value is CaptureReportRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === CAPTURE_REPORT
   );
 }

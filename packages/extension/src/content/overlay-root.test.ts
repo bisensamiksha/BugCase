@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { act } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// OverlayApp now renders CaptureButton, whose module graph reaches lib/browser; stub the polyfill.
+vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 import {
   OVERLAY_HOST_ID,
