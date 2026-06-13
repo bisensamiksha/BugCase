@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BugCase — Privacy Policy</title>
+    <meta
+      name="description"
+      content="BugCase does not collect any data. No telemetry, no backend — everything runs on your device."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0 auto;
+        max-width: 46rem;
+        padding: 2.5rem 1.25rem 4rem;
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+        line-height: 1.65;
+        color: #0f172a;
+        background: #ffffff;
+      }
+      h1 {
+        margin-bottom: 0.25rem;
+      }
+      .meta {
+        color: #64748b;
+        font-size: 0.9rem;
+        margin-top: 0;
+      }
+      h2 {
+        margin-top: 2rem;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 0.25rem;
+      }
+      .lede {
+        font-size: 1.05rem;
+      }
+      dt {
+        font-weight: 600;
+        margin-top: 0.75rem;
+      }
+      dd {
+        margin: 0 0 0.25rem;
+        color: #334155;
+      }
+      code {
+        background: #f1f5f9;
+        padding: 0.05rem 0.3rem;
+        border-radius: 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BugCase Privacy Policy</h1>
+    <p class="meta">Version v1 — last updated 2026-06-13</p>
+
+    <h2>The short version</h2>
+    <p class="lede">
+      BugCase <strong>does not collect</strong> any data. There is <strong>no telemetry</strong>, no
+      analytics, no accounts, and no backend server. Everything happens on
+      <strong>your device</strong>, inside your own browser. Bug reports are generated locally and
+      saved to your Downloads folder — they are never uploaded anywhere by BugCase.
+    </p>
+
+    <h2>What BugCase stores</h2>
+    <ul>
+      <li>
+        <strong>Report history</strong> (timestamps, origin, severity, size, title) is kept only in
+        your browser's local storage so you can find past captures. It never leaves your device.
+      </li>
+      <li>
+        <strong>The report ZIPs themselves</strong> stay in your Downloads folder. You decide if and
+        where to share them.
+      </li>
+    </ul>
+
+    <h2>Permissions</h2>
+    <p>
+      BugCase installs with a minimal set of permissions and never requires broad access up front.
+      The following permissions are <strong>optional</strong> and requested only at runtime, with
+      your explicit consent:
+    </p>
+    <dl>
+      <dt>Debugger access</dt>
+      <dd>
+        Attaches to the current tab briefly during a capture to record network response bodies and a
+        full-page screenshot, then detaches immediately. A banner is shown while it is active.
+      </dd>
+      <dt>Cookies</dt>
+      <dd>
+        Reads the current page's cookies only when you explicitly add them to a report. Values are
+        masked by default.
+      </dd>
+      <dt>Installed extensions</dt>
+      <dd>
+        Lists your installed extensions only when you choose to include them, to help reproduce
+        conflicts.
+      </dd>
+      <dt>Browsing history</dt>
+      <dd>Includes recent navigation for the current site only when you opt in.</dd>
+      <dt>All sites (<code>&lt;all_urls&gt;</code>)</dt>
+      <dd>
+        Lets you capture pages on any site. Granted per-site at runtime, never required at install.
+      </dd>
+    </dl>
+    <p>You can decline any optional permission; BugCase keeps working without it.</p>
+
+    <h2>Data sharing</h2>
+    <p>
+      BugCase shares nothing. Because there is no server, there is nobody for us to share data with.
+      Any sharing of a report is an action you take yourself with the ZIP file.
+    </p>
+  </body>
+</html>
