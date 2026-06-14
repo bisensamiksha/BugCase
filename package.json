@@ -10,6 +10,10 @@
   },
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" --filter \"./apps/*\" run build",
+    "build:chrome": "pnpm --filter @bugcase/extension run build:chrome",
+    "build:firefox": "pnpm --filter @bugcase/extension run build:firefox",
+    "zip:chrome": "node scripts/zip-extension.mjs packages/extension/dist-chrome dist/bugcase-chrome.zip",
+    "zip:firefox": "node scripts/zip-extension.mjs packages/extension/dist-firefox dist/bugcase-firefox.zip",
     "test": "pnpm -r run test",
     "test:e2e": "echo \"e2e (Playwright Chromium + Firefox) harness lands in S1-19 — placeholder, no-op for now\"",
     "lint": "eslint .",
@@ -32,6 +36,7 @@
   "devDependencies": {
     "@types/node": "^20.14.0",
     "eslint": "^9.13.0",
+    "jszip": "^3.10.1",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-react": "^7.37.0",
     "eslint-plugin-react-hooks": "^5.0.0",

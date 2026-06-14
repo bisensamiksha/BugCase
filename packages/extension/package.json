@@ -9,6 +9,7 @@
     "dev": "vite",
     "dev:firefox": "cross-env BROWSER=firefox vite",
     "build": "cross-env BROWSER=chrome vite build",
+    "build:chrome": "cross-env BROWSER=chrome vite build",
     "build:firefox": "cross-env BROWSER=firefox vite build",
     "build:all": "pnpm run build && pnpm run build:firefox",
     "lint:firefox-manifest": "web-ext lint --source-dir=dist-firefox",
