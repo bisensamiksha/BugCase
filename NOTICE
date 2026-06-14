@@ -1,0 +1,35 @@
+BugCase
+Copyright (C) 2026 BugCase
+https://github.com/bisensamiksha/BugCase
+
+This product is source-available software licensed under the
+PolyForm Small Business License 1.0.0. See the LICENSE file in the
+root of this repository for the full terms, or:
+
+    https://polyformproject.org/licenses/small-business/1.0.0
+
+Required Notice: Copyright (C) 2026 BugCase
+
+Anyone who redistributes this software, in whole or in part, must
+keep a copy of the LICENSE (or its URL above) and preserve the
+"Required Notice:" line shown above, as required by the license.
+
+--------------------------------------------------------------------
+
+Third-party components
+
+BugCase is built with open-source dependencies, each distributed
+under its own license (for example MIT, Apache-2.0, ISC, BSD). Those
+licenses are not superseded by this NOTICE; the full set of resolved
+dependencies and their licenses is described by pnpm-lock.yaml and
+the individual packages under node_modules. To regenerate a current
+inventory, run a license-report tool against the installed
+dependency tree.
+
+--------------------------------------------------------------------
+
+Privacy
+
+BugCase captures bug reports entirely on the user's device. It runs
+no backend and collects no telemetry. Captured data never leaves the
+local browser context. See docs/ for the project's privacy posture.
