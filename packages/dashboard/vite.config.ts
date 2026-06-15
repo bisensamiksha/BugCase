@@ -3,7 +3,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
-  // Relative base so the static build also works under a GitHub Pages subpath (deploy is S1-20).
+  // Relative base so assets resolve under the GitHub Pages project subpath
+  // (https://<owner>.github.io/BugCase/) and from an inlined report.html, without
+  // hardcoding the repo name. Deployed by .github/workflows/gh-pages.yml (S1-20).
   base: './',
   build: { outDir: 'dist', emptyOutDir: true },
 });

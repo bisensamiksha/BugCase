@@ -1,0 +1,42 @@
+name: Deploy dashboard to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege for the deploy: read the repo, publish to Pages over OIDC.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deploys; never cancel an in-flight publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build dashboard
+        run: pnpm --filter @bugcase/dashboard build
+      - uses: actions/configure-pages@v5
+      - name: Upload dashboard as a Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
