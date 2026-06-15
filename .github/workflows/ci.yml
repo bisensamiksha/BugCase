@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm typecheck
+      - run: pnpm typecheck:e2e
 
   unit:
     runs-on: ubuntu-latest
@@ -49,9 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      # Placeholder until the Playwright harness lands in S1-19. The job (and its
-      # required-check name) exists now so branch protection can be configured once;
-      # S1-19 replaces `test:e2e` with the real Chromium/Firefox runs.
-      - run: pnpm test:e2e
-        env:
-          BROWSER: ${{ matrix.browser }}
+      # The Chromium project loads the unpacked extension, so it needs a fresh build.
+      - name: Build extension (Chromium target)
+        if: matrix.browser == 'chromium'
+        run: pnpm build:chrome
+      - name: Install Playwright browser (${{ matrix.browser }})
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Run E2E (${{ matrix.browser }})
+        run: pnpm test:e2e:${{ matrix.browser }}
