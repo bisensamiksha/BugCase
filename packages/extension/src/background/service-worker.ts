@@ -14,6 +14,7 @@ import {
   type CaptureVisibleTabResponse,
 } from './messages';
 import { createOverlayController } from './overlay-controller';
+import { handleRequestPermissions, isRequestPermissionsRequest } from './permissions-handler';
 
 const overlay = createOverlayController();
 
@@ -58,6 +59,9 @@ browser.runtime.onMessage.addListener((message: unknown) => {
   }
   if (isCaptureReportRequest(message)) {
     return handleCaptureReport(message);
+  }
+  if (isRequestPermissionsRequest(message)) {
+    return handleRequestPermissions(message);
   }
   return undefined;
 });
