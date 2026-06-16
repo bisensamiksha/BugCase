@@ -10,6 +10,16 @@ vi.mock('webextension-polyfill', () => ({
 
 import { OVERLAY_CONTENT_SCRIPT, createOverlayController } from './overlay-controller';
 
+describe('OVERLAY_CONTENT_SCRIPT', () => {
+  it('points at a built, injectable JS artifact (not a TS/TSX source)', () => {
+    // chrome.scripting.executeScript can only load files emitted into the build output.
+    // A `.tsx` source is never present in dist-chrome, so injecting it fails silently in the
+    // real browser (the popup ignores the rejected promise) and the overlay never opens.
+    expect(OVERLAY_CONTENT_SCRIPT).toBe('content/overlay.js');
+    expect(OVERLAY_CONTENT_SCRIPT).not.toMatch(/\.tsx?$/);
+  });
+});
+
 describe('createOverlayController', () => {
   beforeEach(() => {
     executeScript.mockReset();

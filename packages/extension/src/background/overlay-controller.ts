@@ -5,12 +5,13 @@ import browser from '../lib/browser';
  * `activeTab`, so no host permissions). Injecting toggles the overlay: mount if absent,
  * remove if present (see content/overlay.tsx).
  *
- * NOTE: live injection requires this entry to be emitted as a bundled script by the build.
- * CRXJS only bundles `content_scripts`/HTML entries, and a static content script would need
- * broad host permissions we intentionally keep optional — so the production build wiring is
- * finished in the end-to-end capture flow (S1-13). The orchestration here is unit-tested.
+ * This path is the built artifact emitted by the dedicated content build (`vite.content.config.ts`),
+ * NOT the TS source. `chrome.scripting.executeScript({ files })` can only load files that ship in
+ * dist, and injected files run as classic scripts (no ES modules), so the content entry is bundled
+ * separately as a self-contained IIFE. CRXJS only bundles manifest-referenced entries, which is why
+ * this needs its own build step. Injecting with `activeTab` needs no host permissions.
  */
-export const OVERLAY_CONTENT_SCRIPT = 'src/content/overlay.tsx';
+export const OVERLAY_CONTENT_SCRIPT = 'content/overlay.js';
 
 /** Result of an overlay inject/remove attempt. Serializable so it can cross the message boundary. */
 export interface OverlayInjectResult {

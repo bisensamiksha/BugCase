@@ -1,9 +1,35 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+
+import {
+  ORIGIN_ALLOWLIST_MESSAGE,
+  type OriginAllowlistRequest,
+  type OriginAllowlistResponse,
+} from '../background/origin-allowlist-handler';
+import browser from '../lib/browser';
+import { normalizeOrigin } from '../storage/origin-allowlist';
 
 import { CaptureButton } from './CaptureButton';
+import { OriginOptInModal } from './components/OriginOptInModal';
 
 export interface OverlayAppProps {
   readonly onClose: () => void;
+  /** Origin to evaluate for the passive-monitoring opt-in; defaults to the page origin. */
+  readonly origin?: string;
+  /** Checks whether the origin is already allowlisted; defaults to the service-worker bridge. */
+  readonly checkAllowed?: (origin: string) => Promise<boolean>;
+}
+
+/** Ask the service worker whether the origin is already opted into passive monitoring. */
+async function isOriginAllowedViaBridge(origin: string): Promise<boolean> {
+  const message: OriginAllowlistRequest = {
+    type: ORIGIN_ALLOWLIST_MESSAGE,
+    action: 'isAllowed',
+    origin,
+  };
+  const result = await browser.runtime.sendMessage<OriginAllowlistRequest, OriginAllowlistResponse>(
+    message,
+  );
+  return result.ok && result.allowed === true;
 }
 
 // Inline styles keep the overlay self-contained inside the Shadow DOM; a Tailwind-in-shadow
@@ -38,7 +64,32 @@ const closeStyle: CSSProperties = {
   color: '#475569',
 };
 
-export function OverlayApp({ onClose }: OverlayAppProps) {
+export function OverlayApp({ onClose, origin, checkAllowed }: OverlayAppProps) {
+  const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
+  const [showOptIn, setShowOptIn] = useState(false);
+
+  useEffect(() => {
+    // Passive monitoring only applies to real web origins. Skip the lookup for opaque
+    // origins (about:blank, file:, extension pages) so we never prompt where it can't apply.
+    if (normalizeOrigin(pageOrigin) === null) {
+      return;
+    }
+    let cancelled = false;
+    const check = checkAllowed ?? isOriginAllowedViaBridge;
+    void check(pageOrigin)
+      .then((allowed) => {
+        if (!cancelled && !allowed) {
+          setShowOptIn(true);
+        }
+      })
+      .catch(() => {
+        // A failed lookup must not block the capture UI; just skip the opt-in prompt.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pageOrigin, checkAllowed]);
+
   return (
     <div
       role="dialog"
@@ -58,6 +109,21 @@ export function OverlayApp({ onClose }: OverlayAppProps) {
           ×
         </button>
       </header>
+      {showOptIn ? (
+        <div style={{ marginBottom: '12px' }}>
+          <OriginOptInModal
+            origin={pageOrigin}
+            onResult={(result) => {
+              if (result.ok) {
+                setShowOptIn(false);
+              }
+            }}
+            onDismiss={() => {
+              setShowOptIn(false);
+            }}
+          />
+        </div>
+      ) : null}
       <p style={{ margin: '0 0 8px', color: '#475569' }}>
         Capture the visible tab and download a bug report ZIP.
       </p>
