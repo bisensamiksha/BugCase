@@ -13,6 +13,7 @@ import {
   type CaptureVisibleTabRequest,
   type CaptureVisibleTabResponse,
 } from './messages';
+import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
 import { handleRequestPermissions, isRequestPermissionsRequest } from './permissions-handler';
 
@@ -62,6 +63,9 @@ browser.runtime.onMessage.addListener((message: unknown) => {
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);
+  }
+  if (isOriginAllowlistRequest(message)) {
+    return handleOriginAllowlist(message);
   }
   return undefined;
 });
