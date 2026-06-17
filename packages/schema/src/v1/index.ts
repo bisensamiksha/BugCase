@@ -10,6 +10,7 @@ export * from './navigation';
 export * from './network';
 export * from './report';
 export * from './reproduction';
+export * from './safe-stringify';
 export * from './screenshots';
 export * from './storage';
 export * from './user-input';
