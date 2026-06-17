@@ -4,6 +4,7 @@ import browser from 'webextension-polyfill';
 import { captureVisibleViewport } from '../capture';
 
 import { runCaptureFlow } from './capture-flow';
+import { syncPassiveContentScripts } from './content-script-registration';
 import { downloadBlob } from './downloads';
 import {
   isCaptureReportRequest,
@@ -19,8 +20,16 @@ import { handleRequestPermissions, isRequestPermissionsRequest } from './permiss
 
 const overlay = createOverlayController();
 
+// Reconcile passive-monitoring content-script registrations with the allowlist. Registrations
+// persist across service-worker restarts, so syncing on install and startup repairs any drift
+// (e.g. the allowlist changed while the worker was asleep). Sync is error-safe and never throws.
 browser.runtime.onInstalled.addListener(() => {
   console.info('[BugCase] installed');
+  void syncPassiveContentScripts();
+});
+
+browser.runtime.onStartup.addListener(() => {
+  void syncPassiveContentScripts();
 });
 
 async function handleCaptureRequest(
@@ -65,7 +74,13 @@ browser.runtime.onMessage.addListener((message: unknown) => {
     return handleRequestPermissions(message);
   }
   if (isOriginAllowlistRequest(message)) {
-    return handleOriginAllowlist(message);
+    return handleOriginAllowlist(message).then(async (response) => {
+      // A successful opt-in/opt-out changes which origins should be monitored, so re-register.
+      if (response.ok && (message.action === 'add' || message.action === 'remove')) {
+        await syncPassiveContentScripts();
+      }
+      return response;
+    });
   }
   return undefined;
 });
