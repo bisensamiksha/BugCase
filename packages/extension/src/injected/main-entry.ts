@@ -6,6 +6,7 @@
 // their flush providers on this client.
 
 import { installConsoleRingBuffer, type ConsoleRingBufferHandle } from './console-ring-buffer';
+import { installNetworkRingBuffer, type NetworkRingBufferHandle } from './network-ring-buffer';
 import { installPageBridgeClient, type PageBridgeClient } from './page-bridge-client';
 
 /** Window flag marking that the MAIN-world script has installed, so a re-injection is a no-op. */
@@ -17,6 +18,9 @@ let pageBridgeClient: PageBridgeClient | undefined;
 /** The console + error ring buffer, installed alongside the bridge client (S2-06). */
 let consoleBuffer: ConsoleRingBufferHandle | undefined;
 
+/** The fetch + XMLHttpRequest ring buffer, installed alongside the bridge client (S2-07). */
+let networkBuffer: NetworkRingBufferHandle | undefined;
+
 /** Accessor for the installed bridge client (e.g. S2-06/S2-07 register flush providers on it). */
 export function getPageBridgeClient(): PageBridgeClient | undefined {
   return pageBridgeClient;
@@ -25,6 +29,11 @@ export function getPageBridgeClient(): PageBridgeClient | undefined {
 /** Accessor for the installed console ring buffer (used by capture flows / tests). */
 export function getConsoleBuffer(): ConsoleRingBufferHandle | undefined {
   return consoleBuffer;
+}
+
+/** Accessor for the installed network ring buffer (used by capture flows / tests). */
+export function getNetworkBuffer(): NetworkRingBufferHandle | undefined {
+  return networkBuffer;
 }
 
 /**
@@ -54,4 +63,7 @@ if (typeof window !== 'undefined' && installPassiveMainWorld(window)) {
     removeEventListener: (type, listener) => window.removeEventListener(type, listener),
   });
   pageBridgeClient.registerFlushProvider('console', () => consoleBuffer?.snapshot() ?? []);
+  // Capture fetch + XMLHttpRequest metadata (never bodies) and serve it over the `network` channel.
+  networkBuffer = installNetworkRingBuffer(window);
+  pageBridgeClient.registerFlushProvider('network', () => networkBuffer?.snapshot() ?? []);
 }
