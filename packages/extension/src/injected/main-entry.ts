@@ -5,6 +5,7 @@
 // world can pull buffered data out. The console (S2-06) and network (S2-07) ring buffers register
 // their flush providers on this client.
 
+import { installConsoleRingBuffer, type ConsoleRingBufferHandle } from './console-ring-buffer';
 import { installPageBridgeClient, type PageBridgeClient } from './page-bridge-client';
 
 /** Window flag marking that the MAIN-world script has installed, so a re-injection is a no-op. */
@@ -13,9 +14,17 @@ export const PASSIVE_MAIN_INSTALLED_FLAG = '__bugcasePassiveMainInstalled';
 /** The MAIN-world bridge responder, available to ring buffers once this entry has installed. */
 let pageBridgeClient: PageBridgeClient | undefined;
 
+/** The console + error ring buffer, installed alongside the bridge client (S2-06). */
+let consoleBuffer: ConsoleRingBufferHandle | undefined;
+
 /** Accessor for the installed bridge client (e.g. S2-06/S2-07 register flush providers on it). */
 export function getPageBridgeClient(): PageBridgeClient | undefined {
   return pageBridgeClient;
+}
+
+/** Accessor for the installed console ring buffer (used by capture flows / tests). */
+export function getConsoleBuffer(): ConsoleRingBufferHandle | undefined {
+  return consoleBuffer;
 }
 
 /**
@@ -36,4 +45,13 @@ export function installPassiveMainWorld(win: Window): boolean {
 // (e.g. a node test) is side-effect free. The bridge client is installed only on first injection.
 if (typeof window !== 'undefined' && installPassiveMainWorld(window)) {
   pageBridgeClient = installPageBridgeClient(window);
+  // Capture console calls + global errors into a ring buffer, and serve it over the bridge's
+  // `console` channel so the isolated world can pull it during a capture. The event-listener methods
+  // are wrapped to the minimal scope signature so the buffer's listeners can be added/removed.
+  consoleBuffer = installConsoleRingBuffer({
+    console: window.console,
+    addEventListener: (type, listener) => window.addEventListener(type, listener),
+    removeEventListener: (type, listener) => window.removeEventListener(type, listener),
+  });
+  pageBridgeClient.registerFlushProvider('console', () => consoleBuffer?.snapshot() ?? []);
 }
