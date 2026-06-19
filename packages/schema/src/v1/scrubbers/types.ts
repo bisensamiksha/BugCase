@@ -2,8 +2,8 @@
  * Shared interfaces for the scrubber engine — the pluggable pipeline that removes
  * sensitive data from a captured artifact before it enters the ZIP.
  *
- * Sprint 1 ships only the engine + a pass-through password placeholder; the real
- * rules (DOM masking, header/cookie stripping) land in sprint 2 (S2-12, S2-13).
+ * Sprint 1 shipped only the engine + a pass-through password placeholder. The real
+ * rules land in sprint 2: DOM masking in S2-08 (./dom), header/cookie stripping in S2-09.
  */
 
 /** Outcome of a single scrubber rule: the (possibly mutated) value plus how many times it matched. */

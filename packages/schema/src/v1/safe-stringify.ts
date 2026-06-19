@@ -2,7 +2,7 @@
  * Bounded, cycle-safe serialization for untrusted runtime values.
  *
  * The capture engines feed arbitrary page values into the report — `console.*` arguments
- * (S2-06) and DOM-derived data the scrubbers touch (S2-12). Those values can be circular,
+ * (S2-06) and DOM-derived data the scrubbers touch (S2-08). Those values can be circular,
  * carry live DOM nodes, throw from getters, or be enormous, all of which make a plain
  * `JSON.stringify` throw or blow up. `safeStringify` first reduces a value to a plain,
  * JSON-safe shape — replacing cycles, DOM nodes, functions, Errors, and other non-JSON

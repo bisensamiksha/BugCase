@@ -3,10 +3,10 @@
  *
  * The network ring buffer records request *metadata* only — URL, method, status, headers, and
  * timing — and deliberately never request/response bodies on this passive path (bodies require the
- * on-demand `chrome.debugger` attach in S2-08). The field names mirror the report schema's
+ * on-demand `chrome.debugger` attach in S2-10). The field names mirror the report schema's
  * `NetworkEntry` (minus `id`, bodies, and the debugger-only flags) so S2-24 can map a buffered entry
  * to a `NetworkEntry` without renaming. Header scrubbing (Authorization/Cookie, etc.) is applied
- * later by the report pipeline (S2-13), not here.
+ * later by the report pipeline (S2-09), not here.
  */
 
 export type NetworkInitiator = 'fetch' | 'xhr';
