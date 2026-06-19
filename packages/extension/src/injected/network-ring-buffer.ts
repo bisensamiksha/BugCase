@@ -4,7 +4,7 @@
 // wrap the page's real `fetch` and `XMLHttpRequest`. Every request is recorded into a fixed-size FIFO
 // ring buffer as lightweight metadata — URL, method, status, headers, and timing — and **never the
 // request or response body** on this passive path (bodies require the on-demand `chrome.debugger`
-// attach in S2-08). The isolated content script pulls the buffer across the bridge (S2-05) on capture.
+// attach in S2-10). The isolated content script pulls the buffer across the bridge (S2-05) on capture.
 //
 // The wrappers always forward to the originals and re-throw rejections, so page behavior is unchanged;
 // capture failures are swallowed so they can never break a page's networking.

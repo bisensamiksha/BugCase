@@ -4,14 +4,14 @@ import type { ScrubberRule } from './types';
 export const PASSWORD_PLACEHOLDER_RULE_ID = 'password-input-placeholder';
 
 /**
- * Sprint-1 placeholder for the password-input scrubber. It is intentionally
- * pass-through (`hits: 0`) until the real DOM masking lands in S2-12; it exists so
- * the pipeline and `metadata.scrubbersApplied` can be wired end-to-end now.
+ * Generic, type-agnostic pass-through rule (`hits: 0`) that wires the pipeline and
+ * `metadata.scrubbersApplied` end-to-end. The real, HTML-aware password masking now lives
+ * in `./dom` (S2-08); this remains as the engine's neutral default for non-DOM artifacts.
  */
 export function createPasswordPlaceholderRule<T>(): ScrubberRule<T> {
   return {
     id: PASSWORD_PLACEHOLDER_RULE_ID,
-    description: 'Masks password input values (placeholder; activated in S2-12)',
+    description: 'Masks password input values (generic placeholder; real masking in ./dom, S2-08)',
     apply: (value) => ({ value, hits: 0 }),
   };
 }
