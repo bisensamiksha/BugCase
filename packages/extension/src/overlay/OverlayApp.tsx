@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 
+import { isDebuggerActivityMessage } from '../background/messages';
 import {
   ORIGIN_ALLOWLIST_MESSAGE,
   type OriginAllowlistRequest,
@@ -9,7 +10,26 @@ import browser from '../lib/browser';
 import { normalizeOrigin } from '../storage/origin-allowlist';
 
 import { CaptureButton } from './CaptureButton';
+import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+
+/** Notified when the service worker reports the debugger attaching/detaching for this tab. */
+export type DebuggerActivityHandler = (active: boolean, hostName?: string) => void;
+
+/** Default subscription to the SW → tab debugger-activity broadcast; no-ops where unavailable. */
+function subscribeDebuggerActivityViaRuntime(handler: DebuggerActivityHandler): () => void {
+  const onMessage = browser.runtime?.onMessage;
+  if (!onMessage) {
+    return () => {};
+  }
+  const listener = (message: unknown): void => {
+    if (isDebuggerActivityMessage(message)) {
+      handler(message.active, message.hostName);
+    }
+  };
+  onMessage.addListener(listener);
+  return () => onMessage.removeListener(listener);
+}
 
 export interface OverlayAppProps {
   readonly onClose: () => void;
@@ -17,6 +37,8 @@ export interface OverlayAppProps {
   readonly origin?: string;
   /** Checks whether the origin is already allowlisted; defaults to the service-worker bridge. */
   readonly checkAllowed?: (origin: string) => Promise<boolean>;
+  /** Subscribes to debugger-activity broadcasts; defaults to the runtime message bridge. Injectable for tests. */
+  readonly subscribeDebuggerActivity?: (handler: DebuggerActivityHandler) => () => void;
 }
 
 /** Ask the service worker whether the origin is already opted into passive monitoring. */
@@ -64,9 +86,25 @@ const closeStyle: CSSProperties = {
   color: '#475569',
 };
 
-export function OverlayApp({ onClose, origin, checkAllowed }: OverlayAppProps) {
+export function OverlayApp({
+  onClose,
+  origin,
+  checkAllowed,
+  subscribeDebuggerActivity,
+}: OverlayAppProps) {
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
   const [showOptIn, setShowOptIn] = useState(false);
+  const [debuggerActivity, setDebuggerActivity] = useState<{
+    active: boolean;
+    hostName?: string;
+  }>({ active: false });
+
+  useEffect(() => {
+    const subscribe = subscribeDebuggerActivity ?? subscribeDebuggerActivityViaRuntime;
+    return subscribe((active, hostName) => {
+      setDebuggerActivity({ active, ...(hostName === undefined ? {} : { hostName }) });
+    });
+  }, [subscribeDebuggerActivity]);
 
   useEffect(() => {
     // Passive monitoring only applies to real web origins. Skip the lookup for opaque
@@ -109,6 +147,16 @@ export function OverlayApp({ onClose, origin, checkAllowed }: OverlayAppProps) {
           ×
         </button>
       </header>
+      {debuggerActivity.active ? (
+        <div style={{ marginBottom: '12px' }}>
+          <DebuggerBanner
+            active
+            {...(debuggerActivity.hostName === undefined
+              ? {}
+              : { hostName: debuggerActivity.hostName })}
+          />
+        </div>
+      ) : null}
       {showOptIn ? (
         <div style={{ marginBottom: '12px' }}>
           <OriginOptInModal

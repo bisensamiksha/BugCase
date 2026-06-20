@@ -100,6 +100,37 @@ describe('runCaptureFlow', () => {
     expect(download).toHaveBeenCalledWith(zipBlob, 'bugcase-example-com-20260613-090807.zip');
   });
 
+  it('invokes the optional debugger network capture and surfaces its result', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn(() =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(3));
+    const debuggerResult = {
+      ok: true,
+      bodies: [
+        {
+          requestId: '1',
+          url: 'https://example.com/api',
+          mimeType: 'application/json',
+          sizeBytes: 2,
+          text: 'hi',
+          truncated: false,
+        },
+      ],
+    };
+    const captureDebuggerNetwork = vi.fn(() => Promise.resolve(debuggerResult));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, captureDebuggerNetwork },
+    );
+
+    expect(captureDebuggerNetwork).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+    expect(result.debuggerNetwork).toEqual(debuggerResult);
+  });
+
   it('returns a handled failure (no throw, no download) when the screenshot fails', async () => {
     const captureScreenshot = vi.fn(() => Promise.reject(new Error('activeTab not granted')));
     const writeZip = vi.fn(() => Promise.resolve(new Blob()));

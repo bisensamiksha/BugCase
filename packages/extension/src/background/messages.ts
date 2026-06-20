@@ -54,11 +54,24 @@ export interface CaptureReportResponse {
   readonly reason?: string;
 }
 
+/**
+ * Runtime message: service worker → tab, signalling that the on-demand `chrome.debugger` session
+ * is attached (`active: true`) or detached (`active: false`). The overlay shows a banner while active.
+ */
+export const DEBUGGER_ACTIVITY = 'bugcase/debugger-activity';
+
+export interface DebuggerActivityMessage {
+  readonly type: typeof DEBUGGER_ACTIVITY;
+  readonly active: boolean;
+  readonly hostName?: string;
+}
+
 /** Union of all messages the service worker understands (grows in later tickets). */
 export type ExtensionMessage =
   | CaptureVisibleTabRequest
   | OverlayInjectRequest
-  | CaptureReportRequest;
+  | CaptureReportRequest
+  | DebuggerActivityMessage;
 
 export function isCaptureVisibleTabRequest(value: unknown): value is CaptureVisibleTabRequest {
   return (
@@ -81,5 +94,13 @@ export function isCaptureReportRequest(value: unknown): value is CaptureReportRe
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === CAPTURE_REPORT
+  );
+}
+
+export function isDebuggerActivityMessage(value: unknown): value is DebuggerActivityMessage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === DEBUGGER_ACTIVITY
   );
 }
