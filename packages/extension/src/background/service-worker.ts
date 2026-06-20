@@ -2,7 +2,14 @@ import { writeBugReportZip } from '@bugcase/schema';
 import browser, { type Runtime } from 'webextension-polyfill';
 
 import { captureVisibleViewport } from '../capture';
-import { runDebuggerNetworkCapture } from '../debugger';
+import { captureScreenshotWithStrategy } from '../capture/screenshot-strategy';
+import {
+  captureFullPageScreenshot,
+  getDebuggerCaptureSettings,
+  isDebuggerApiAvailable,
+  runDebuggerNetworkCapture,
+  withDebuggerSession,
+} from '../debugger';
 
 import { runCaptureFlow } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
@@ -59,38 +66,58 @@ function safeHost(origin: string): string | undefined {
   }
 }
 
+/** Broadcast debugger attach/detach to the tab so the overlay can show its banner (best-effort). */
+function bannerBroadcaster(tabId: number, hostName: string | undefined): (active: boolean) => void {
+  return (active) => {
+    const activity: DebuggerActivityMessage = {
+      type: DEBUGGER_ACTIVITY,
+      active,
+      ...(hostName ? { hostName } : {}),
+    };
+    void browser.tabs.sendMessage(tabId, activity).catch(() => {
+      // The overlay may not be listening; the banner broadcast is non-critical.
+    });
+  };
+}
+
 function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.MessageSender) {
-  // The on-demand debugger attaches to the sending tab (needs a tab id). It is opt-in via a stored
-  // flag set in the popup; runDebuggerNetworkCapture skips it (no banner, straight to download)
-  // whenever the opt-in is off or chrome.debugger is unavailable (e.g. Firefox).
+  // The debugger (full-page screenshot + network bodies) attaches to the sending tab and is opt-in
+  // via a stored flag set in the popup. Without a tab id, with the opt-in off, or where
+  // chrome.debugger is unavailable (e.g. Firefox), capture falls back to a viewport screenshot with
+  // no debugger and no banner.
   const tabId = sender.tab?.id;
   const hostName = safeHost(message.metadata.page.origin);
+  const { devicePixelRatio } = message.metadata.viewport;
+  const onActiveChange = typeof tabId === 'number' ? bannerBroadcaster(tabId, hostName) : undefined;
+
+  const captureScreenshot = () =>
+    captureScreenshotWithStrategy({
+      preferFullPage: async () =>
+        typeof tabId === 'number' &&
+        isDebuggerApiAvailable() &&
+        (await getDebuggerCaptureSettings()).enabled,
+      captureFullPage: () => {
+        if (typeof tabId !== 'number') {
+          return Promise.reject(new Error('no tab id for full-page capture'));
+        }
+        return withDebuggerSession(
+          { tabId, drainMs: 0 },
+          (session) => captureFullPageScreenshot(session, { devicePixelRatio }),
+          onActiveChange ? { onActiveChange } : {},
+        );
+      },
+      captureViewport: () => captureVisibleViewport({ devicePixelRatio }),
+    });
+
   const captureDebuggerNetwork =
     typeof tabId === 'number'
-      ? () =>
-          runDebuggerNetworkCapture(
-            { tabId },
-            {
-              // Broadcast attach/detach so the overlay can show the banner (best-effort).
-              onActiveChange: (active) => {
-                const activity: DebuggerActivityMessage = {
-                  type: DEBUGGER_ACTIVITY,
-                  active,
-                  ...(hostName ? { hostName } : {}),
-                };
-                void browser.tabs.sendMessage(tabId, activity).catch(() => {
-                  // The overlay may not be listening; the banner broadcast is non-critical.
-                });
-              },
-            },
-          )
+      ? () => runDebuggerNetworkCapture({ tabId }, onActiveChange ? { onActiveChange } : {})
       : undefined;
 
   return runCaptureFlow(
     { metadata: message.metadata, userInput: message.userInput },
     {
-      captureScreenshot: () =>
-        captureVisibleViewport({ devicePixelRatio: message.metadata.viewport.devicePixelRatio }),
+      captureScreenshot,
       writeZip: writeBugReportZip,
       download: downloadBlob,
       ...(captureDebuggerNetwork ? { captureDebuggerNetwork } : {}),

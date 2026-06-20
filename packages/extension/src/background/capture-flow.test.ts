@@ -14,6 +14,7 @@ vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
+import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 
 import { runCaptureFlow } from './capture-flow';
 
@@ -98,6 +99,34 @@ describe('runCaptureFlow', () => {
     });
     expect(assets?.files.get(BUG_REPORT_ZIP_LAYOUT.screenshots.viewport)).toBeInstanceOf(Blob);
     expect(download).toHaveBeenCalledWith(zipBlob, 'bugcase-example-com-20260613-090807.zip');
+  });
+
+  it('stores a full-page (CDP) screenshot in the fullPage slot, not viewport', async () => {
+    const fullPageShot: CapturedScreenshot = {
+      blob: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+      dataUrl: 'data:image/png;base64,iVBORw==',
+      width: 1280,
+      height: 4000,
+      devicePixelRatio: 2,
+      captureMethod: 'cdpFullPage',
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fullPageShot));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(9));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report, assets] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.screenshots.fullPage?.captureMethod).toBe('cdpFullPage');
+    expect(parsed.screenshots.viewport).toBeUndefined();
+    expect(assets?.files.get(BUG_REPORT_ZIP_LAYOUT.screenshots.fullPage)).toBeInstanceOf(Blob);
   });
 
   it('invokes the optional debugger network capture and surfaces its result', async () => {
