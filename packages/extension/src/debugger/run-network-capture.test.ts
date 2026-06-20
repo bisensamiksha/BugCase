@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// Transitively imports lib/browser (permissions + config); stub the polyfill for node.
+// Transitively imports lib/browser (config); stub the polyfill for node.
 // Every test injects fakes, so the real browser APIs are never touched.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+import type { SettingsStorageArea } from './config';
 import type { Debuggee, DebuggerApi, DebuggerEventListener } from './debugger-session';
 import { DEFAULT_DEBUGGER_DRAIN_MS, runDebuggerNetworkCapture } from './run-network-capture';
 
@@ -34,24 +35,33 @@ function makeFakeApi(bodies: Record<string, { body: string; base64Encoded: boole
   return { api, emit: (source, method, params) => listener?.(source, method, params) };
 }
 
-const granted = () => Promise.resolve(true);
+/** Storage area that returns the given debugger-capture settings. */
+const settingsStorage = (settings: {
+  enabled?: boolean;
+  maxBodyBytes?: number;
+}): SettingsStorageArea => ({
+  get: () => Promise.resolve({ 'bugcase/debugger-capture-settings': settings }),
+  set: () => Promise.resolve(),
+});
+
+const enabled = settingsStorage({ enabled: true });
 
 describe('runDebuggerNetworkCapture', () => {
   it('returns ok:false with a reason when the debugger api is unavailable', async () => {
-    const result = await runDebuggerNetworkCapture({ tabId: 1 }, { hasPermission: granted });
+    const result = await runDebuggerNetworkCapture({ tabId: 1 }, { storage: enabled });
     expect(result.ok).toBe(false);
     expect(result.bodies).toEqual([]);
     expect(result.reason).toMatch(/debugger|unavailable|chromium/i);
   });
 
-  it('returns ok:false when the debugger permission is not granted', async () => {
+  it('returns ok:false when the opt-in is disabled', async () => {
     const { api } = makeFakeApi({});
     const result = await runDebuggerNetworkCapture(
       { tabId: 1 },
-      { debuggerApi: api, hasPermission: () => Promise.resolve(false) },
+      { debuggerApi: api, storage: settingsStorage({ enabled: false }) },
     );
     expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/permission/i);
+    expect(result.reason).toMatch(/disabled/i);
   });
 
   it('captures response bodies on the happy path and toggles the banner', async () => {
@@ -61,7 +71,7 @@ describe('runDebuggerNetworkCapture', () => {
       { tabId: 42, drainMs: 0 },
       {
         debuggerApi: api,
-        hasPermission: granted,
+        storage: enabled,
         onActiveChange,
         // The drain window is where traffic is observed; emit during it, then resolve.
         wait: () => {
@@ -86,10 +96,7 @@ describe('runDebuggerNetworkCapture', () => {
       { tabId: 1, drainMs: 0 },
       {
         debuggerApi: api,
-        hasPermission: granted,
-        storage: {
-          get: () => Promise.resolve({ 'bugcase/debugger-capture-settings': { maxBodyBytes: 4 } }),
-        },
+        storage: settingsStorage({ enabled: true, maxBodyBytes: 4 }),
         wait: () => {
           emit({ tabId: 1 }, 'Network.responseReceived', {
             requestId: '1',
@@ -111,7 +118,7 @@ describe('runDebuggerNetworkCapture', () => {
     };
     const result = await runDebuggerNetworkCapture(
       { tabId: 1, drainMs: 0 },
-      { debuggerApi: failing, hasPermission: granted, wait: async () => {} },
+      { debuggerApi: failing, storage: enabled, wait: async () => {} },
     );
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/attach/i);

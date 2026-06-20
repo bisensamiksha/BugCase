@@ -60,7 +60,9 @@ function safeHost(origin: string): string | undefined {
 }
 
 function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.MessageSender) {
-  // The on-demand debugger attaches to the sending tab; without a tab id we simply skip it.
+  // The on-demand debugger attaches to the sending tab (needs a tab id). It is opt-in via a stored
+  // flag set in the popup; runDebuggerNetworkCapture skips it (no banner, straight to download)
+  // whenever the opt-in is off or chrome.debugger is unavailable (e.g. Firefox).
   const tabId = sender.tab?.id;
   const hostName = safeHost(message.metadata.page.origin);
   const captureDebuggerNetwork =

@@ -12,7 +12,7 @@ import {
 describe('isRequestPermissionsRequest', () => {
   it('accepts a well-formed request-permissions message', () => {
     expect(
-      isRequestPermissionsRequest({ type: REQUEST_PERMISSIONS, permissions: ['debugger'] }),
+      isRequestPermissionsRequest({ type: REQUEST_PERMISSIONS, permissions: ['management'] }),
     ).toBe(true);
   });
 
@@ -27,12 +27,16 @@ describe('handleRequestPermissions', () => {
   it('grants when the underlying request resolves true', async () => {
     const request = vi.fn(() => Promise.resolve(true));
     const res = await handleRequestPermissions(
-      { type: REQUEST_PERMISSIONS, permissions: ['debugger'], origins: ['https://example.com/*'] },
+      {
+        type: REQUEST_PERMISSIONS,
+        permissions: ['management'],
+        origins: ['https://example.com/*'],
+      },
       { request },
     );
     expect(res).toEqual({ ok: true, granted: true });
     expect(request).toHaveBeenCalledWith({
-      permissions: ['debugger'],
+      permissions: ['management'],
       origins: ['https://example.com/*'],
     });
   });
