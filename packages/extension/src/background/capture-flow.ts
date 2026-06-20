@@ -3,11 +3,12 @@ import {
   type BugReportV1,
   type BugReportZipAssets,
   type CaptureMetadata,
+  type ScreenshotRef,
   type ScreenshotsManifest,
   type UserInput,
 } from '@bugcase/schema';
 
-import type { VisibleTabCapture } from '../capture/capture-visible-tab';
+import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-capture';
 
 import { buildCaptureReportFilename } from './downloads';
@@ -19,7 +20,7 @@ export interface CaptureFlowInput {
 
 /** Injected effects so the orchestration is unit-testable without the browser. */
 export interface CaptureFlowDeps {
-  readonly captureScreenshot: () => Promise<VisibleTabCapture>;
+  readonly captureScreenshot: () => Promise<CapturedScreenshot>;
   readonly writeZip: (report: BugReportV1, assets: BugReportZipAssets) => Promise<Blob>;
   readonly download: (blob: Blob, filename: string) => Promise<number>;
   readonly now?: () => Date;
@@ -63,16 +64,23 @@ export async function runCaptureFlow(
       ? await deps.captureDebuggerNetwork()
       : undefined;
 
+    // A full-page capture (CDP, or the future scroll-stitch) goes in the `fullPage` slot; a plain
+    // viewport capture goes in `viewport`. Either way it's the report's primary screenshot.
+    const isFullPage = shot.captureMethod !== 'visibleTab';
+    const screenshotPath = isFullPage
+      ? BUG_REPORT_ZIP_LAYOUT.screenshots.fullPage
+      : BUG_REPORT_ZIP_LAYOUT.screenshots.viewport;
+    const screenshotRef: ScreenshotRef = {
+      path: screenshotPath,
+      width: shot.width,
+      height: shot.height,
+      devicePixelRatio: shot.devicePixelRatio,
+      captureMethod: shot.captureMethod,
+      hasAnnotations: false,
+    };
     const screenshots: ScreenshotsManifest = {
       schemaVersion: 'v1',
-      viewport: {
-        path: BUG_REPORT_ZIP_LAYOUT.screenshots.viewport,
-        width: shot.width,
-        height: shot.height,
-        devicePixelRatio: shot.devicePixelRatio,
-        captureMethod: shot.captureMethod,
-        hasAnnotations: false,
-      },
+      ...(isFullPage ? { fullPage: screenshotRef } : { viewport: screenshotRef }),
       elementCrops: [],
     };
 
@@ -93,9 +101,7 @@ export async function runCaptureFlow(
     };
 
     const assets: BugReportZipAssets = {
-      files: new Map<string, Blob | string | Uint8Array>([
-        [BUG_REPORT_ZIP_LAYOUT.screenshots.viewport, shot.blob],
-      ]),
+      files: new Map<string, Blob | string | Uint8Array>([[screenshotPath, shot.blob]]),
     };
 
     const zip = await deps.writeZip(report, assets);
