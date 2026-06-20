@@ -1,6 +1,8 @@
 import { OVERLAY_INJECT, type OverlayInjectRequest } from '../background/messages';
 import browser from '../lib/browser';
 
+import { DebuggerCapturePref } from './DebuggerCapturePref';
+
 function openOverlay(): void {
   // Fire-and-forget: the service worker resolves the active tab and injects the overlay there.
   void browser.runtime.sendMessage({ type: OVERLAY_INJECT } satisfies OverlayInjectRequest);
@@ -25,6 +27,7 @@ export function Popup() {
       >
         Open overlay
       </button>
+      <DebuggerCapturePref />
     </main>
   );
 }

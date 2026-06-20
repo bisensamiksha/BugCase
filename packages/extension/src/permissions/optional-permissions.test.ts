@@ -23,12 +23,12 @@ describe('requestOptionalPermissions', () => {
   it('requests the given permissions and origins and resolves the grant result', async () => {
     const request = vi.fn(() => Promise.resolve(true));
     const granted = await requestOptionalPermissions(
-      { permissions: ['debugger'], origins: ['https://example.com/*'] },
+      { permissions: ['management'], origins: ['https://example.com/*'] },
       { permissions: fakeApi({ request }) },
     );
     expect(granted).toBe(true);
     expect(request).toHaveBeenCalledWith({
-      permissions: ['debugger'],
+      permissions: ['management'],
       origins: ['https://example.com/*'],
     });
   });
@@ -81,11 +81,11 @@ describe('removeOptionalPermissions', () => {
     const remove = vi.fn(() => Promise.resolve(true));
     expect(
       await removeOptionalPermissions(
-        { permissions: ['debugger'] },
+        { permissions: ['management'] },
         { permissions: fakeApi({ remove }) },
       ),
     ).toBe(true);
-    expect(remove).toHaveBeenCalledWith({ permissions: ['debugger'] });
+    expect(remove).toHaveBeenCalledWith({ permissions: ['management'] });
   });
 
   it('resolves false for an empty request without calling the browser', async () => {

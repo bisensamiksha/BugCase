@@ -1,7 +1,11 @@
 import browser from '../lib/browser';
 
-/** Optional API permissions the extension may request at runtime (mirrors the manifest). */
-export type OptionalPermissionName = 'debugger' | 'cookies' | 'management' | 'history';
+/**
+ * Optional API permissions the extension may request at runtime (mirrors the manifest).
+ * Note: `debugger` is intentionally NOT here — Chrome forbids it in optional_permissions, so it
+ * is a required install-time permission and cannot be requested via `chrome.permissions.request`.
+ */
+export type OptionalPermissionName = 'cookies' | 'management' | 'history';
 
 /** A permission set to request, check, or remove. Either field may be omitted. */
 export interface OptionalPermissionRequest {

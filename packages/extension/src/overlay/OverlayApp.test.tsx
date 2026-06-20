@@ -67,6 +67,38 @@ describe('OverlayApp passive-monitoring opt-in', () => {
     expect(queryTestId('origin-opt-in')).toBeNull();
   });
 
+  it('shows the debugger banner only while a debugger-activity message reports active', () => {
+    let handler: ((active: boolean, hostName?: string) => void) | undefined;
+    const subscribeDebuggerActivity = vi.fn((cb: typeof handler) => {
+      handler = cb;
+      return () => {};
+    });
+
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          subscribeDebuggerActivity={subscribeDebuggerActivity}
+        />,
+      );
+    });
+    expect(queryTestId('debugger-banner')).toBeNull();
+
+    act(() => {
+      handler?.(true, 'example.com');
+    });
+    const banner = queryTestId('debugger-banner');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('example.com');
+
+    act(() => {
+      handler?.(false);
+    });
+    expect(queryTestId('debugger-banner')).toBeNull();
+  });
+
   it('never prompts for a non-http(s) origin and skips the lookup', () => {
     const checkAllowed = vi.fn(() => Promise.resolve(false));
 

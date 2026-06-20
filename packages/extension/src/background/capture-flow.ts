@@ -8,6 +8,7 @@ import {
 } from '@bugcase/schema';
 
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
+import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-capture';
 
 import { buildCaptureReportFilename } from './downloads';
 
@@ -22,6 +23,12 @@ export interface CaptureFlowDeps {
   readonly writeZip: (report: BugReportV1, assets: BugReportZipAssets) => Promise<Blob>;
   readonly download: (blob: Blob, filename: string) => Promise<number>;
   readonly now?: () => Date;
+  /**
+   * Optional on-demand debugger network capture (S2-10). When provided it is invoked during the
+   * flow; it never throws and shows a user banner while attached. Bodies are surfaced on the result
+   * for a later ticket (S2-24) to fold into the report's NetworkLog.
+   */
+  readonly captureDebuggerNetwork?: () => Promise<DebuggerNetworkCaptureResult>;
 }
 
 export interface CaptureFlowResult {
@@ -30,6 +37,7 @@ export interface CaptureFlowResult {
   readonly filename?: string;
   readonly byteSize?: number;
   readonly reason?: string;
+  readonly debuggerNetwork?: DebuggerNetworkCaptureResult;
 }
 
 function toReason(error: unknown): string {
@@ -48,6 +56,12 @@ export async function runCaptureFlow(
 ): Promise<CaptureFlowResult> {
   try {
     const shot = await deps.captureScreenshot();
+
+    // Optional on-demand debugger network capture (S2-10). Never throws; a banner is shown while
+    // the debugger is attached. Bodies are carried on the result for S2-24 to map into the report.
+    const debuggerNetwork = deps.captureDebuggerNetwork
+      ? await deps.captureDebuggerNetwork()
+      : undefined;
 
     const screenshots: ScreenshotsManifest = {
       schemaVersion: 'v1',
@@ -91,7 +105,13 @@ export async function runCaptureFlow(
     );
     const downloadId = await deps.download(zip, filename);
 
-    return { ok: true, downloadId, filename, byteSize: zip.size };
+    return {
+      ok: true,
+      downloadId,
+      filename,
+      byteSize: zip.size,
+      ...(debuggerNetwork ? { debuggerNetwork } : {}),
+    };
   } catch (error) {
     return { ok: false, reason: toReason(error) };
   }

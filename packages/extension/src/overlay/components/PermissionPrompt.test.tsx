@@ -39,9 +39,9 @@ function byTestId(id: string): HTMLElement {
 describe('PermissionPrompt', () => {
   it('lists the requested permissions', () => {
     act(() => {
-      root.render(<PermissionPrompt permissions={['debugger', 'cookies']} />);
+      root.render(<PermissionPrompt permissions={['management', 'cookies']} />);
     });
-    expect(container.textContent).toContain('debugger');
+    expect(container.textContent).toContain('management');
     expect(container.textContent).toContain('cookies');
   });
 
@@ -53,7 +53,7 @@ describe('PermissionPrompt', () => {
 
     act(() => {
       root.render(
-        <PermissionPrompt permissions={['debugger']} onRequest={onRequest} onResult={onResult} />,
+        <PermissionPrompt permissions={['management']} onRequest={onRequest} onResult={onResult} />,
       );
     });
     await act(async () => {
@@ -61,7 +61,7 @@ describe('PermissionPrompt', () => {
       await promise;
     });
 
-    expect(onRequest).toHaveBeenCalledWith({ permissions: ['debugger'] });
+    expect(onRequest).toHaveBeenCalledWith({ permissions: ['management'] });
     expect(onResult).toHaveBeenCalledWith(response);
     expect(byTestId('permission-status').textContent?.toLowerCase()).toContain('granted');
   });

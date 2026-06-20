@@ -14,8 +14,10 @@ const COMMON = {
     default_popup: 'src/popup/popup.html',
     default_title: 'Capture bug report',
   },
-  permissions: ['activeTab', 'storage', 'scripting', 'downloads', 'tabs'] as string[],
-  optional_permissions: ['debugger', 'cookies', 'management', 'history'] as string[],
+  // `debugger` is required (install-time): Chrome forbids it in optional_permissions, so it cannot
+  // be requested at runtime. Its on-demand use is gated by a stored opt-in (default off) + a banner.
+  permissions: ['activeTab', 'storage', 'scripting', 'downloads', 'tabs', 'debugger'] as string[],
+  optional_permissions: ['cookies', 'management', 'history'] as string[],
   optional_host_permissions: ['<all_urls>'] as string[],
   icons: {
     '16': 'public/icons/icon-16.png',
