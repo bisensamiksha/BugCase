@@ -101,14 +101,14 @@ describe('runCaptureFlow', () => {
     expect(download).toHaveBeenCalledWith(zipBlob, 'bugcase-example-com-20260613-090807.zip');
   });
 
-  it('stores a full-page (CDP) screenshot in the fullPage slot, not viewport', async () => {
+  it('stores a full-page screenshot in the fullPage slot, not viewport', async () => {
     const fullPageShot: CapturedScreenshot = {
       blob: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
       dataUrl: 'data:image/png;base64,iVBORw==',
       width: 1280,
       height: 4000,
       devicePixelRatio: 2,
-      captureMethod: 'cdpFullPage',
+      captureMethod: 'scrollStitch',
     };
     const captureScreenshot = vi.fn(() => Promise.resolve(fullPageShot));
     const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
@@ -124,7 +124,7 @@ describe('runCaptureFlow', () => {
     expect(result.ok).toBe(true);
     const [report, assets] = writeZip.mock.calls[0] ?? [];
     const parsed = BugReportV1Schema.parse(report);
-    expect(parsed.screenshots.fullPage?.captureMethod).toBe('cdpFullPage');
+    expect(parsed.screenshots.fullPage?.captureMethod).toBe('scrollStitch');
     expect(parsed.screenshots.viewport).toBeUndefined();
     expect(assets?.files.get(BUG_REPORT_ZIP_LAYOUT.screenshots.fullPage)).toBeInstanceOf(Blob);
   });

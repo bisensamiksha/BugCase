@@ -12,34 +12,20 @@ const shot = (captureMethod: CapturedScreenshot['captureMethod']): CapturedScree
 });
 
 describe('captureScreenshotWithStrategy', () => {
-  it('uses the CDP full-page capture when preferred', async () => {
-    const captureFullPage = vi.fn(() => Promise.resolve(shot('cdpFullPage')));
+  it('uses the scroll-stitch full-page capture (and not the viewport)', async () => {
     const captureViewport = vi.fn(() => Promise.resolve(shot('visibleTab')));
     const result = await captureScreenshotWithStrategy({
-      preferFullPage: () => Promise.resolve(true),
-      captureFullPage,
+      captureScrollStitch: () => Promise.resolve(shot('scrollStitch')),
       captureViewport,
     });
-    expect(result.captureMethod).toBe('cdpFullPage');
+    expect(result.captureMethod).toBe('scrollStitch');
     expect(captureViewport).not.toHaveBeenCalled();
   });
 
-  it('uses the viewport capture when full-page is not preferred (and never tries CDP)', async () => {
-    const captureFullPage = vi.fn(() => Promise.resolve(shot('cdpFullPage')));
-    const result = await captureScreenshotWithStrategy({
-      preferFullPage: () => Promise.resolve(false),
-      captureFullPage,
-      captureViewport: () => Promise.resolve(shot('visibleTab')),
-    });
-    expect(result.captureMethod).toBe('visibleTab');
-    expect(captureFullPage).not.toHaveBeenCalled();
-  });
-
-  it('falls back to the viewport capture when the CDP full-page path throws', async () => {
+  it('falls back to the viewport when scroll-stitch fails', async () => {
     const captureViewport = vi.fn(() => Promise.resolve(shot('visibleTab')));
     const result = await captureScreenshotWithStrategy({
-      preferFullPage: () => Promise.resolve(true),
-      captureFullPage: () => Promise.reject(new Error('Cannot attach to this target')),
+      captureScrollStitch: () => Promise.reject(new Error('quota')),
       captureViewport,
     });
     expect(result.captureMethod).toBe('visibleTab');
