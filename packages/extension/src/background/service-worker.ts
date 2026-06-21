@@ -3,13 +3,7 @@ import browser, { type Runtime } from 'webextension-polyfill';
 
 import { captureVisibleViewport } from '../capture';
 import { captureScreenshotWithStrategy } from '../capture/screenshot-strategy';
-import {
-  captureFullPageScreenshot,
-  getDebuggerCaptureSettings,
-  isDebuggerApiAvailable,
-  runDebuggerNetworkCapture,
-  withDebuggerSession,
-} from '../debugger';
+import { runDebuggerNetworkCapture } from '../debugger';
 
 import { runCaptureFlow } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
@@ -82,10 +76,10 @@ function bannerBroadcaster(tabId: number, hostName: string | undefined): (active
 }
 
 function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.MessageSender) {
-  // The debugger (full-page screenshot + network bodies) attaches to the sending tab and is opt-in
-  // via a stored flag set in the popup. Without a tab id, with the opt-in off, or where
-  // chrome.debugger is unavailable (e.g. Firefox), capture falls back to a viewport screenshot with
-  // no debugger and no banner.
+  // The screenshot is always a scroll-stitch full-page capture (with a viewport fallback). The
+  // on-demand debugger attaches to the sending tab only for network response bodies — opt-in via a
+  // stored flag set in the popup, and shown with a banner while active. Without a tab id, with the
+  // opt-in off, or where chrome.debugger is unavailable (e.g. Firefox), the network step is skipped.
   const tabId = sender.tab?.id;
   const hostName = safeHost(message.metadata.page.origin);
   const { devicePixelRatio } = message.metadata.viewport;
@@ -93,20 +87,6 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
 
   const captureScreenshot = () =>
     captureScreenshotWithStrategy({
-      preferFullPage: async () =>
-        typeof tabId === 'number' &&
-        isDebuggerApiAvailable() &&
-        (await getDebuggerCaptureSettings()).enabled,
-      captureFullPage: () => {
-        if (typeof tabId !== 'number') {
-          return Promise.reject(new Error('no tab id for full-page capture'));
-        }
-        return withDebuggerSession(
-          { tabId, drainMs: 0 },
-          (session) => captureFullPageScreenshot(session, { devicePixelRatio }),
-          onActiveChange ? { onActiveChange } : {},
-        );
-      },
       captureScrollStitch: () =>
         typeof tabId === 'number'
           ? runScrollStitchCapture(tabId, devicePixelRatio)
