@@ -15,16 +15,18 @@ export interface ScreenshotStrategyDeps {
   readonly preferFullPage: () => Promise<boolean>;
   /** Capture the whole page via CDP (attaches the debugger). */
   readonly captureFullPage: () => Promise<CapturedScreenshot>;
-  /** Capture the visible viewport — the always-available default and fallback. */
+  /** Capture the whole page by scroll-and-stitch — the full-page path that needs no debugger. */
+  readonly captureScrollStitch: () => Promise<CapturedScreenshot>;
+  /** Capture the visible viewport — the always-available last resort. */
   readonly captureViewport: () => Promise<CapturedScreenshot>;
 }
 
 /**
- * Pick the best available screenshot: the CDP full-page capture when the user has opted in and it's
- * available, otherwise the viewport capture. Any full-page failure (disabled, unavailable, attach
- * error) transparently falls back to the viewport so a capture always produces an image.
- *
- * The viewport scroll-stitch fallback is added in S2-12.
+ * Pick the best available screenshot, degrading gracefully:
+ *   1. CDP full-page when the user opted into the debugger and it's available;
+ *   2. otherwise scroll-and-stitch full-page (no debugger needed);
+ *   3. otherwise the visible viewport.
+ * Any failure at one level falls through to the next, so a capture always produces an image.
  */
 export async function captureScreenshotWithStrategy(
   deps: ScreenshotStrategyDeps,
@@ -33,8 +35,13 @@ export async function captureScreenshotWithStrategy(
     try {
       return await deps.captureFullPage();
     } catch {
-      // Full-page CDP capture failed — fall through to the always-available viewport capture.
+      // CDP full-page failed — try the scroll-stitch full-page path next.
     }
+  }
+  try {
+    return await deps.captureScrollStitch();
+  } catch {
+    // Scroll-stitch failed — fall back to the always-available viewport capture.
   }
   return deps.captureViewport();
 }

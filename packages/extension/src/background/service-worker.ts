@@ -27,6 +27,7 @@ import {
 import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
 import { handleRequestPermissions, isRequestPermissionsRequest } from './permissions-handler';
+import { runScrollStitchCapture } from './scroll-stitch-runner';
 
 const overlay = createOverlayController();
 
@@ -106,6 +107,10 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
           onActiveChange ? { onActiveChange } : {},
         );
       },
+      captureScrollStitch: () =>
+        typeof tabId === 'number'
+          ? runScrollStitchCapture(tabId, devicePixelRatio)
+          : Promise.reject(new Error('no tab id for scroll-stitch capture')),
       captureViewport: () => captureVisibleViewport({ devicePixelRatio }),
     });
 
