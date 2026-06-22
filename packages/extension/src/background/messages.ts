@@ -1,4 +1,4 @@
-import type { CaptureMetadata, UserInput } from '@bugcase/schema';
+import type { BrowserInfo, CaptureMetadata, UserInput } from '@bugcase/schema';
 
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 
@@ -44,6 +44,8 @@ export interface CaptureReportRequest {
   /** Collected in the page/overlay context (needs the DOM); the worker has no window. */
   readonly metadata: CaptureMetadata;
   readonly userInput: UserInput;
+  /** Browser info (UA / UA-CH / languages / timezone), collected alongside metadata in the page. */
+  readonly browser: BrowserInfo;
 }
 
 /** Serializable capture-flow result; `ok` is false on a handled failure. */
