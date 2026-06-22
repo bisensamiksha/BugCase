@@ -8,6 +8,7 @@ import {
   type UserInput,
 } from '@bugcase/schema';
 
+import type { DomSnapshotResult } from '../capture/dom-snapshot';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-capture';
 
@@ -30,6 +31,11 @@ export interface CaptureFlowDeps {
    * for a later ticket (S2-24) to fold into the report's NetworkLog.
    */
   readonly captureDebuggerNetwork?: () => Promise<DebuggerNetworkCaptureResult>;
+  /**
+   * Optional DOM snapshot collector (S2-13). When provided, the scrubbed outerHTML is written at its
+   * contentPath and recorded as `report.dom`. Never throws; a `null` result means "no snapshot".
+   */
+  readonly collectDom?: () => Promise<DomSnapshotResult | null>;
 }
 
 export interface CaptureFlowResult {
@@ -64,6 +70,9 @@ export async function runCaptureFlow(
       ? await deps.captureDebuggerNetwork()
       : undefined;
 
+    // Optional DOM snapshot (S2-13): scrubbed outerHTML stored in the ZIP + recorded as report.dom.
+    const dom = deps.collectDom ? await deps.collectDom() : null;
+
     // A full-page capture (CDP, or the future scroll-stitch) goes in the `fullPage` slot; a plain
     // viewport capture goes in `viewport`. Either way it's the report's primary screenshot.
     const isFullPage = shot.captureMethod !== 'visibleTab';
@@ -92,7 +101,7 @@ export async function runCaptureFlow(
       browser: null,
       console: null,
       network: null,
-      dom: null,
+      dom: dom?.snapshot ?? null,
       storage: null,
       cookies: null,
       navigation: null,
@@ -100,9 +109,11 @@ export async function runCaptureFlow(
       elementInspections: null,
     };
 
-    const assets: BugReportZipAssets = {
-      files: new Map<string, Blob | string | Uint8Array>([[screenshotPath, shot.blob]]),
-    };
+    const files = new Map<string, Blob | string | Uint8Array>([[screenshotPath, shot.blob]]);
+    if (dom) {
+      files.set(dom.snapshot.contentPath, dom.html);
+    }
+    const assets: BugReportZipAssets = { files };
 
     const zip = await deps.writeZip(report, assets);
     const filename = buildCaptureReportFilename(

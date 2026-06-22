@@ -2,7 +2,9 @@ import { writeBugReportZip } from '@bugcase/schema';
 import browser, { type Runtime } from 'webextension-polyfill';
 
 import { captureVisibleViewport } from '../capture';
+import { collectDomSnapshot } from '../capture/dom-snapshot';
 import { captureScreenshotWithStrategy } from '../capture/screenshot-strategy';
+import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 
 import { runCaptureFlow } from './capture-flow';
@@ -99,6 +101,22 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       ? () => runDebuggerNetworkCapture({ tabId }, onActiveChange ? { onActiveChange } : {})
       : undefined;
 
+  // Read the page's outerHTML in-page (executeScript), then scrub + package it as report.dom.
+  const collectDom =
+    typeof tabId === 'number'
+      ? () =>
+          collectDomSnapshot({
+            readOuterHtml: async () => {
+              const [injection] = await browser.scripting.executeScript({
+                target: { tabId },
+                func: readDomOuterHtml,
+              });
+              const html: unknown = injection?.result;
+              return typeof html === 'string' ? html : '';
+            },
+          })
+      : undefined;
+
   return runCaptureFlow(
     { metadata: message.metadata, userInput: message.userInput },
     {
@@ -106,6 +124,7 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       writeZip: writeBugReportZip,
       download: downloadBlob,
       ...(captureDebuggerNetwork ? { captureDebuggerNetwork } : {}),
+      ...(collectDom ? { collectDom } : {}),
     },
   );
 }
