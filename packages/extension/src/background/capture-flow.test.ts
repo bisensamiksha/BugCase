@@ -160,6 +160,37 @@ describe('runCaptureFlow', () => {
     expect(result.debuggerNetwork).toEqual(debuggerResult);
   });
 
+  it('records a DOM snapshot in report.dom and stores its scrubbed HTML', async () => {
+    const domResult = {
+      snapshot: {
+        schemaVersion: 'v1' as const,
+        contentPath: BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot,
+        byteSize: 21,
+        scrubbed: true,
+        scrubberHits: 1,
+      },
+      html: '<html>scrubbed</html>',
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(5));
+    const collectDom = vi.fn(() => Promise.resolve(domResult));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, collectDom },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report, assets] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.dom?.contentPath).toBe(BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot);
+    expect(parsed.dom?.scrubberHits).toBe(1);
+    expect(assets?.files.get(BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot)).toBe('<html>scrubbed</html>');
+  });
+
   it('returns a handled failure (no throw, no download) when the screenshot fails', async () => {
     const captureScreenshot = vi.fn(() => Promise.reject(new Error('activeTab not granted')));
     const writeZip = vi.fn(() => Promise.resolve(new Blob()));
