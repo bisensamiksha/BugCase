@@ -118,7 +118,7 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       : undefined;
 
   return runCaptureFlow(
-    { metadata: message.metadata, userInput: message.userInput },
+    { metadata: message.metadata, userInput: message.userInput, browser: message.browser },
     {
       captureScreenshot,
       writeZip: writeBugReportZip,

@@ -58,6 +58,25 @@ describe('requestCapture', () => {
     });
   });
 
+  it('collects and forwards browser info', async () => {
+    const browserInfo = {
+      schemaVersion: 'v1' as const,
+      userAgent: 'UA-X',
+      userAgentData: null,
+      languages: ['en'],
+      timezone: 'UTC',
+      installedExtensions: null,
+    };
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const collectBrowserInfo = vi.fn(() => Promise.resolve(browserInfo));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+
+    await requestCapture({ collectMetadata, collectBrowserInfo, send });
+
+    expect(collectBrowserInfo).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0]?.browser).toEqual(browserInfo);
+  });
+
   it('passes through provided user input', async () => {
     const collectMetadata = vi.fn(() => Promise.resolve(metadata));
     const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));

@@ -1,5 +1,6 @@
 import {
   BUG_REPORT_ZIP_LAYOUT,
+  type BrowserInfo,
   type BugReportV1,
   type BugReportZipAssets,
   type CaptureMetadata,
@@ -17,6 +18,8 @@ import { buildCaptureReportFilename } from './downloads';
 export interface CaptureFlowInput {
   readonly metadata: CaptureMetadata;
   readonly userInput: UserInput;
+  /** Browser info collected in the page context; recorded as `report.browser`. */
+  readonly browser?: BrowserInfo;
 }
 
 /** Injected effects so the orchestration is unit-testable without the browser. */
@@ -98,7 +101,7 @@ export async function runCaptureFlow(
       metadata: input.metadata,
       userInput: input.userInput,
       screenshots,
-      browser: null,
+      browser: input.browser ?? null,
       console: null,
       network: null,
       dom: dom?.snapshot ?? null,

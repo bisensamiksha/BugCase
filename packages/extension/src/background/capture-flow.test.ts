@@ -191,6 +191,32 @@ describe('runCaptureFlow', () => {
     expect(assets?.files.get(BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot)).toBe('<html>scrubbed</html>');
   });
 
+  it('records browser info in report.browser when provided', async () => {
+    const browserInfo = {
+      schemaVersion: 'v1' as const,
+      userAgent: 'UA-test',
+      userAgentData: null,
+      languages: ['en'],
+      timezone: 'UTC',
+      installedExtensions: null,
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(2));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput, browser: browserInfo },
+      { captureScreenshot, writeZip, download },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.browser?.userAgent).toBe('UA-test');
+  });
+
   it('returns a handled failure (no throw, no download) when the screenshot fails', async () => {
     const captureScreenshot = vi.fn(() => Promise.reject(new Error('activeTab not granted')));
     const writeZip = vi.fn(() => Promise.resolve(new Blob()));
