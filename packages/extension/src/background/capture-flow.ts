@@ -4,6 +4,7 @@ import {
   type BugReportV1,
   type BugReportZipAssets,
   type CaptureMetadata,
+  type NavigationLog,
   type ScreenshotRef,
   type ScreenshotsManifest,
   type UserInput,
@@ -39,6 +40,11 @@ export interface CaptureFlowDeps {
    * contentPath and recorded as `report.dom`. Never throws; a `null` result means "no snapshot".
    */
   readonly collectDom?: () => Promise<DomSnapshotResult | null>;
+  /**
+   * Optional navigation-history collector (S2-15). When provided, its result is recorded as
+   * `report.navigation`. Never throws; `null` means "not collected" (no `history` permission/error).
+   */
+  readonly collectNavigation?: () => Promise<NavigationLog | null>;
 }
 
 export interface CaptureFlowResult {
@@ -76,6 +82,9 @@ export async function runCaptureFlow(
     // Optional DOM snapshot (S2-13): scrubbed outerHTML stored in the ZIP + recorded as report.dom.
     const dom = deps.collectDom ? await deps.collectDom() : null;
 
+    // Optional navigation history (S2-15): recent visits behind the optional `history` permission.
+    const navigation = deps.collectNavigation ? await deps.collectNavigation() : null;
+
     // A full-page capture (CDP, or the future scroll-stitch) goes in the `fullPage` slot; a plain
     // viewport capture goes in `viewport`. Either way it's the report's primary screenshot.
     const isFullPage = shot.captureMethod !== 'visibleTab';
@@ -107,7 +116,7 @@ export async function runCaptureFlow(
       dom: dom?.snapshot ?? null,
       storage: null,
       cookies: null,
-      navigation: null,
+      navigation,
       reproduction: null,
       elementInspections: null,
     };

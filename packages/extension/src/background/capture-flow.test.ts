@@ -217,6 +217,33 @@ describe('runCaptureFlow', () => {
     expect(parsed.browser?.userAgent).toBe('UA-test');
   });
 
+  it('records navigation history in report.navigation when provided', async () => {
+    const navigation = {
+      schemaVersion: 'v1' as const,
+      entries: [
+        { url: 'https://example.com/a', title: 'A', visitedAt: '2026-06-23T11:30:00.000Z' },
+      ],
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(8));
+    const collectNavigation = vi.fn(() => Promise.resolve(navigation));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, collectNavigation },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(collectNavigation).toHaveBeenCalledTimes(1);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.navigation?.entries).toHaveLength(1);
+    expect(parsed.navigation?.entries[0]?.url).toBe('https://example.com/a');
+  });
+
   it('returns a handled failure (no throw, no download) when the screenshot fails', async () => {
     const captureScreenshot = vi.fn(() => Promise.reject(new Error('activeTab not granted')));
     const writeZip = vi.fn(() => Promise.resolve(new Blob()));
