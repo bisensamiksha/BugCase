@@ -112,3 +112,49 @@ describe('OverlayApp passive-monitoring opt-in', () => {
     expect(queryTestId('origin-opt-in')).toBeNull();
   });
 });
+
+describe('OverlayApp cookies warning', () => {
+  it('warns that cookies are captured when the cookies permission is granted', async () => {
+    const granted = Promise.resolve(true);
+    const checkCookiesGranted = vi.fn(() => granted);
+
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={checkCookiesGranted}
+        />,
+      );
+    });
+    await act(async () => {
+      await granted;
+    });
+
+    expect(checkCookiesGranted).toHaveBeenCalled();
+    const warning = queryTestId('cookies-warning');
+    expect(warning).not.toBeNull();
+    expect(warning?.textContent).toContain('example.com');
+  });
+
+  it('does not warn when the cookies permission is not granted', async () => {
+    const denied = Promise.resolve(false);
+
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => denied}
+        />,
+      );
+    });
+    await act(async () => {
+      await denied;
+    });
+
+    expect(queryTestId('cookies-warning')).toBeNull();
+  });
+});

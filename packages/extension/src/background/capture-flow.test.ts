@@ -244,6 +244,45 @@ describe('runCaptureFlow', () => {
     expect(parsed.navigation?.entries[0]?.url).toBe('https://example.com/a');
   });
 
+  it('records cookies in report.cookies, scoped to the captured page url', async () => {
+    const cookies = {
+      schemaVersion: 'v1' as const,
+      entries: [
+        {
+          name: 'sid',
+          value: '[scrubbed]',
+          domain: 'example.com',
+          path: '/',
+          expiresAt: null,
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax' as const,
+          session: true,
+          masked: true,
+        },
+      ],
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(9));
+    const collectCookies = vi.fn((_url: string) => Promise.resolve(cookies));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, collectCookies },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(collectCookies).toHaveBeenCalledWith('https://example.com/path');
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.cookies?.entries).toHaveLength(1);
+    expect(parsed.cookies?.entries[0]?.name).toBe('sid');
+    expect(parsed.cookies?.entries[0]?.masked).toBe(true);
+  });
+
   it('folds collected extensions into report.browser.installedExtensions', async () => {
     const browserInfo = {
       schemaVersion: 'v1' as const,

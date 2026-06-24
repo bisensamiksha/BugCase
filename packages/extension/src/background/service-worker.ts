@@ -9,6 +9,7 @@ import { runDebuggerNetworkCapture } from '../debugger';
 
 import { runCaptureFlow } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
+import { createCookiesCollector } from './cookies-handler';
 import { downloadBlob } from './downloads';
 import { createNavigationHistoryCollector } from './history-handler';
 import { createInstalledExtensionsCollector } from './management-handler';
@@ -125,6 +126,10 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   // Installed extensions (S2-16): collected only if the optional `management` permission is granted.
   const collectExtensions = createInstalledExtensionsCollector();
 
+  // Cookies (S2-17): the captured origin's cookies, collected only if the optional `cookies`
+  // permission is granted. Scoped to the page url and value-masked inside the collector.
+  const collectCookies = createCookiesCollector();
+
   return runCaptureFlow(
     { metadata: message.metadata, userInput: message.userInput, browser: message.browser },
     {
@@ -135,6 +140,7 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       ...(collectDom ? { collectDom } : {}),
       collectNavigation,
       collectExtensions,
+      collectCookies,
     },
   );
 }

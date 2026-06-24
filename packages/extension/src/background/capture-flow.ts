@@ -4,6 +4,7 @@ import {
   type BugReportV1,
   type BugReportZipAssets,
   type CaptureMetadata,
+  type CookiesDump,
   type InstalledExtensionInfo,
   type NavigationLog,
   type ScreenshotRef,
@@ -52,6 +53,12 @@ export interface CaptureFlowDeps {
    * permission/error) and preserves whatever browser info already carried.
    */
   readonly collectExtensions?: () => Promise<readonly InstalledExtensionInfo[] | null>;
+  /**
+   * Optional cookies collector (S2-17). When provided, it is called with the captured page url and
+   * its result is recorded as `report.cookies` (all values masked by default). Never throws; `null`
+   * means "not collected" (no `cookies` permission/error).
+   */
+  readonly collectCookies?: (url: string) => Promise<CookiesDump | null>;
 }
 
 export interface CaptureFlowResult {
@@ -92,6 +99,10 @@ export async function runCaptureFlow(
     // Optional navigation history (S2-15): recent visits behind the optional `history` permission.
     const navigation = deps.collectNavigation ? await deps.collectNavigation() : null;
 
+    // Optional cookies (S2-17): the captured origin's cookies behind the optional `cookies`
+    // permission, scoped to the page url. All values are masked by default inside the collector.
+    const cookies = deps.collectCookies ? await deps.collectCookies(input.metadata.page.url) : null;
+
     // Optional installed extensions (S2-16): management.getAll behind the optional `management`
     // permission, folded into report.browser. Dropped if no browser info was collected upstream.
     const extensions = deps.collectExtensions ? await deps.collectExtensions() : null;
@@ -129,7 +140,7 @@ export async function runCaptureFlow(
       network: null,
       dom: dom?.snapshot ?? null,
       storage: null,
-      cookies: null,
+      cookies,
       navigation,
       reproduction: null,
       elementInspections: null,
