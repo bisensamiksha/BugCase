@@ -4,6 +4,7 @@ import {
   type BugReportV1,
   type BugReportZipAssets,
   type CaptureMetadata,
+  type InstalledExtensionInfo,
   type NavigationLog,
   type ScreenshotRef,
   type ScreenshotsManifest,
@@ -45,6 +46,12 @@ export interface CaptureFlowDeps {
    * `report.navigation`. Never throws; `null` means "not collected" (no `history` permission/error).
    */
   readonly collectNavigation?: () => Promise<NavigationLog | null>;
+  /**
+   * Optional installed-extensions collector (S2-16). When provided, its result is folded into
+   * `report.browser.installedExtensions`. Never throws; `null` means "not collected" (no `management`
+   * permission/error) and preserves whatever browser info already carried.
+   */
+  readonly collectExtensions?: () => Promise<readonly InstalledExtensionInfo[] | null>;
 }
 
 export interface CaptureFlowResult {
@@ -85,6 +92,13 @@ export async function runCaptureFlow(
     // Optional navigation history (S2-15): recent visits behind the optional `history` permission.
     const navigation = deps.collectNavigation ? await deps.collectNavigation() : null;
 
+    // Optional installed extensions (S2-16): management.getAll behind the optional `management`
+    // permission, folded into report.browser. Dropped if no browser info was collected upstream.
+    const extensions = deps.collectExtensions ? await deps.collectExtensions() : null;
+    const reportBrowser: BrowserInfo | null = input.browser
+      ? { ...input.browser, installedExtensions: extensions ?? input.browser.installedExtensions }
+      : null;
+
     // A full-page capture (CDP, or the future scroll-stitch) goes in the `fullPage` slot; a plain
     // viewport capture goes in `viewport`. Either way it's the report's primary screenshot.
     const isFullPage = shot.captureMethod !== 'visibleTab';
@@ -110,7 +124,7 @@ export async function runCaptureFlow(
       metadata: input.metadata,
       userInput: input.userInput,
       screenshots,
-      browser: input.browser ?? null,
+      browser: reportBrowser,
       console: null,
       network: null,
       dom: dom?.snapshot ?? null,

@@ -11,6 +11,7 @@ import { runCaptureFlow } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
 import { downloadBlob } from './downloads';
 import { createNavigationHistoryCollector } from './history-handler';
+import { createInstalledExtensionsCollector } from './management-handler';
 import {
   DEBUGGER_ACTIVITY,
   isCaptureReportRequest,
@@ -121,6 +122,9 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   // Navigation history (S2-15): collected only if the optional `history` permission is granted.
   const collectNavigation = createNavigationHistoryCollector();
 
+  // Installed extensions (S2-16): collected only if the optional `management` permission is granted.
+  const collectExtensions = createInstalledExtensionsCollector();
+
   return runCaptureFlow(
     { metadata: message.metadata, userInput: message.userInput, browser: message.browser },
     {
@@ -130,6 +134,7 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       ...(captureDebuggerNetwork ? { captureDebuggerNetwork } : {}),
       ...(collectDom ? { collectDom } : {}),
       collectNavigation,
+      collectExtensions,
     },
   );
 }
