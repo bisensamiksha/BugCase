@@ -244,6 +244,89 @@ describe('runCaptureFlow', () => {
     expect(parsed.navigation?.entries[0]?.url).toBe('https://example.com/a');
   });
 
+  it('folds collected extensions into report.browser.installedExtensions', async () => {
+    const browserInfo = {
+      schemaVersion: 'v1' as const,
+      userAgent: 'UA-test',
+      userAgentData: null,
+      languages: ['en'],
+      timezone: 'UTC',
+      installedExtensions: null,
+    };
+    const extensions = [
+      { id: 'other', name: 'Other', version: '1.0', enabled: true, type: 'extension' },
+    ];
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(11));
+    const collectExtensions = vi.fn(() => Promise.resolve(extensions));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput, browser: browserInfo },
+      { captureScreenshot, writeZip, download, collectExtensions },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(collectExtensions).toHaveBeenCalledTimes(1);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.browser?.installedExtensions).toEqual(extensions);
+  });
+
+  it('preserves existing browser.installedExtensions when the collector returns null', async () => {
+    const browserInfo = {
+      schemaVersion: 'v1' as const,
+      userAgent: 'UA-test',
+      userAgentData: null,
+      languages: ['en'],
+      timezone: 'UTC',
+      installedExtensions: [
+        { id: 'pre', name: 'Pre', version: '1.0', enabled: true, type: 'extension' },
+      ],
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(12));
+    const collectExtensions = vi.fn(() => Promise.resolve(null));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput, browser: browserInfo },
+      { captureScreenshot, writeZip, download, collectExtensions },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.browser?.installedExtensions).toEqual([
+      { id: 'pre', name: 'Pre', version: '1.0', enabled: true, type: 'extension' },
+    ]);
+  });
+
+  it('leaves report.browser null (dropping extensions) when no browser info was collected', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(13));
+    const collectExtensions = vi.fn(() =>
+      Promise.resolve([{ id: 'x', name: 'X', version: '1', enabled: true, type: 'extension' }]),
+    );
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, collectExtensions },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.browser).toBeNull();
+  });
+
   it('returns a handled failure (no throw, no download) when the screenshot fails', async () => {
     const captureScreenshot = vi.fn(() => Promise.reject(new Error('activeTab not granted')));
     const writeZip = vi.fn(() => Promise.resolve(new Blob()));
