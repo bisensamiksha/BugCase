@@ -7,9 +7,11 @@ import {
   type OriginAllowlistResponse,
 } from '../background/origin-allowlist-handler';
 import browser from '../lib/browser';
+import { hasOptionalPermissions } from '../permissions/optional-permissions';
 import { normalizeOrigin } from '../storage/origin-allowlist';
 
 import { CaptureButton } from './CaptureButton';
+import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
 
@@ -39,6 +41,17 @@ export interface OverlayAppProps {
   readonly checkAllowed?: (origin: string) => Promise<boolean>;
   /** Subscribes to debugger-activity broadcasts; defaults to the runtime message bridge. Injectable for tests. */
   readonly subscribeDebuggerActivity?: (handler: DebuggerActivityHandler) => () => void;
+  /** Whether the optional `cookies` permission is granted; defaults to a live permissions check. */
+  readonly checkCookiesGranted?: () => Promise<boolean>;
+}
+
+/** Best-effort host name for an origin (e.g. `https://example.com` → `example.com`). */
+function hostNameOf(origin: string): string | undefined {
+  try {
+    return new URL(origin).hostname || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Ask the service worker whether the origin is already opted into passive monitoring. */
@@ -91,9 +104,12 @@ export function OverlayApp({
   origin,
   checkAllowed,
   subscribeDebuggerActivity,
+  checkCookiesGranted,
 }: OverlayAppProps) {
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
+  const host = hostNameOf(pageOrigin);
   const [showOptIn, setShowOptIn] = useState(false);
+  const [cookiesGranted, setCookiesGranted] = useState(false);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
@@ -105,6 +121,25 @@ export function OverlayApp({
       setDebuggerActivity({ active, ...(hostName === undefined ? {} : { hostName }) });
     });
   }, [subscribeDebuggerActivity]);
+
+  useEffect(() => {
+    // Surface a warning whenever cookies will be captured. A failed/absent check just hides it.
+    let cancelled = false;
+    const check =
+      checkCookiesGranted ?? (() => hasOptionalPermissions({ permissions: ['cookies'] }));
+    void check()
+      .then((granted) => {
+        if (!cancelled && granted) {
+          setCookiesGranted(true);
+        }
+      })
+      .catch(() => {
+        // A failed permission check must not block the capture UI; just skip the warning.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkCookiesGranted]);
 
   useEffect(() => {
     // Passive monitoring only applies to real web origins. Skip the lookup for opaque
@@ -155,6 +190,11 @@ export function OverlayApp({
               ? {}
               : { hostName: debuggerActivity.hostName })}
           />
+        </div>
+      ) : null}
+      {cookiesGranted ? (
+        <div style={{ marginBottom: '12px' }}>
+          <CookiesWarning active {...(host === undefined ? {} : { hostName: host })} />
         </div>
       ) : null}
       {showOptIn ? (
