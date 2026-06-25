@@ -3,9 +3,11 @@ import browser, { type Runtime } from 'webextension-polyfill';
 
 import { captureVisibleViewport } from '../capture';
 import { collectDomSnapshot } from '../capture/dom-snapshot';
+import { collectPageStorage } from '../capture/page-storage';
 import { captureScreenshotWithStrategy } from '../capture/screenshot-strategy';
 import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
+import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 
 import { runCaptureFlow } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
@@ -120,6 +122,24 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
           })
       : undefined;
 
+  // Local/session storage (S2-18): read in the page (executeScript, MAIN world), then mask +
+  // bound it into report.storage. Gated only on a tab id — same access level as the DOM snapshot.
+  const collectStorage =
+    typeof tabId === 'number'
+      ? () =>
+          collectPageStorage({
+            readStorage: async () => {
+              const [injection] = await browser.scripting.executeScript({
+                target: { tabId },
+                world: 'MAIN',
+                func: readPageStorage,
+              });
+              const result = injection?.result as RawPageStorage | undefined;
+              return result ?? { localStorage: null, sessionStorage: null };
+            },
+          })
+      : undefined;
+
   // Navigation history (S2-15): collected only if the optional `history` permission is granted.
   const collectNavigation = createNavigationHistoryCollector();
 
@@ -138,6 +158,7 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       download: downloadBlob,
       ...(captureDebuggerNetwork ? { captureDebuggerNetwork } : {}),
       ...(collectDom ? { collectDom } : {}),
+      ...(collectStorage ? { collectStorage } : {}),
       collectNavigation,
       collectExtensions,
       collectCookies,
