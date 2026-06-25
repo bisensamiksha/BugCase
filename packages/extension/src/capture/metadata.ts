@@ -5,10 +5,10 @@ import type {
   ScrubberRuleApplied,
   ToolMetadata,
   UserOptions,
-  ViewportMetadata,
 } from '@bugcase/schema';
 
 import { detectBrowserBuildTarget } from './browser-target';
+import { collectScreenInfo, type ScreenInfoSource } from './screen-info';
 
 export interface MetadataInput {
   readonly tabId: number;
@@ -17,19 +17,11 @@ export interface MetadataInput {
 }
 
 /** A snapshot of the ambient browser globals the collector needs. Injectable for tests. */
-export interface MetadataSource {
+export interface MetadataSource extends ScreenInfoSource {
   readonly userAgent: string;
   readonly brands?: readonly { readonly brand: string }[] | undefined;
   readonly isBrave?: (() => Promise<boolean>) | undefined;
   readonly language: string | null;
-  readonly innerWidth: number;
-  readonly innerHeight: number;
-  readonly outerWidth: number;
-  readonly outerHeight: number;
-  readonly devicePixelRatio: number;
-  readonly screenWidth: number;
-  readonly screenHeight: number;
-  readonly orientation: string | null;
   readonly referrer: string | null;
 }
 
@@ -63,22 +55,6 @@ export const DEFAULT_USER_OPTIONS: UserOptions = {
   reproductionSteps: false,
   elementInspections: false,
 };
-
-function nonNegInt(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-}
-
-function positive(value: number, fallback = 1): number {
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-/** Rough zoom estimate from the window chrome ratio (per spec; refined in S2-19). */
-function estimateZoom(source: MetadataSource): number {
-  if (source.innerWidth > 0 && source.outerWidth > 0) {
-    return positive(Math.round((source.outerWidth / source.innerWidth) * 100) / 100);
-  }
-  return 1;
-}
 
 function safeOrigin(url: string): string {
   try {
@@ -152,17 +128,7 @@ export async function collectCaptureMetadata(
     referrer: source.referrer,
   };
 
-  const viewport: ViewportMetadata = {
-    innerWidth: nonNegInt(source.innerWidth),
-    innerHeight: nonNegInt(source.innerHeight),
-    outerWidth: nonNegInt(source.outerWidth),
-    outerHeight: nonNegInt(source.outerHeight),
-    devicePixelRatio: positive(source.devicePixelRatio),
-    zoomEstimate: estimateZoom(source),
-    screenWidth: nonNegInt(source.screenWidth),
-    screenHeight: nonNegInt(source.screenHeight),
-    orientation: source.orientation,
-  };
+  const viewport = collectScreenInfo(source);
 
   const tool: ToolMetadata = {
     name: 'bugcase',
