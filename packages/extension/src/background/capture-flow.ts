@@ -9,6 +9,7 @@ import {
   type NavigationLog,
   type ScreenshotRef,
   type ScreenshotsManifest,
+  type StorageDump,
   type UserInput,
 } from '@bugcase/schema';
 
@@ -59,6 +60,12 @@ export interface CaptureFlowDeps {
    * means "not collected" (no `cookies` permission/error).
    */
   readonly collectCookies?: (url: string) => Promise<CookiesDump | null>;
+  /**
+   * Optional local/session storage collector (S2-18). When provided, its result is recorded as
+   * `report.storage` (secret-looking values masked by default). Never throws; `null` means "not
+   * collected" (no tab id / restricted page / error).
+   */
+  readonly collectStorage?: () => Promise<StorageDump | null>;
 }
 
 export interface CaptureFlowResult {
@@ -103,6 +110,10 @@ export async function runCaptureFlow(
     // permission, scoped to the page url. All values are masked by default inside the collector.
     const cookies = deps.collectCookies ? await deps.collectCookies(input.metadata.page.url) : null;
 
+    // Optional local/session storage (S2-18): masked, bounded localStorage/sessionStorage read in
+    // the page. Never throws; `null` means not collected.
+    const storage = deps.collectStorage ? await deps.collectStorage() : null;
+
     // Optional installed extensions (S2-16): management.getAll behind the optional `management`
     // permission, folded into report.browser. Dropped if no browser info was collected upstream.
     const extensions = deps.collectExtensions ? await deps.collectExtensions() : null;
@@ -139,7 +150,7 @@ export async function runCaptureFlow(
       console: null,
       network: null,
       dom: dom?.snapshot ?? null,
-      storage: null,
+      storage,
       cookies,
       navigation,
       reproduction: null,

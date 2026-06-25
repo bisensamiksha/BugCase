@@ -283,6 +283,46 @@ describe('runCaptureFlow', () => {
     expect(parsed.cookies?.entries[0]?.masked).toBe(true);
   });
 
+  it('records local/session storage in report.storage', async () => {
+    const storage = {
+      schemaVersion: 'v1' as const,
+      localStorage: [{ key: 'theme', value: 'dark', sizeBytes: 4 }],
+      sessionStorage: null,
+      note: 'test note',
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(11));
+    const collectStorage = vi.fn(() => Promise.resolve(storage));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, collectStorage },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(collectStorage).toHaveBeenCalledTimes(1);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.storage?.localStorage).toEqual([{ key: 'theme', value: 'dark', sizeBytes: 4 }]);
+    expect(parsed.storage?.sessionStorage).toBeNull();
+  });
+
+  it('leaves report.storage null when no storage collector is provided', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(12));
+
+    await runCaptureFlow({ metadata, userInput }, { captureScreenshot, writeZip, download });
+
+    const [report] = writeZip.mock.calls[0] ?? [];
+    expect(BugReportV1Schema.parse(report).storage).toBeNull();
+  });
+
   it('folds collected extensions into report.browser.installedExtensions', async () => {
     const browserInfo = {
       schemaVersion: 'v1' as const,
