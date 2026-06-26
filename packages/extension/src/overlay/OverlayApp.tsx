@@ -1,3 +1,4 @@
+import type { UserOptions } from '@bugcase/schema';
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import { isDebuggerActivityMessage } from '../background/messages';
@@ -11,9 +12,12 @@ import { hasOptionalPermissions } from '../permissions/optional-permissions';
 import { normalizeOrigin } from '../storage/origin-allowlist';
 
 import { CaptureButton } from './CaptureButton';
+import { CaptureOptions } from './CaptureOptions';
+import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+import { requestCapture } from './request-capture';
 
 /** Notified when the service worker reports the debugger attaching/detaching for this tab. */
 export type DebuggerActivityHandler = (active: boolean, hostName?: string) => void;
@@ -110,6 +114,7 @@ export function OverlayApp({
   const host = hostNameOf(pageOrigin);
   const [showOptIn, setShowOptIn] = useState(false);
   const [cookiesGranted, setCookiesGranted] = useState(false);
+  const [captureOptions, setCaptureOptions] = useState<UserOptions>(CAPTURE_OPTION_DEFAULTS);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
@@ -213,9 +218,13 @@ export function OverlayApp({
         </div>
       ) : null}
       <p style={{ margin: '0 0 8px', color: '#475569' }}>
-        Capture the visible tab and download a bug report ZIP.
+        Choose what to capture, then download a bug report ZIP.
       </p>
-      <CaptureButton onComplete={onClose} />
+      <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
+      <CaptureButton
+        onComplete={onClose}
+        onCapture={() => requestCapture({ userOptions: captureOptions })}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { BrowserInfo, CaptureMetadata, UserInput } from '@bugcase/schema';
+import type { BrowserInfo, CaptureMetadata, UserInput, UserOptions } from '@bugcase/schema';
 
 import {
   CAPTURE_REPORT,
@@ -19,12 +19,14 @@ const DEFAULT_USER_INPUT: UserInput = {
 
 export interface RequestCaptureDeps {
   /** Defaults to reading the live page DOM via the metadata collector. */
-  readonly collectMetadata?: () => Promise<CaptureMetadata>;
+  readonly collectMetadata?: (userOptions?: UserOptions) => Promise<CaptureMetadata>;
   /** Defaults to reading navigator/UA-CH via the browser-info collector. */
   readonly collectBrowserInfo?: () => Promise<BrowserInfo>;
   /** Defaults to `browser.runtime.sendMessage`. */
   readonly send?: (message: CaptureReportRequest) => Promise<CaptureReportResponse>;
   readonly userInput?: UserInput;
+  /** Capture options selected in the overlay; recorded as `metadata.userOptions`. */
+  readonly userOptions?: UserOptions;
 }
 
 /** Collect page metadata in the overlay context, then ask the service worker to run the capture flow. */
@@ -35,7 +37,10 @@ export async function requestCapture(
   const collectBrowser = deps.collectBrowserInfo ?? (() => collectBrowserInfo());
   const send = deps.send ?? defaultSend;
 
-  const [metadata, browserInfo] = await Promise.all([collectMetadata(), collectBrowser()]);
+  const [metadata, browserInfo] = await Promise.all([
+    collectMetadata(deps.userOptions),
+    collectBrowser(),
+  ]);
   return send({
     type: CAPTURE_REPORT,
     metadata,
@@ -44,10 +49,14 @@ export async function requestCapture(
   });
 }
 
-function defaultCollectMetadata(): Promise<CaptureMetadata> {
+function defaultCollectMetadata(userOptions?: UserOptions): Promise<CaptureMetadata> {
   return collectCaptureMetadata(
     { tabId: -1, url: window.location.href, title: document.title },
-    { source: readMetadataSource(), toolVersion: browser.runtime.getManifest().version },
+    {
+      source: readMetadataSource(),
+      toolVersion: browser.runtime.getManifest().version,
+      ...(userOptions ? { userOptions } : {}),
+    },
   );
 }
 
