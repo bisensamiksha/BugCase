@@ -1,4 +1,4 @@
-import type { CaptureMetadata } from '@bugcase/schema';
+import type { CaptureMetadata, UserOptions } from '@bugcase/schema';
 import { describe, expect, it, vi } from 'vitest';
 
 // request-capture imports lib/browser for its defaults; stub the polyfill so import succeeds.
@@ -96,5 +96,15 @@ describe('requestCapture', () => {
     const msg = send.mock.calls[0]?.[0];
     expect(msg?.userInput.severity).toBe('major');
     expect(msg?.userInput.title).toBe('Crash');
+  });
+
+  it('threads userOptions into the metadata collector', async () => {
+    const collectMetadata = vi.fn((_userOptions?: UserOptions) => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+    const userOptions = { ...DEFAULT_USER_OPTIONS, cookies: true };
+
+    await requestCapture({ collectMetadata, send, userOptions });
+
+    expect(collectMetadata).toHaveBeenCalledWith(userOptions);
   });
 });

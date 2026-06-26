@@ -158,3 +158,19 @@ describe('OverlayApp cookies warning', () => {
     expect(queryTestId('cookies-warning')).toBeNull();
   });
 });
+
+describe('OverlayApp capture options', () => {
+  it('renders the grouped capture-options checkboxes', () => {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+        />,
+      );
+    });
+    expect(queryTestId('capture-options')).not.toBeNull();
+    expect(queryTestId('capture-option-viewportScreenshot')).not.toBeNull();
+  });
+});
