@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BugCase capture-engine fixture</title>
+  </head>
+  <body>
+    <h1>Capture engine fixture</h1>
+
+    <!-- Known password input: the capture engine must mask its value. -->
+    <form>
+      <input type="password" id="pw" name="pw" value="hunter2" />
+      <input type="text" id="visible" name="visible" value="visible-keep-me" />
+    </form>
+
+    <script>
+      // Emit known signals the capture engine is expected to observe. This page is the single source
+      // of "known input" for tests/e2e/capture-engine.spec.ts; keep the markers below stable.
+      (function emitKnownSignals() {
+        // 1. Console signals (captured by the S2-06 console ring buffer / observable via page console).
+        console.log('[bugcase-e2e] console-log-signal');
+        console.error('[bugcase-e2e] console-error-signal', 42);
+
+        // 2. A network signal (captured by the S2-07 network ring buffer / observable via page requests).
+        const networkDone = fetch('/bugcase-ping?marker=bugcase-e2e')
+          .then((res) => res.ok)
+          .catch(() => false);
+
+        // 3. A "sticky" cookie/header-shaped secret (scrubbed by the S2-09 header/cookie rules).
+        try {
+          document.cookie = 'bugcase_e2e_session=topsecret; path=/; SameSite=Lax';
+        } catch {
+          /* cookies may be unavailable on some origins; the marker is best-effort. */
+        }
+
+        // Expose a readiness flag so the test can wait for the signals to have been emitted.
+        window.__bugcaseSignals = {
+          consoleEmitted: true,
+          cookieSet: document.cookie.includes('bugcase_e2e_session'),
+          passwordValue: document.getElementById('pw').value,
+          networkDone,
+        };
+      })();
+    </script>
+  </body>
+</html>
