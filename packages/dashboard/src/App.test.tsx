@@ -72,6 +72,70 @@ describe('App', () => {
     expect(section?.textContent).toContain('abc-123');
   });
 
+  it('routes a loaded report into the console and network tables', async () => {
+    const report = {
+      schemaVersion: 'v1',
+      metadata: { id: 'abc-123' },
+      console: {
+        schemaVersion: 'v1',
+        capturedFromRingBuffer: true,
+        capturedFromDebugger: false,
+        bufferSize: 10,
+        truncated: false,
+        entries: [
+          {
+            id: 'c1',
+            timestamp: '2026-06-27T12:00:00.000Z',
+            level: 'warn',
+            args: [{ type: 'string', preview: 'heads up' }],
+          },
+        ],
+      },
+      network: {
+        schemaVersion: 'v1',
+        capturedFromRingBuffer: true,
+        capturedFromDebugger: false,
+        entries: [
+          {
+            id: 'n1',
+            url: 'https://example.com/api',
+            method: 'GET',
+            status: 200,
+            statusText: 'OK',
+            initiator: 'fetch',
+            startedAt: '2026-06-27T12:00:00.000Z',
+            endedAt: '2026-06-27T12:00:00.100Z',
+            durationMs: 100,
+            requestHeaders: [],
+            responseHeaders: [],
+            request: null,
+            response: null,
+            fromCache: false,
+            failed: false,
+            errorText: null,
+          },
+        ],
+      },
+    } as unknown as BugReportV1;
+    const read = vi.fn((_input: Blob) => Promise.resolve<ReadReportResult>({ ok: true, report }));
+
+    act(() => {
+      root.render(<App read={read} />);
+    });
+    await act(async () => {
+      dropFile(dropzone(), zipFile());
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="console-table"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="network-table"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="console-row"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="network-row"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="console-table"]')?.textContent).toContain(
+      'heads up',
+    );
+  });
+
   it('shows an error message when the ZIP is invalid, without throwing', async () => {
     const readPromise = Promise.resolve<ReadReportResult>({
       ok: false,
