@@ -3,6 +3,8 @@ import { useState, type ChangeEvent, type DragEvent } from 'react';
 
 import { JsonTree } from './components/JsonTree';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
+import { ConsoleTable } from './panes/ConsoleTable';
+import { NetworkTable } from './panes/NetworkTable';
 
 type State =
   | { readonly status: 'empty' }
@@ -81,12 +83,17 @@ export function App({ read = readReportZip }: AppProps = {}) {
         </p>
       )}
       {state.status === 'loaded' && (
-        <section
-          data-testid="report"
-          className="mt-4 overflow-auto rounded border border-slate-200 p-3"
-        >
-          <JsonTree name="report" data={state.report} />
-        </section>
+        <div data-testid="report" className="mt-4 space-y-4">
+          <section className="rounded border border-slate-200 p-3">
+            <ConsoleTable log={state.report.console} />
+          </section>
+          <section className="rounded border border-slate-200 p-3">
+            <NetworkTable log={state.report.network} />
+          </section>
+          <section className="overflow-auto rounded border border-slate-200 p-3">
+            <JsonTree name="report" data={state.report} />
+          </section>
+        </div>
       )}
     </main>
   );
