@@ -9,13 +9,7 @@ import { collectBrowserInfo } from '../capture/browser-info';
 import { collectCaptureMetadata, readMetadataSource } from '../capture/metadata';
 import browser from '../lib/browser';
 
-const DEFAULT_USER_INPUT: UserInput = {
-  schemaVersion: 'v1',
-  title: '',
-  stepsToReproduce: '',
-  severity: 'minor',
-  notes: '',
-};
+import { USER_REPORT_DEFAULTS } from './user-report-state';
 
 export interface RequestCaptureDeps {
   /** Defaults to reading the live page DOM via the metadata collector. */
@@ -44,7 +38,7 @@ export async function requestCapture(
   return send({
     type: CAPTURE_REPORT,
     metadata,
-    userInput: deps.userInput ?? DEFAULT_USER_INPUT,
+    userInput: deps.userInput ?? USER_REPORT_DEFAULTS,
     browser: browserInfo,
   });
 }

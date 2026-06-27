@@ -173,4 +173,40 @@ describe('OverlayApp capture options', () => {
     expect(queryTestId('capture-options')).not.toBeNull();
     expect(queryTestId('capture-option-viewportScreenshot')).not.toBeNull();
   });
+
+  it('renders the severity + steps + notes form', () => {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+        />,
+      );
+    });
+    expect(queryTestId('user-report-form')).not.toBeNull();
+    expect(queryTestId('user-report-severity')).not.toBeNull();
+    expect(queryTestId('user-report-steps')).not.toBeNull();
+    expect(queryTestId('user-report-notes')).not.toBeNull();
+  });
+});
+
+describe('OverlayApp layout', () => {
+  it('caps the panel height to the viewport and scrolls overflow internally', () => {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+        />,
+      );
+    });
+    const panel = queryTestId('bugcase-overlay');
+    expect(panel).not.toBeNull();
+    // A fixed-position panel taller than the viewport must scroll itself; otherwise the controls
+    // below the fold (notes, capture button) become unreachable.
+    expect(panel?.style.overflowY).toBe('auto');
+    expect(panel?.style.maxHeight).not.toBe('');
+  });
 });
