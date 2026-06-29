@@ -34,7 +34,12 @@ import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import { toNetworkLog } from '../capture/network-log';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 
-import { runCaptureFlow, type CaptureFlowInput } from './capture-flow';
+import {
+  captureReport,
+  finalizeReport,
+  runCaptureFlow,
+  type CaptureFlowInput,
+} from './capture-flow';
 
 /** A known page DOM: one password input (secret), one visible text input, one inline script. */
 const KNOWN_HTML =
@@ -206,5 +211,40 @@ describe('capture engine → ZIP (real modules)', () => {
     };
     expect(meta.tool.name).toBe('bugcase');
     expect(meta.page.url).toBe('https://example.com/path');
+  });
+
+  it('omits a removed artifact from the finalized ZIP (capture → finalize)', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      {
+        captureScreenshot: () => Promise.resolve(fakeShot()),
+        collectDom: () => collectDomSnapshot({ readOuterHtml: () => Promise.resolve(KNOWN_HTML) }),
+      },
+    );
+    expect(captured.ok, `capture failed: ${captured.reason ?? 'unknown'}`).toBe(true);
+
+    let blob: Blob | undefined;
+    const result = await finalizeReport(captured.report!, captured.assets!, ['dom'], {
+      writeZip: writeBugReportZip,
+      download: (b) => {
+        blob = b;
+        return Promise.resolve(1);
+      },
+      now: () => new Date('2026-06-27T09:08:07.000Z'),
+    });
+    expect(result.ok).toBe(true);
+    if (!blob) {
+      throw new Error('no ZIP was produced');
+    }
+
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+    // The removed DOM artifact is gone from both the ZIP files and the report JSON.
+    expect(zip.file(BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot)).toBeNull();
+    const report = JSON.parse(await entryText(zip, BUG_REPORT_ZIP_LAYOUT.report)) as {
+      dom: unknown;
+    };
+    expect(report.dom).toBeNull();
+    // A non-removed artifact (the screenshot) still ships.
+    expect(zip.file(BUG_REPORT_ZIP_LAYOUT.screenshots.viewport)).not.toBeNull();
   });
 });

@@ -26,8 +26,9 @@ const ONE_PX_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk' +
   '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-interface CaptureReportResult {
+interface CaptureFinalizeResult {
   readonly ok: boolean;
+  readonly reportId?: string;
   readonly filename?: string;
   readonly reason?: string;
 }
@@ -136,10 +137,10 @@ test.describe('capture engine integration (Chromium)', () => {
       const extensionPage = await context.newPage();
       await extensionPage.goto(`chrome-extension://${extensionId}/src/popup/popup.html`);
       const response = await extensionPage.evaluate(
-        async (args: { fixtureUrl: string; title: string }): Promise<CaptureReportResult> => {
+        async (args: { fixtureUrl: string; title: string }): Promise<CaptureFinalizeResult> => {
           const g = globalThis as unknown as {
             crypto: { randomUUID: () => string };
-            chrome: { runtime: { sendMessage: (m: unknown) => Promise<CaptureReportResult> } };
+            chrome: { runtime: { sendMessage: (m: unknown) => Promise<CaptureFinalizeResult> } };
           };
           const userOptions = {
             fullPageScreenshot: false,
@@ -157,7 +158,8 @@ test.describe('capture engine integration (Chromium)', () => {
             reproductionSteps: false,
             elementInspections: false,
           };
-          return g.chrome.runtime.sendMessage({
+          // Phase 1: capture assembles + holds the report (no download yet).
+          const captured = await g.chrome.runtime.sendMessage({
             type: 'bugcase/capture-report',
             metadata: {
               id: g.crypto.randomUUID(),
@@ -197,11 +199,26 @@ test.describe('capture engine integration (Chromium)', () => {
               notes: 'happens every time',
             },
           });
+          if (!captured.ok || !captured.reportId) {
+            return { ok: false, reason: captured.reason ?? 'capture failed' };
+          }
+          // Phase 2: finalize (no removals) ZIPs + downloads the held report.
+          const finalized = await g.chrome.runtime.sendMessage({
+            type: 'bugcase/finalize-report',
+            reportId: captured.reportId,
+            removedIds: [],
+          });
+          return {
+            ok: finalized.ok,
+            reportId: captured.reportId,
+            ...(finalized.filename ? { filename: finalized.filename } : {}),
+            ...(finalized.reason ? { reason: finalized.reason } : {}),
+          };
         },
         { fixtureUrl, title: pageTitle },
       );
 
-      expect(response.ok, `capture failed: ${response.reason ?? 'unknown'}`).toBe(true);
+      expect(response.ok, `capture/finalize failed: ${response.reason ?? 'unknown'}`).toBe(true);
       expect(response.filename).toMatch(/^bugcase-.+\.zip$/);
 
       const downloads = await worker2.evaluate(

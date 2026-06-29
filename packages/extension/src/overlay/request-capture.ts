@@ -10,8 +10,11 @@ import type {
 
 import {
   CAPTURE_REPORT,
+  FINALIZE_REPORT,
   type CaptureReportRequest,
   type CaptureReportResponse,
+  type FinalizeReportRequest,
+  type FinalizeReportResponse,
 } from '../background/messages';
 import { collectBrowserInfo } from '../capture/browser-info';
 import { toConsoleLog } from '../capture/console-log';
@@ -20,6 +23,7 @@ import { toNetworkLog } from '../capture/network-log';
 import { createPageBridge } from '../content/page-bridge';
 import { DEFAULT_CONSOLE_BUFFER_SIZE } from '../injected/console-ring-buffer';
 import browser from '../lib/browser';
+import type { ArtifactId } from '../preview/artifact-list';
 import type { FlushChannel } from '../shared/bridge-protocol';
 
 import { USER_REPORT_DEFAULTS } from './user-report-state';
@@ -131,4 +135,20 @@ function defaultCollectMetadata(userOptions?: UserOptions): Promise<CaptureMetad
 
 function defaultSend(message: CaptureReportRequest): Promise<CaptureReportResponse> {
   return browser.runtime.sendMessage<CaptureReportRequest, CaptureReportResponse>(message);
+}
+
+/** Sends a FINALIZE_REPORT message; defaults to the real runtime bridge. */
+export type FinalizeSendFn = (message: FinalizeReportRequest) => Promise<FinalizeReportResponse>;
+
+function defaultFinalizeSend(message: FinalizeReportRequest): Promise<FinalizeReportResponse> {
+  return browser.runtime.sendMessage<FinalizeReportRequest, FinalizeReportResponse>(message);
+}
+
+/** Ask the service worker to ZIP + download a held report, minus the removed artifacts. */
+export function requestFinalize(
+  reportId: string,
+  removedIds: readonly ArtifactId[],
+  send: FinalizeSendFn = defaultFinalizeSend,
+): Promise<FinalizeReportResponse> {
+  return send({ type: FINALIZE_REPORT, reportId, removedIds });
 }

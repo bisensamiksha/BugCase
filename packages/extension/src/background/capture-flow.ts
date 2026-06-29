@@ -18,6 +18,7 @@ import {
 import type { DomSnapshotResult } from '../capture/dom-snapshot';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-capture';
+import type { ArtifactId } from '../preview/artifact-list';
 
 import { buildCaptureReportFilename } from './downloads';
 
@@ -32,12 +33,9 @@ export interface CaptureFlowInput {
   readonly network?: NetworkLog | null;
 }
 
-/** Injected effects so the orchestration is unit-testable without the browser. */
-export interface CaptureFlowDeps {
+/** Capture-side injected effects: assemble the report. Never downloads. */
+export interface CaptureReportDeps {
   readonly captureScreenshot: () => Promise<CapturedScreenshot>;
-  readonly writeZip: (report: BugReportV1, assets: BugReportZipAssets) => Promise<Blob>;
-  readonly download: (blob: Blob, filename: string) => Promise<number>;
-  readonly now?: () => Date;
   /**
    * Optional on-demand debugger network capture (S2-10). When provided it is invoked during the
    * flow; it never throws and shows a user banner while attached. Bodies are surfaced on the result
@@ -74,6 +72,27 @@ export interface CaptureFlowDeps {
   readonly collectStorage?: () => Promise<StorageDump | null>;
 }
 
+/** Finalize-side injected effects: write the ZIP + download. */
+export interface FinalizeReportDeps {
+  readonly writeZip: (report: BugReportV1, assets: BugReportZipAssets) => Promise<Blob>;
+  readonly download: (blob: Blob, filename: string) => Promise<number>;
+  readonly now?: () => Date;
+}
+
+/** Combined deps for the one-shot `runCaptureFlow` (capture + finalize, no removals). */
+export type CaptureFlowDeps = CaptureReportDeps & FinalizeReportDeps;
+
+/** Result of assembling a report in `captureReport` (held in the worker until finalize). */
+export interface CapturedReportResult {
+  readonly ok: boolean;
+  readonly report?: BugReportV1;
+  readonly assets?: BugReportZipAssets;
+  /** Byte sizes for binary artifacts the report only references (screenshot, DOM). */
+  readonly assetSizes?: Partial<Record<ArtifactId, number>>;
+  readonly debuggerNetwork?: DebuggerNetworkCaptureResult;
+  readonly reason?: string;
+}
+
 export interface CaptureFlowResult {
   readonly ok: boolean;
   readonly downloadId?: number;
@@ -87,16 +106,17 @@ function toReason(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const encoder = new TextEncoder();
+
 /**
- * End-to-end capture: screenshot → assemble a `BugReportV1` (with metadata collected upstream
- * in the page context) → ZIP via the schema writer → download with a timestamped filename.
- * Runs in the service worker. Any failure (denied capture, download error) resolves to
- * `{ ok: false, reason }` rather than throwing.
+ * Capture phase: screenshot + optional collectors → assemble a `BugReportV1` and its asset files
+ * (with metadata collected upstream in the page context). Runs in the service worker; never
+ * downloads. Any failure (denied capture, collector error) resolves to `{ ok: false, reason }`.
  */
-export async function runCaptureFlow(
+export async function captureReport(
   input: CaptureFlowInput,
-  deps: CaptureFlowDeps,
-): Promise<CaptureFlowResult> {
+  deps: CaptureReportDeps,
+): Promise<CapturedReportResult> {
   try {
     const shot = await deps.captureScreenshot();
 
@@ -167,23 +187,110 @@ export async function runCaptureFlow(
     if (dom) {
       files.set(dom.snapshot.contentPath, dom.html);
     }
-    const assets: BugReportZipAssets = { files };
 
-    const zip = await deps.writeZip(report, assets);
-    const filename = buildCaptureReportFilename(
-      deps.now?.() ?? new Date(),
-      input.metadata.page.origin,
-    );
-    const downloadId = await deps.download(zip, filename);
+    const assetSizes: Partial<Record<ArtifactId, number>> = { screenshot: shot.blob.size };
+    if (dom) {
+      assetSizes.dom = encoder.encode(dom.html).length;
+    }
 
     return {
       ok: true,
-      downloadId,
-      filename,
-      byteSize: zip.size,
+      report,
+      assets: { files },
+      assetSizes,
       ...(debuggerNetwork ? { debuggerNetwork } : {}),
     };
   } catch (error) {
     return { ok: false, reason: toReason(error) };
   }
+}
+
+const EMPTY_SCREENSHOTS: ScreenshotsManifest = { schemaVersion: 'v1', elementCrops: [] };
+
+/**
+ * Produce a trimmed report + assets with the chosen artifacts removed. `metadata`, `userInput`,
+ * `reproduction`, and `elementInspections` are non-removable and ignored if present in `removedIds`.
+ * Pure — the inputs are not mutated.
+ */
+export function applyArtifactRemovals(
+  report: BugReportV1,
+  assets: BugReportZipAssets,
+  removedIds: readonly ArtifactId[],
+): { report: BugReportV1; assets: BugReportZipAssets } {
+  if (removedIds.length === 0) {
+    return { report, assets };
+  }
+  const removed = new Set(removedIds);
+  const files = new Map(assets.files);
+  let next = report;
+
+  if (removed.has('screenshot')) {
+    for (const ref of [
+      report.screenshots.viewport,
+      report.screenshots.fullPage,
+      ...report.screenshots.elementCrops,
+    ]) {
+      if (ref) {
+        files.delete(ref.path);
+      }
+    }
+    next = { ...next, screenshots: EMPTY_SCREENSHOTS };
+  }
+  if (removed.has('dom')) {
+    if (report.dom) {
+      files.delete(report.dom.contentPath);
+    }
+    next = { ...next, dom: null };
+  }
+  if (removed.has('browser')) next = { ...next, browser: null };
+  if (removed.has('console')) next = { ...next, console: null };
+  if (removed.has('network')) next = { ...next, network: null };
+  if (removed.has('storage')) next = { ...next, storage: null };
+  if (removed.has('cookies')) next = { ...next, cookies: null };
+  if (removed.has('navigation')) next = { ...next, navigation: null };
+
+  return { report: next, assets: { files } };
+}
+
+/**
+ * Finalize phase: apply removals → ZIP via the schema writer → download with a timestamped
+ * filename. Runs in the service worker. Any failure resolves to `{ ok: false, reason }`.
+ */
+export async function finalizeReport(
+  report: BugReportV1,
+  assets: BugReportZipAssets,
+  removedIds: readonly ArtifactId[],
+  deps: FinalizeReportDeps,
+): Promise<CaptureFlowResult> {
+  try {
+    const trimmed = applyArtifactRemovals(report, assets, removedIds);
+    const zip = await deps.writeZip(trimmed.report, trimmed.assets);
+    const filename = buildCaptureReportFilename(
+      deps.now?.() ?? new Date(),
+      trimmed.report.metadata.page.origin,
+    );
+    const downloadId = await deps.download(zip, filename);
+    return { ok: true, downloadId, filename, byteSize: zip.size };
+  } catch (error) {
+    return { ok: false, reason: toReason(error) };
+  }
+}
+
+/**
+ * End-to-end one-shot capture: `captureReport` → `finalizeReport` (no removals). Runs in the
+ * service worker. Any failure resolves to `{ ok: false, reason }`. (The preview flow holds the
+ * captured report between these two phases instead of running them back-to-back.)
+ */
+export async function runCaptureFlow(
+  input: CaptureFlowInput,
+  deps: CaptureFlowDeps,
+): Promise<CaptureFlowResult> {
+  const captured = await captureReport(input, deps);
+  if (!captured.ok || !captured.report || !captured.assets) {
+    return { ok: false, ...(captured.reason ? { reason: captured.reason } : {}) };
+  }
+  const result = await finalizeReport(captured.report, captured.assets, [], deps);
+  return result.ok && captured.debuggerNetwork
+    ? { ...result, debuggerNetwork: captured.debuggerNetwork }
+    : result;
 }

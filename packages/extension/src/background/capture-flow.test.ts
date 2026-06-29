@@ -16,7 +16,12 @@ import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 
-import { runCaptureFlow } from './capture-flow';
+import {
+  applyArtifactRemovals,
+  captureReport,
+  finalizeReport,
+  runCaptureFlow,
+} from './capture-flow';
 
 const metadata: CaptureMetadata = {
   id: '00000000-0000-4000-8000-000000000000',
@@ -494,5 +499,112 @@ describe('runCaptureFlow', () => {
     expect(result.reason).toMatch(/activeTab/);
     expect(writeZip).not.toHaveBeenCalled();
     expect(download).not.toHaveBeenCalled();
+  });
+});
+
+describe('captureReport', () => {
+  it('assembles a schema-valid report + assets without downloading', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const captured = await captureReport({ metadata, userInput }, { captureScreenshot });
+
+    expect(captured.ok).toBe(true);
+    expect(captureScreenshot).toHaveBeenCalledTimes(1);
+    const parsed = BugReportV1Schema.parse(captured.report);
+    expect(parsed.screenshots.viewport?.path).toBe(BUG_REPORT_ZIP_LAYOUT.screenshots.viewport);
+    expect(captured.assets?.files.has(BUG_REPORT_ZIP_LAYOUT.screenshots.viewport)).toBe(true);
+    expect(captured.assetSizes?.screenshot).toBe(fakeShot().blob.size);
+  });
+
+  it('returns ok:false with a reason when the screenshot throws', async () => {
+    const captureScreenshot = vi.fn(() => Promise.reject(new Error('denied')));
+    const captured = await captureReport({ metadata, userInput }, { captureScreenshot });
+    expect(captured).toEqual({ ok: false, reason: 'denied' });
+  });
+});
+
+describe('applyArtifactRemovals', () => {
+  it('nulls a removed section and leaves others untouched', async () => {
+    const captured = await captureReport(
+      {
+        metadata,
+        userInput,
+        console: {
+          schemaVersion: 'v1',
+          capturedFromRingBuffer: true,
+          capturedFromDebugger: false,
+          bufferSize: 200,
+          truncated: false,
+          entries: [],
+        },
+      },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const { report } = applyArtifactRemovals(captured.report!, captured.assets!, ['console']);
+    expect(report.console).toBeNull();
+    expect(report.screenshots.viewport).toBeDefined();
+  });
+
+  it('drops the screenshot file and resets the manifest when screenshot is removed', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const { report, assets } = applyArtifactRemovals(captured.report!, captured.assets!, [
+      'screenshot',
+    ]);
+    expect(report.screenshots.viewport).toBeUndefined();
+    expect(assets.files.has(BUG_REPORT_ZIP_LAYOUT.screenshots.viewport)).toBe(false);
+  });
+
+  it('returns the same report + assets when nothing is removed', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const result = applyArtifactRemovals(captured.report!, captured.assets!, []);
+    expect(result.report).toBe(captured.report);
+    expect(result.assets).toBe(captured.assets);
+  });
+});
+
+describe('finalizeReport', () => {
+  it('zips and downloads a timestamped file, honouring removals', async () => {
+    const zipBlob = new Blob([new Uint8Array([1, 2, 3])], { type: 'application/zip' });
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(zipBlob),
+    );
+    const download = vi.fn(() => Promise.resolve(9));
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+
+    const result = await finalizeReport(captured.report!, captured.assets!, ['screenshot'], {
+      writeZip,
+      download,
+      now: () => new Date('2026-06-13T09:08:07.000Z'),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      downloadId: 9,
+      filename: 'bugcase-example-com-20260613-090807.zip',
+      byteSize: zipBlob.size,
+    });
+    const [report, assets] = writeZip.mock.calls[0] ?? [];
+    expect(report?.screenshots.viewport).toBeUndefined();
+    expect(assets?.files.has(BUG_REPORT_ZIP_LAYOUT.screenshots.viewport)).toBe(false);
+  });
+
+  it('returns ok:false with a reason when writeZip throws', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const result = await finalizeReport(captured.report!, captured.assets!, [], {
+      writeZip: () => Promise.reject(new Error('zip failed')),
+      download: () => Promise.resolve(1),
+    });
+    expect(result).toEqual({ ok: false, reason: 'zip failed' });
   });
 });

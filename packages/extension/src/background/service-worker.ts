@@ -9,7 +9,7 @@ import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 
-import { runCaptureFlow } from './capture-flow';
+import { captureReport, finalizeReport } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
 import { createCookiesCollector } from './cookies-handler';
 import { downloadBlob } from './downloads';
@@ -19,18 +19,28 @@ import {
   DEBUGGER_ACTIVITY,
   isCaptureReportRequest,
   isCaptureVisibleTabRequest,
+  isFinalizeReportRequest,
   isOverlayInjectRequest,
   type CaptureReportRequest,
+  type CaptureReportResponse,
   type CaptureVisibleTabRequest,
   type CaptureVisibleTabResponse,
   type DebuggerActivityMessage,
+  type FinalizeReportRequest,
+  type FinalizeReportResponse,
 } from './messages';
 import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
 import { handleRequestPermissions, isRequestPermissionsRequest } from './permissions-handler';
+import { createReportHold } from './report-hold';
 import { runScrollStitchCapture } from './scroll-stitch-runner';
 
 const overlay = createOverlayController();
+
+// Holds the assembled report + assets between CAPTURE_REPORT (assemble) and FINALIZE_REPORT
+// (ZIP + download), keyed by reportId. The worker may be evicted between the two; a missing
+// reportId is reported as `expired` so the overlay can offer a re-capture.
+const reportHold = createReportHold();
 
 // Reconcile passive-monitoring content-script registrations with the allowlist. Registrations
 // persist across service-worker restarts, so syncing on install and startup repairs any drift
@@ -150,7 +160,23 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   // permission is granted. Scoped to the page url and value-masked inside the collector.
   const collectCookies = createCookiesCollector();
 
-  return runCaptureFlow(
+  return captureAndHold(message, {
+    captureScreenshot,
+    ...(captureDebuggerNetwork ? { captureDebuggerNetwork } : {}),
+    ...(collectDom ? { collectDom } : {}),
+    ...(collectStorage ? { collectStorage } : {}),
+    collectNavigation,
+    collectExtensions,
+    collectCookies,
+  });
+}
+
+/** Assemble the report, hold it under a reportId, and return the JSON report (no download yet). */
+async function captureAndHold(
+  message: CaptureReportRequest,
+  deps: Parameters<typeof captureReport>[1],
+): Promise<CaptureReportResponse> {
+  const captured = await captureReport(
     {
       metadata: message.metadata,
       userInput: message.userInput,
@@ -158,18 +184,38 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
       console: message.console ?? null,
       network: message.network ?? null,
     },
-    {
-      captureScreenshot,
-      writeZip: writeBugReportZip,
-      download: downloadBlob,
-      ...(captureDebuggerNetwork ? { captureDebuggerNetwork } : {}),
-      ...(collectDom ? { collectDom } : {}),
-      ...(collectStorage ? { collectStorage } : {}),
-      collectNavigation,
-      collectExtensions,
-      collectCookies,
-    },
+    deps,
   );
+  if (!captured.ok || !captured.report || !captured.assets) {
+    return { ok: false, ...(captured.reason ? { reason: captured.reason } : {}) };
+  }
+  const reportId = reportHold.put({ report: captured.report, assets: captured.assets });
+  return {
+    ok: true,
+    reportId,
+    report: captured.report,
+    ...(captured.assetSizes ? { assetSizes: captured.assetSizes } : {}),
+  };
+}
+
+/** ZIP + download a held report minus the removed artifacts; `expired` if the hold is gone. */
+async function handleFinalizeReport(
+  message: FinalizeReportRequest,
+): Promise<FinalizeReportResponse> {
+  const held = reportHold.take(message.reportId);
+  if (!held) {
+    return { ok: false, reason: 'expired' };
+  }
+  const result = await finalizeReport(held.report, held.assets, message.removedIds, {
+    writeZip: writeBugReportZip,
+    download: downloadBlob,
+  });
+  return {
+    ok: result.ok,
+    ...(result.downloadId !== undefined ? { downloadId: result.downloadId } : {}),
+    ...(result.filename ? { filename: result.filename } : {}),
+    ...(result.reason ? { reason: result.reason } : {}),
+  };
 }
 
 browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.MessageSender) => {
@@ -181,6 +227,9 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isCaptureReportRequest(message)) {
     return handleCaptureReport(message, sender);
+  }
+  if (isFinalizeReportRequest(message)) {
+    return handleFinalizeReport(message);
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);

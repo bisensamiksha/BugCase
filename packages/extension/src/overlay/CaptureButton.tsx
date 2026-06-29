@@ -42,7 +42,7 @@ export function CaptureButton({ onCapture, onComplete, disabled }: CaptureButton
       const result = await (onCapture ?? requestCapture)();
       if (result.ok) {
         setStatus('done');
-        setMessage(result.filename ? `Saved ${result.filename}` : 'Saved report');
+        setMessage('Captured');
         onComplete?.(result);
       } else {
         setStatus('error');
