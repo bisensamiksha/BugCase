@@ -1,0 +1,159 @@
+// @vitest-environment jsdom
+import type { BugReportV1 } from '@bugcase/schema';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// PreviewApp's default finalize reaches lib/browser; stub the polyfill so import succeeds.
+vi.mock('webextension-polyfill', () => ({ default: {} }));
+
+import { PreviewApp } from './PreviewApp';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+let container: HTMLElement;
+let root: ReturnType<typeof createRoot>;
+
+beforeEach(() => {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+});
+
+function q(id: string): HTMLElement | null {
+  return container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+}
+
+function makeReport(overrides: Partial<BugReportV1> = {}): BugReportV1 {
+  return {
+    schemaVersion: 'v1',
+    metadata: { page: { origin: 'https://example.com' } },
+    userInput: {
+      schemaVersion: 'v1',
+      title: '',
+      stepsToReproduce: '',
+      severity: 'minor',
+      notes: '',
+    },
+    screenshots: { schemaVersion: 'v1', elementCrops: [] },
+    browser: null,
+    console: { schemaVersion: 'v1', entries: [], truncated: false, bufferSize: 200 },
+    network: null,
+    dom: null,
+    storage: null,
+    cookies: null,
+    navigation: null,
+    reproduction: null,
+    elementInspections: null,
+    ...overrides,
+  } as unknown as BugReportV1;
+}
+
+describe('PreviewApp', () => {
+  it('renders the scaffold with the artifact list', () => {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    expect(q('preview-review-screen-scaffold')).not.toBeNull();
+    expect(q('artifact-console')).not.toBeNull();
+    expect(q('artifact-network')?.textContent).toContain('Not captured');
+  });
+
+  it('disables View when no onView is provided', () => {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    expect((q('view-console') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('removes an artifact and finalizes with the removed id, then completes', async () => {
+    const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
+    const onComplete = vi.fn();
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          finalize={finalize}
+          onCancel={() => {}}
+          onComplete={onComplete}
+        />,
+      );
+    });
+
+    act(() => {
+      q('remove-console')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const dl = Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' });
+    await act(async () => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await dl;
+    });
+
+    expect(finalize).toHaveBeenCalledWith('r1', ['console']);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the screen and shows the reason when finalize fails', async () => {
+    const finalize = vi.fn(() => Promise.resolve({ ok: false, reason: 'expired' }));
+    const onComplete = vi.fn();
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          finalize={finalize}
+          onCancel={() => {}}
+          onComplete={onComplete}
+        />,
+      );
+    });
+    const done = Promise.resolve({ ok: false, reason: 'expired' });
+    await act(async () => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await done;
+    });
+
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(q('preview-error')?.textContent).toContain('expired');
+  });
+
+  it('calls onCancel from the Cancel button', () => {
+    const onCancel = vi.fn();
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={onCancel}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    act(() => {
+      q('preview-cancel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});

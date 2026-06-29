@@ -1,5 +1,6 @@
 import type {
   BrowserInfo,
+  BugReportV1,
   CaptureMetadata,
   ConsoleLog,
   NetworkLog,
@@ -7,6 +8,7 @@ import type {
 } from '@bugcase/schema';
 
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
+import type { ArtifactId } from '../preview/artifact-list';
 
 /** Runtime message: popup/overlay → service worker, asking it to capture the visible tab. */
 export const CAPTURE_VISIBLE_TAB = 'bugcase/capture-visible-tab';
@@ -58,8 +60,35 @@ export interface CaptureReportRequest {
   readonly network?: NetworkLog | null;
 }
 
-/** Serializable capture-flow result; `ok` is false on a handled failure. */
+/**
+ * Serializable capture result. The worker assembles + holds the report (binary assets stay in the
+ * worker) and returns the JSON report + a `reportId` so the overlay can preview it, then ask the
+ * worker to ZIP + download via FINALIZE_REPORT. `ok` is false on a handled failure.
+ */
 export interface CaptureReportResponse {
+  readonly ok: boolean;
+  /** Identifier for the report held in the worker; passed back on FINALIZE_REPORT. */
+  readonly reportId?: string;
+  /** The assembled report (JSON only; binary assets stay held in the worker). */
+  readonly report?: BugReportV1;
+  /** Byte sizes for binary artifacts the report only references (screenshot, DOM). */
+  readonly assetSizes?: Partial<Record<ArtifactId, number>>;
+  readonly reason?: string;
+}
+
+/** Runtime message: overlay → service worker, asking it to ZIP + download a held report. */
+export const FINALIZE_REPORT = 'bugcase/finalize-report';
+
+export interface FinalizeReportRequest {
+  readonly type: typeof FINALIZE_REPORT;
+  /** The `reportId` returned by CAPTURE_REPORT. */
+  readonly reportId: string;
+  /** Artifacts the user chose to exclude; their sections + files are dropped before zipping. */
+  readonly removedIds: readonly ArtifactId[];
+}
+
+/** Serializable finalize result; `ok` is false on a handled failure (including `expired`). */
+export interface FinalizeReportResponse {
   readonly ok: boolean;
   readonly downloadId?: number;
   readonly filename?: string;
@@ -83,6 +112,7 @@ export type ExtensionMessage =
   | CaptureVisibleTabRequest
   | OverlayInjectRequest
   | CaptureReportRequest
+  | FinalizeReportRequest
   | DebuggerActivityMessage;
 
 export function isCaptureVisibleTabRequest(value: unknown): value is CaptureVisibleTabRequest {
@@ -106,6 +136,14 @@ export function isCaptureReportRequest(value: unknown): value is CaptureReportRe
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === CAPTURE_REPORT
+  );
+}
+
+export function isFinalizeReportRequest(value: unknown): value is FinalizeReportRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === FINALIZE_REPORT
   );
 }
 

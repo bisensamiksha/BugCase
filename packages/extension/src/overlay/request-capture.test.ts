@@ -4,10 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 // request-capture imports lib/browser for its defaults; stub the polyfill so import succeeds.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
-import { CAPTURE_REPORT, type CaptureReportRequest } from '../background/messages';
+import {
+  CAPTURE_REPORT,
+  FINALIZE_REPORT,
+  type CaptureReportRequest,
+  type FinalizeReportRequest,
+} from '../background/messages';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 
-import { requestCapture } from './request-capture';
+import { requestCapture, requestFinalize } from './request-capture';
 
 const metadata: CaptureMetadata = {
   id: '00000000-0000-4000-8000-000000000000',
@@ -184,5 +189,23 @@ describe('requestCapture', () => {
     await requestCapture({ collectMetadata, send, userOptions });
 
     expect(collectMetadata).toHaveBeenCalledWith(userOptions);
+  });
+});
+
+describe('requestFinalize', () => {
+  it('sends a FINALIZE_REPORT message with the report id and removed ids', async () => {
+    const send = vi.fn((_message: FinalizeReportRequest) =>
+      Promise.resolve({ ok: true, downloadId: 3, filename: 'f.zip' }),
+    );
+
+    const result = await requestFinalize('r1', ['console', 'cookies'], send);
+
+    expect(result).toEqual({ ok: true, downloadId: 3, filename: 'f.zip' });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0]).toEqual({
+      type: FINALIZE_REPORT,
+      reportId: 'r1',
+      removedIds: ['console', 'cookies'],
+    });
   });
 });

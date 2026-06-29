@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { BugReportV1 } from '@bugcase/schema';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -208,5 +209,86 @@ describe('OverlayApp layout', () => {
     // below the fold (notes, capture button) become unreachable.
     expect(panel?.style.overflowY).toBe('auto');
     expect(panel?.style.maxHeight).not.toBe('');
+  });
+});
+
+describe('OverlayApp capture → preview', () => {
+  function previewReport(): BugReportV1 {
+    return {
+      schemaVersion: 'v1',
+      metadata: { page: { origin: 'https://example.com' } },
+      userInput: {
+        schemaVersion: 'v1',
+        title: '',
+        stepsToReproduce: '',
+        severity: 'minor',
+        notes: '',
+      },
+      screenshots: { schemaVersion: 'v1', elementCrops: [] },
+      browser: null,
+      console: null,
+      network: null,
+      dom: null,
+      storage: null,
+      cookies: null,
+      navigation: null,
+      reproduction: null,
+      elementInspections: null,
+    } as unknown as BugReportV1;
+  }
+
+  it('switches from the capture form to the preview after a successful capture', async () => {
+    const response = { ok: true, reportId: 'r1', report: previewReport() };
+    const onCapture = vi.fn(() => Promise.resolve(response));
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          onCapture={onCapture}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve(response);
+    });
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    expect(queryTestId('preview-review-screen-scaffold')).not.toBeNull();
+    expect(queryTestId('capture-button')).toBeNull();
+  });
+
+  it('returns to the capture form when preview is cancelled', async () => {
+    const onCapture = vi.fn(() =>
+      Promise.resolve({ ok: true, reportId: 'r1', report: previewReport() }),
+    );
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          onCapture={onCapture}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    act(() => {
+      queryTestId('preview-cancel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(queryTestId('capture-button')).not.toBeNull();
+    expect(queryTestId('preview-review-screen-scaffold')).toBeNull();
   });
 });

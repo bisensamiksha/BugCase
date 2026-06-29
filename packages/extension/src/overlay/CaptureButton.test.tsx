@@ -57,18 +57,14 @@ describe('CaptureButton', () => {
     expect(button().disabled).toBe(true);
 
     await act(async () => {
-      resolveCapture({ ok: true, downloadId: 1, filename: 'bugcase-example-com-x.zip' });
+      resolveCapture({ ok: true, reportId: 'r1' });
       await capturePromise;
     });
 
-    expect(onComplete).toHaveBeenCalledWith({
-      ok: true,
-      downloadId: 1,
-      filename: 'bugcase-example-com-x.zip',
-    });
+    expect(onComplete).toHaveBeenCalledWith({ ok: true, reportId: 'r1' });
     expect(button().getAttribute('aria-busy')).toBe('false');
     expect(container.querySelector('[data-testid="capture-status"]')?.textContent).toContain(
-      'bugcase-example-com-x.zip',
+      'Captured',
     );
   });
 

@@ -19,11 +19,11 @@ const ONE_PX_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk' +
   '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-/** Shape the service worker returns from the real `bugcase/capture-report` handler. */
-interface CaptureReportResult {
+/** Combined result of the two-phase capture → finalize round-trip driven below. */
+interface CaptureFinalizeResult {
   readonly ok: boolean;
+  readonly reportId?: string;
   readonly filename?: string;
-  readonly downloadId?: number;
   readonly reason?: string;
 }
 
@@ -108,10 +108,10 @@ test.describe('extension capture pipeline (Chromium)', () => {
       }, ONE_PX_PNG);
 
       const response = await extensionPage.evaluate(
-        async (args: { fixtureUrl: string; title: string }): Promise<CaptureReportResult> => {
+        async (args: { fixtureUrl: string; title: string }): Promise<CaptureFinalizeResult> => {
           const g = globalThis as unknown as {
             crypto: { randomUUID: () => string };
-            chrome: { runtime: { sendMessage: (m: unknown) => Promise<CaptureReportResult> } };
+            chrome: { runtime: { sendMessage: (m: unknown) => Promise<CaptureFinalizeResult> } };
           };
           const metadata = {
             id: g.crypto.randomUUID(),
@@ -165,16 +165,32 @@ test.describe('extension capture pipeline (Chromium)', () => {
             severity: 'minor',
             notes: '',
           };
-          return g.chrome.runtime.sendMessage({
+          // Phase 1: capture assembles + holds the report (no download yet).
+          const captured = await g.chrome.runtime.sendMessage({
             type: 'bugcase/capture-report',
             metadata,
             userInput,
           });
+          if (!captured.ok || !captured.reportId) {
+            return { ok: false, reason: captured.reason ?? 'capture failed' };
+          }
+          // Phase 2: finalize (no removals) ZIPs + downloads the held report.
+          const finalized = await g.chrome.runtime.sendMessage({
+            type: 'bugcase/finalize-report',
+            reportId: captured.reportId,
+            removedIds: [],
+          });
+          return {
+            ok: finalized.ok,
+            reportId: captured.reportId,
+            ...(finalized.filename ? { filename: finalized.filename } : {}),
+            ...(finalized.reason ? { reason: finalized.reason } : {}),
+          };
         },
         { fixtureUrl: FIXTURE_URL, title: pageTitle },
       );
 
-      expect(response.ok, `capture failed: ${response.reason ?? 'unknown'}`).toBe(true);
+      expect(response.ok, `capture/finalize failed: ${response.reason ?? 'unknown'}`).toBe(true);
       expect(response.filename).toMatch(/^bugcase-.+\.zip$/);
 
       // The flow downloaded the ZIP as a data URL; decode it and inspect the real output.

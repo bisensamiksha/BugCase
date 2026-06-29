@@ -1,7 +1,7 @@
-import type { UserInput, UserOptions } from '@bugcase/schema';
+import type { BugReportV1, UserInput, UserOptions } from '@bugcase/schema';
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { isDebuggerActivityMessage } from '../background/messages';
+import { isDebuggerActivityMessage, type CaptureReportResponse } from '../background/messages';
 import {
   ORIGIN_ALLOWLIST_MESSAGE,
   type OriginAllowlistRequest,
@@ -9,6 +9,8 @@ import {
 } from '../background/origin-allowlist-handler';
 import browser from '../lib/browser';
 import { hasOptionalPermissions } from '../permissions/optional-permissions';
+import { PreviewApp } from '../preview/PreviewApp';
+import type { ArtifactId } from '../preview/artifact-list';
 import { normalizeOrigin } from '../storage/origin-allowlist';
 
 import { CaptureButton } from './CaptureButton';
@@ -49,6 +51,19 @@ export interface OverlayAppProps {
   readonly subscribeDebuggerActivity?: (handler: DebuggerActivityHandler) => () => void;
   /** Whether the optional `cookies` permission is granted; defaults to a live permissions check. */
   readonly checkCookiesGranted?: () => Promise<boolean>;
+  /** Runs the capture; defaults to the real overlay → service-worker flow. Injectable for tests. */
+  readonly onCapture?: (input: {
+    userOptions: UserOptions;
+    userInput: UserInput;
+  }) => Promise<CaptureReportResponse>;
+}
+
+type OverlayPhase = 'form' | 'preview';
+
+interface PreviewPayload {
+  readonly reportId: string;
+  readonly report: BugReportV1;
+  readonly assetSizes?: Partial<Record<ArtifactId, number>>;
 }
 
 /** Best-effort host name for an origin (e.g. `https://example.com` → `example.com`). */
@@ -115,6 +130,7 @@ export function OverlayApp({
   checkAllowed,
   subscribeDebuggerActivity,
   checkCookiesGranted,
+  onCapture,
 }: OverlayAppProps) {
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
   const host = hostNameOf(pageOrigin);
@@ -122,6 +138,8 @@ export function OverlayApp({
   const [cookiesGranted, setCookiesGranted] = useState(false);
   const [captureOptions, setCaptureOptions] = useState<UserOptions>(CAPTURE_OPTION_DEFAULTS);
   const [userReport, setUserReport] = useState<UserInput>(USER_REPORT_DEFAULTS);
+  const [phase, setPhase] = useState<OverlayPhase>('form');
+  const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
@@ -174,6 +192,21 @@ export function OverlayApp({
       cancelled = true;
     };
   }, [pageOrigin, checkAllowed]);
+
+  if (phase === 'preview' && preview) {
+    return (
+      <PreviewApp
+        reportId={preview.reportId}
+        report={preview.report}
+        {...(preview.assetSizes ? { assetSizes: preview.assetSizes } : {})}
+        onCancel={() => {
+          setPhase('form');
+          setPreview(null);
+        }}
+        onComplete={onClose}
+      />
+    );
+  }
 
   return (
     <div
@@ -230,8 +263,19 @@ export function OverlayApp({
       <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
       <UserReportForm value={userReport} onChange={setUserReport} />
       <CaptureButton
-        onComplete={onClose}
-        onCapture={() => requestCapture({ userOptions: captureOptions, userInput: userReport })}
+        onComplete={(result) => {
+          if (result.ok && result.reportId && result.report) {
+            setPreview({
+              reportId: result.reportId,
+              report: result.report,
+              ...(result.assetSizes ? { assetSizes: result.assetSizes } : {}),
+            });
+            setPhase('preview');
+          }
+        }}
+        onCapture={() =>
+          (onCapture ?? requestCapture)({ userOptions: captureOptions, userInput: userReport })
+        }
       />
     </div>
   );
