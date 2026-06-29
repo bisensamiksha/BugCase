@@ -98,6 +98,84 @@ describe('requestCapture', () => {
     expect(msg?.userInput.title).toBe('Crash');
   });
 
+  it('flushes and includes the console log when consoleLogs is enabled', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+    const flushChannel = vi.fn((channel: 'console' | 'network') =>
+      Promise.resolve(
+        channel === 'console'
+          ? [{ type: 'console', level: 'warn', args: ['hi'], timestamp: Date.now() }]
+          : [],
+      ),
+    );
+
+    await requestCapture({
+      collectMetadata,
+      send,
+      flushChannel,
+      userOptions: { ...DEFAULT_USER_OPTIONS, consoleLogs: true },
+    });
+
+    expect(flushChannel).toHaveBeenCalledWith('console');
+    const msg = send.mock.calls[0]?.[0];
+    expect(msg?.console?.entries[0]?.level).toBe('warn');
+    expect(msg?.network).toBeNull();
+  });
+
+  it('flushes, scrubs, and merges network scrubber stats into metadata when networkLog is enabled', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+    const networkRaw = {
+      initiator: 'fetch',
+      url: 'https://example.com/api',
+      method: 'GET',
+      status: 200,
+      statusText: 'OK',
+      requestHeaders: [{ name: 'Authorization', value: 'Bearer secret' }],
+      responseHeaders: [],
+      startedAt: Date.now(),
+      endedAt: Date.now(),
+      durationMs: 10,
+      failed: false,
+      errorText: null,
+    };
+    const flushChannel = vi.fn((channel: 'console' | 'network') =>
+      Promise.resolve(channel === 'network' ? [networkRaw] : []),
+    );
+
+    await requestCapture({
+      collectMetadata,
+      send,
+      flushChannel,
+      userOptions: { ...DEFAULT_USER_OPTIONS, networkLog: true },
+    });
+
+    const msg = send.mock.calls[0]?.[0];
+    expect(msg?.network?.entries[0]?.requestHeaders).toContainEqual({
+      name: 'Authorization',
+      value: '[scrubbed]',
+    });
+    expect(msg?.metadata.scrubbersApplied.some((s) => s.id === 'header-secret-mask')).toBe(true);
+  });
+
+  it('does not flush the ring buffers when console/network options are off', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+    const flushChannel = vi.fn(() => Promise.resolve([]));
+
+    await requestCapture({
+      collectMetadata,
+      send,
+      flushChannel,
+      userOptions: DEFAULT_USER_OPTIONS,
+    });
+
+    expect(flushChannel).not.toHaveBeenCalled();
+    const msg = send.mock.calls[0]?.[0];
+    expect(msg?.console).toBeNull();
+    expect(msg?.network).toBeNull();
+  });
+
   it('threads userOptions into the metadata collector', async () => {
     const collectMetadata = vi.fn((_userOptions?: UserOptions) => Promise.resolve(metadata));
     const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));

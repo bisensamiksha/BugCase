@@ -151,7 +151,13 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   const collectCookies = createCookiesCollector();
 
   return runCaptureFlow(
-    { metadata: message.metadata, userInput: message.userInput, browser: message.browser },
+    {
+      metadata: message.metadata,
+      userInput: message.userInput,
+      browser: message.browser,
+      console: message.console ?? null,
+      network: message.network ?? null,
+    },
     {
       captureScreenshot,
       writeZip: writeBugReportZip,

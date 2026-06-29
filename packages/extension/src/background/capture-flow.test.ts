@@ -191,6 +191,80 @@ describe('runCaptureFlow', () => {
     expect(assets?.files.get(BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot)).toBe('<html>scrubbed</html>');
   });
 
+  it('records console and network logs in the report when provided', async () => {
+    const consoleLog = {
+      schemaVersion: 'v1' as const,
+      capturedFromRingBuffer: true,
+      capturedFromDebugger: false,
+      bufferSize: 500,
+      truncated: false,
+      entries: [
+        {
+          id: 'c1',
+          timestamp: '2026-06-27T12:00:00.000Z',
+          level: 'error' as const,
+          args: [{ type: 'string' as const, preview: 'boom' }],
+        },
+      ],
+    };
+    const networkLog = {
+      schemaVersion: 'v1' as const,
+      capturedFromRingBuffer: true,
+      capturedFromDebugger: false,
+      entries: [
+        {
+          id: 'n1',
+          url: 'https://example.com/api',
+          method: 'GET',
+          status: 200,
+          statusText: 'OK',
+          initiator: 'fetch' as const,
+          startedAt: '2026-06-27T12:00:00.000Z',
+          endedAt: '2026-06-27T12:00:00.100Z',
+          durationMs: 100,
+          requestHeaders: [],
+          responseHeaders: [],
+          request: null,
+          response: null,
+          fromCache: false,
+          failed: false,
+          errorText: null,
+        },
+      ],
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(15));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput, console: consoleLog, network: networkLog },
+      { captureScreenshot, writeZip, download },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.console?.entries[0]?.level).toBe('error');
+    expect(parsed.network?.entries[0]?.url).toBe('https://example.com/api');
+  });
+
+  it('leaves console and network null when not provided', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(16));
+
+    await runCaptureFlow({ metadata, userInput }, { captureScreenshot, writeZip, download });
+
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.console).toBeNull();
+    expect(parsed.network).toBeNull();
+  });
+
   it('records browser info in report.browser when provided', async () => {
     const browserInfo = {
       schemaVersion: 'v1' as const,

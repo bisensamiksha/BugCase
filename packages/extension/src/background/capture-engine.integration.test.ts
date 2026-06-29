@@ -28,11 +28,13 @@ import { describe, expect, it, vi } from 'vitest';
 // module throws at import outside an extension, so stub it (downloads is injected below anyway).
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+import { toConsoleLog } from '../capture/console-log';
 import { collectDomSnapshot } from '../capture/dom-snapshot';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
+import { toNetworkLog } from '../capture/network-log';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 
-import { runCaptureFlow } from './capture-flow';
+import { runCaptureFlow, type CaptureFlowInput } from './capture-flow';
 
 /** A known page DOM: one password input (secret), one visible text input, one inline script. */
 const KNOWN_HTML =
@@ -88,10 +90,12 @@ function fakeShot(): CapturedScreenshot {
 }
 
 /** Run the real engine over KNOWN_HTML and return the re-opened ZIP plus the captured Blob. */
-async function captureAndReopen(): Promise<{ zip: JSZip; blob: Blob }> {
+async function captureAndReopen(
+  extra: Pick<Partial<CaptureFlowInput>, 'console' | 'network'> = {},
+): Promise<{ zip: JSZip; blob: Blob }> {
   let captured: Blob | undefined;
   const result = await runCaptureFlow(
-    { metadata, userInput },
+    { metadata, userInput, ...extra },
     {
       captureScreenshot: () => Promise.resolve(fakeShot()),
       // The real DOM collector: read the known HTML, then run the real scrubbers.
@@ -148,6 +152,45 @@ describe('capture engine → ZIP (real modules)', () => {
     // The user's typed report (S2-21) round-trips into the ZIP intact.
     expect(report.userInput.severity).toBe('major');
     expect(report.userInput.title).toBe('Login button does nothing');
+  });
+
+  it('records console + network ring-buffer logs in the report, scrubbing network headers (S2-25)', async () => {
+    // Map raw ring-buffer entries the way the overlay does, then run them through the engine.
+    const consoleLog = toConsoleLog(
+      [{ type: 'error', args: ['kaboom'], timestamp: Date.parse('2026-06-27T12:00:00.000Z') }],
+      { bufferSize: 500 },
+    );
+    const { log: networkLog } = toNetworkLog([
+      {
+        initiator: 'fetch',
+        url: 'https://api.example.com/v1',
+        method: 'POST',
+        status: 200,
+        statusText: 'OK',
+        requestHeaders: [{ name: 'Authorization', value: 'Bearer top-secret' }],
+        responseHeaders: [],
+        startedAt: Date.parse('2026-06-27T12:00:00.000Z'),
+        endedAt: Date.parse('2026-06-27T12:00:00.050Z'),
+        durationMs: 50,
+        failed: false,
+        errorText: null,
+      },
+    ]);
+
+    const { zip } = await captureAndReopen({ console: consoleLog, network: networkLog });
+    const report = BugReportV1Schema.parse(
+      JSON.parse(await entryText(zip, BUG_REPORT_ZIP_LAYOUT.report)),
+    );
+
+    expect(report.console?.entries[0]?.level).toBe('error');
+    expect(report.network?.entries[0]?.url).toBe('https://api.example.com/v1');
+    // The sensitive request header is scrubbed in the stored report.
+    const auth = report.network?.entries[0]?.requestHeaders.find((h) => h.name === 'Authorization');
+    expect(auth?.value).toBe('[scrubbed]');
+    expect(report.network?.entries[0]?.requestHeaders).not.toContainEqual({
+      name: 'Authorization',
+      value: 'Bearer top-secret',
+    });
   });
 
   it('writes the canonical report + metadata + screenshot entries', async () => {

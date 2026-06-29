@@ -4,9 +4,11 @@ import {
   type BugReportV1,
   type BugReportZipAssets,
   type CaptureMetadata,
+  type ConsoleLog,
   type CookiesDump,
   type InstalledExtensionInfo,
   type NavigationLog,
+  type NetworkLog,
   type ScreenshotRef,
   type ScreenshotsManifest,
   type StorageDump,
@@ -24,6 +26,10 @@ export interface CaptureFlowInput {
   readonly userInput: UserInput;
   /** Browser info collected in the page context; recorded as `report.browser`. */
   readonly browser?: BrowserInfo;
+  /** Console ring-buffer log collected in the overlay (S2-25); recorded as `report.console`. */
+  readonly console?: ConsoleLog | null;
+  /** Network ring-buffer log collected in the overlay (S2-25); recorded as `report.network`. */
+  readonly network?: NetworkLog | null;
 }
 
 /** Injected effects so the orchestration is unit-testable without the browser. */
@@ -147,8 +153,8 @@ export async function runCaptureFlow(
       userInput: input.userInput,
       screenshots,
       browser: reportBrowser,
-      console: null,
-      network: null,
+      console: input.console ?? null,
+      network: input.network ?? null,
       dom: dom?.snapshot ?? null,
       storage,
       cookies,

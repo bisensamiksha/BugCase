@@ -1,4 +1,10 @@
-import type { BrowserInfo, CaptureMetadata, UserInput } from '@bugcase/schema';
+import type {
+  BrowserInfo,
+  CaptureMetadata,
+  ConsoleLog,
+  NetworkLog,
+  UserInput,
+} from '@bugcase/schema';
 
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 
@@ -46,6 +52,10 @@ export interface CaptureReportRequest {
   readonly userInput: UserInput;
   /** Browser info (UA / UA-CH / languages / timezone), collected alongside metadata in the page. */
   readonly browser: BrowserInfo;
+  /** Console ring-buffer log, flushed + mapped in the overlay (S2-25); `null` when not collected. */
+  readonly console?: ConsoleLog | null;
+  /** Network ring-buffer log, flushed + scrubbed in the overlay (S2-25); `null` when not collected. */
+  readonly network?: NetworkLog | null;
 }
 
 /** Serializable capture-flow result; `ok` is false on a handled failure. */
