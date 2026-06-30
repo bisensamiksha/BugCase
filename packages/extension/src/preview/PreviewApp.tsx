@@ -4,6 +4,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import type { FinalizeReportResponse } from '../background/messages';
 import { requestFinalize } from '../overlay/request-capture';
 
+import { SandboxedDomSnapshotViewer } from './DomSnapshotViewer';
 import { JsonTreeViewer } from './JsonTreeViewer';
 import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
 import { isJsonViewable, selectArtifactJson } from './artifact-json';
@@ -21,7 +22,7 @@ export interface PreviewAppProps {
     reportId: string,
     removedIds: readonly ArtifactId[],
   ) => Promise<FinalizeReportResponse>;
-  /** Opens a non-screenshot artifact viewer; an inert stub until S3-03/04 wire those viewers. */
+  /** Opens an artifact viewer not handled in-app (none remain after S3-04); kept as an escape hatch. */
   readonly onView?: (id: ArtifactId) => void;
   /** Fetches a held asset as a data URL for the screenshot lightbox; defaults to the SW bridge. */
   readonly peekAsset?: PeekAssetFn;
@@ -50,6 +51,12 @@ const rowStyle: CSSProperties = {
 };
 
 const footerStyle: CSSProperties = { display: 'flex', gap: '12px', marginTop: '16px' };
+
+/** Artifacts that open a viewer inside the preview: the screenshot lightbox, the DOM snapshot
+ * sandbox, or the JSON tree viewer for everything else. */
+function isInAppViewable(id: ArtifactId): boolean {
+  return id === 'screenshot' || id === 'dom' || isJsonViewable(id);
+}
 
 export function PreviewApp({
   reportId,
@@ -114,6 +121,18 @@ export function PreviewApp({
     );
   }
 
+  if (viewing === 'dom' && report.dom) {
+    return (
+      <SandboxedDomSnapshotViewer
+        reportId={reportId}
+        snapshot={report.dom}
+        onCancel={() => setViewing(null)}
+        onComplete={() => setViewing(null)}
+        {...(peekAsset ? { peekAsset } : {})}
+      />
+    );
+  }
+
   if (viewing && isJsonViewable(viewing)) {
     return (
       <JsonTreeViewer
@@ -153,11 +172,9 @@ export function PreviewApp({
               <button
                 type="button"
                 data-testid={`view-${a.id}`}
-                disabled={!a.present || (a.id !== 'screenshot' && !isJsonViewable(a.id) && !onView)}
+                disabled={!a.present || (!isInAppViewable(a.id) && !onView)}
                 onClick={() => {
-                  if (a.id === 'screenshot') {
-                    setViewing('screenshot');
-                  } else if (isJsonViewable(a.id)) {
+                  if (isInAppViewable(a.id)) {
                     setViewing(a.id);
                   } else {
                     onView?.(a.id);

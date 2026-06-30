@@ -199,6 +199,51 @@ describe('PreviewApp', () => {
     expect(peekAsset).toHaveBeenCalledWith('r1', 'raw/screenshot-viewport.png');
   });
 
+  it('opens the sandboxed DOM viewer from the dom View button', async () => {
+    const peekAsset = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        dataUrl: `data:text/plain,${encodeURIComponent('<html></html>')}`,
+      }),
+    );
+    const reportWithDom = makeReport({
+      dom: {
+        schemaVersion: 'v1',
+        contentPath: 'raw/dom-snapshot.html',
+        byteSize: 10,
+        scrubbed: true,
+        scrubberHits: 0,
+      },
+    } as unknown as Partial<BugReportV1>);
+
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithDom}
+          peekAsset={peekAsset}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect((q('view-dom') as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => {
+      q('view-dom')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('sandboxed-dom-snapshot-viewer')).not.toBeNull();
+    expect(peekAsset).toHaveBeenCalledWith('r1', 'raw/dom-snapshot.html');
+
+    // close returns to the list
+    act(() => {
+      q('dom-close')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('preview-review-screen-scaffold')).not.toBeNull();
+  });
+
   it('opens the JSON tree viewer from a JSON artifact View button', () => {
     act(() => {
       root.render(
