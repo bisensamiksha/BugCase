@@ -95,6 +95,24 @@ export interface FinalizeReportResponse {
   readonly reason?: string;
 }
 
+/** Runtime message: overlay → service worker, asking for a held report's asset as a data URL. */
+export const PEEK_REPORT_ASSET = 'bugcase/peek-report-asset';
+
+export interface PeekReportAssetRequest {
+  readonly type: typeof PEEK_REPORT_ASSET;
+  /** The `reportId` returned by CAPTURE_REPORT. */
+  readonly reportId: string;
+  /** Canonical ZIP path of the asset to read (e.g. a `ScreenshotRef.path`). */
+  readonly path: string;
+}
+
+/** Serializable peek result; `ok` is false on a handled failure (`expired` / `not-found`). */
+export interface PeekReportAssetResponse {
+  readonly ok: boolean;
+  readonly dataUrl?: string;
+  readonly reason?: string;
+}
+
 /**
  * Runtime message: service worker → tab, signalling that the on-demand `chrome.debugger` session
  * is attached (`active: true`) or detached (`active: false`). The overlay shows a banner while active.
@@ -113,6 +131,7 @@ export type ExtensionMessage =
   | OverlayInjectRequest
   | CaptureReportRequest
   | FinalizeReportRequest
+  | PeekReportAssetRequest
   | DebuggerActivityMessage;
 
 export function isCaptureVisibleTabRequest(value: unknown): value is CaptureVisibleTabRequest {
@@ -144,6 +163,14 @@ export function isFinalizeReportRequest(value: unknown): value is FinalizeReport
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === FINALIZE_REPORT
+  );
+}
+
+export function isPeekReportAssetRequest(value: unknown): value is PeekReportAssetRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === PEEK_REPORT_ASSET
   );
 }
 

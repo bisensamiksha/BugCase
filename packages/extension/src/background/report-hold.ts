@@ -10,6 +10,8 @@ export interface ReportHold {
   put(held: HeldReport): string;
   /** Retrieve and remove a held report (one-shot); `undefined` if absent/evicted. */
   take(reportId: string): HeldReport | undefined;
+  /** Retrieve a held report without removing it; `undefined` if absent/evicted. */
+  peek(reportId: string): HeldReport | undefined;
 }
 
 /**
@@ -31,6 +33,9 @@ export function createReportHold(generateId: () => string = () => crypto.randomU
         store.delete(reportId);
       }
       return value;
+    },
+    peek(reportId) {
+      return store.get(reportId);
     },
   };
 }

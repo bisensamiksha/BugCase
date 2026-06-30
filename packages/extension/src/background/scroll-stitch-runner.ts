@@ -17,6 +17,7 @@ import {
   type ScrollStitchPlan,
 } from '../capture/scroll-stitch';
 import { freezePageForCapture, restoreFrozenPage } from '../content/freeze-page';
+import { blobToDataUrl } from '../lib/blob-data-url';
 import browser from '../lib/browser';
 
 /** `captureVisibleTab` is rate-limited (~2/sec); keep tile captures just under that. */
@@ -47,15 +48,6 @@ async function stitchTiles(plan: ScrollStitchPlan, tiles: readonly ImageBitmap[]
     }
   });
   return canvas.convertToBlob({ type: 'image/png' });
-}
-
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return `data:${blob.type || 'image/png'};base64,${btoa(binary)}`;
 }
 
 /** Run a full-page scroll-stitch capture against `tabId`, returning a report-ready screenshot. */

@@ -1,5 +1,6 @@
 import { type Downloads } from 'webextension-polyfill';
 
+import { blobToDataUrl } from '../lib/blob-data-url';
 import browser from '../lib/browser';
 
 function pad2(value: number): string {
@@ -40,15 +41,6 @@ function hostSlug(origin?: string): string {
 /** `bugcase-<host>-<YYYYMMDD-HHmmss>.zip`, e.g. `bugcase-example-com-20260613-090807.zip`. */
 export function buildCaptureReportFilename(now: Date, origin?: string): string {
   return `bugcase-${hostSlug(origin)}-${utcStamp(now)}.zip`;
-}
-
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return `data:${blob.type || 'application/octet-stream'};base64,${btoa(binary)}`;
 }
 
 /** Object-URL helpers, injectable so the data-URL vs blob-URL branch is unit-testable. */

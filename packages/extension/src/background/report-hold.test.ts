@@ -39,4 +39,20 @@ describe('createReportHold', () => {
     expect(hold.take(idB)).toBe(b);
     expect(hold.take(idA)).toBe(a);
   });
+
+  it('peek returns the held value without consuming it', () => {
+    const hold = createReportHold(() => 'id-1');
+    hold.put(held);
+    expect(hold.peek('id-1')).toBe(held);
+    expect(hold.peek('id-1')).toBe(held); // still there
+    expect(hold.take('id-1')).toBe(held); // and take still works after peek
+  });
+
+  it('peek of an unknown or already-taken id returns undefined', () => {
+    const hold = createReportHold(() => 'id-1');
+    expect(hold.peek('nope')).toBeUndefined();
+    hold.put(held);
+    hold.take('id-1');
+    expect(hold.peek('id-1')).toBeUndefined();
+  });
 });

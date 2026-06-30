@@ -5,9 +5,11 @@ import {
   CAPTURE_VISIBLE_TAB,
   FINALIZE_REPORT,
   OVERLAY_INJECT,
+  PEEK_REPORT_ASSET,
   isCaptureReportRequest,
   isFinalizeReportRequest,
   isOverlayInjectRequest,
+  isPeekReportAssetRequest,
 } from './messages';
 
 describe('isOverlayInjectRequest', () => {
@@ -47,5 +49,19 @@ describe('isFinalizeReportRequest', () => {
     expect(isFinalizeReportRequest({ type: CAPTURE_REPORT })).toBe(false);
     expect(isFinalizeReportRequest(null)).toBe(false);
     expect(isFinalizeReportRequest('finalize')).toBe(false);
+  });
+});
+
+describe('isPeekReportAssetRequest', () => {
+  it('accepts a well-formed peek request', () => {
+    expect(
+      isPeekReportAssetRequest({ type: PEEK_REPORT_ASSET, reportId: 'r1', path: 'raw/s.png' }),
+    ).toBe(true);
+  });
+
+  it('rejects other message types and non-objects', () => {
+    expect(isPeekReportAssetRequest({ type: FINALIZE_REPORT })).toBe(false);
+    expect(isPeekReportAssetRequest(null)).toBe(false);
+    expect(isPeekReportAssetRequest('peek')).toBe(false);
   });
 });

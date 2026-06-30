@@ -7,12 +7,13 @@ vi.mock('webextension-polyfill', () => ({ default: {} }));
 import {
   CAPTURE_REPORT,
   FINALIZE_REPORT,
+  PEEK_REPORT_ASSET,
   type CaptureReportRequest,
   type FinalizeReportRequest,
 } from '../background/messages';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 
-import { requestCapture, requestFinalize } from './request-capture';
+import { requestCapture, requestFinalize, requestPeekAsset } from './request-capture';
 
 const metadata: CaptureMetadata = {
   id: '00000000-0000-4000-8000-000000000000',
@@ -207,5 +208,18 @@ describe('requestFinalize', () => {
       reportId: 'r1',
       removedIds: ['console', 'cookies'],
     });
+  });
+});
+
+describe('requestPeekAsset', () => {
+  it('sends a PEEK_REPORT_ASSET message and returns the response', async () => {
+    const send = vi.fn(() => Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AA' }));
+    const res = await requestPeekAsset('r1', 'raw/s.png', send);
+    expect(send).toHaveBeenCalledWith({
+      type: PEEK_REPORT_ASSET,
+      reportId: 'r1',
+      path: 'raw/s.png',
+    });
+    expect(res).toEqual({ ok: true, dataUrl: 'data:image/png;base64,AA' });
   });
 });
