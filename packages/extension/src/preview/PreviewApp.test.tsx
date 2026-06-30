@@ -156,4 +156,45 @@ describe('PreviewApp', () => {
     });
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it('opens the screenshot lightbox from the screenshot View button', async () => {
+    const peekAsset = vi.fn(() =>
+      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
+    );
+    const reportWithShot = makeReport({
+      screenshots: {
+        schemaVersion: 'v1',
+        viewport: {
+          path: 'raw/screenshot-viewport.png',
+          width: 800,
+          height: 600,
+          devicePixelRatio: 1,
+          captureMethod: 'visibleTab',
+          hasAnnotations: false,
+        },
+        elementCrops: [],
+      },
+    } as unknown as Partial<BugReportV1>);
+
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot}
+          peekAsset={peekAsset}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect((q('view-screenshot') as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => {
+      q('view-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve(); // flush the peekAsset promise started by the lightbox
+    });
+    expect(q('lightbox-screenshot-viewer')).not.toBeNull();
+    expect(peekAsset).toHaveBeenCalledWith('r1', 'raw/screenshot-viewport.png');
+  });
 });

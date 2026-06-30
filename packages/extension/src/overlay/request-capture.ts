@@ -11,10 +11,13 @@ import type {
 import {
   CAPTURE_REPORT,
   FINALIZE_REPORT,
+  PEEK_REPORT_ASSET,
   type CaptureReportRequest,
   type CaptureReportResponse,
   type FinalizeReportRequest,
   type FinalizeReportResponse,
+  type PeekReportAssetRequest,
+  type PeekReportAssetResponse,
 } from '../background/messages';
 import { collectBrowserInfo } from '../capture/browser-info';
 import { toConsoleLog } from '../capture/console-log';
@@ -151,4 +154,20 @@ export function requestFinalize(
   send: FinalizeSendFn = defaultFinalizeSend,
 ): Promise<FinalizeReportResponse> {
   return send({ type: FINALIZE_REPORT, reportId, removedIds });
+}
+
+/** Sends a PEEK_REPORT_ASSET message; defaults to the real runtime bridge. */
+export type PeekSendFn = (message: PeekReportAssetRequest) => Promise<PeekReportAssetResponse>;
+
+function defaultPeekSend(message: PeekReportAssetRequest): Promise<PeekReportAssetResponse> {
+  return browser.runtime.sendMessage<PeekReportAssetRequest, PeekReportAssetResponse>(message);
+}
+
+/** Ask the service worker for a held report's asset (by ZIP path) as a data URL. */
+export function requestPeekAsset(
+  reportId: string,
+  path: string,
+  send: PeekSendFn = defaultPeekSend,
+): Promise<PeekReportAssetResponse> {
+  return send({ type: PEEK_REPORT_ASSET, reportId, path });
 }

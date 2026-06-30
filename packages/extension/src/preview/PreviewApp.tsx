@@ -4,7 +4,9 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import type { FinalizeReportResponse } from '../background/messages';
 import { requestFinalize } from '../overlay/request-capture';
 
+import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
 import { buildArtifactList, formatBytes, type ArtifactId } from './artifact-list';
+import { resolveScreenshot } from './screenshot-source';
 
 export interface PreviewAppProps {
   readonly reportId: string;
@@ -17,8 +19,10 @@ export interface PreviewAppProps {
     reportId: string,
     removedIds: readonly ArtifactId[],
   ) => Promise<FinalizeReportResponse>;
-  /** Opens an artifact viewer; an inert stub until S3-02/03/04 wire real viewers. */
+  /** Opens a non-screenshot artifact viewer; an inert stub until S3-03/04 wire those viewers. */
   readonly onView?: (id: ArtifactId) => void;
+  /** Fetches a held asset as a data URL for the screenshot lightbox; defaults to the SW bridge. */
+  readonly peekAsset?: PeekAssetFn;
   readonly disabled?: boolean;
 }
 
@@ -53,12 +57,15 @@ export function PreviewApp({
   onComplete,
   finalize,
   onView,
+  peekAsset,
   disabled,
 }: PreviewAppProps) {
   const artifacts = useMemo(
     () => buildArtifactList({ report, ...(assetSizes ? { assetSizes } : {}) }),
     [report, assetSizes],
   );
+  const screenshot = useMemo(() => resolveScreenshot(report), [report]);
+  const [viewing, setViewing] = useState<ArtifactId | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<ArtifactId>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +100,18 @@ export function PreviewApp({
     }
   }
 
+  if (viewing === 'screenshot' && screenshot) {
+    return (
+      <LightboxScreenshotViewer
+        reportId={reportId}
+        screenshot={screenshot}
+        onCancel={() => setViewing(null)}
+        onComplete={() => setViewing(null)}
+        {...(peekAsset ? { peekAsset } : {})}
+      />
+    );
+  }
+
   return (
     <section
       data-testid="preview-review-screen-scaffold"
@@ -121,8 +140,14 @@ export function PreviewApp({
               <button
                 type="button"
                 data-testid={`view-${a.id}`}
-                disabled={!onView || !a.present}
-                onClick={() => onView?.(a.id)}
+                disabled={!a.present || (a.id !== 'screenshot' && !onView)}
+                onClick={() => {
+                  if (a.id === 'screenshot') {
+                    setViewing('screenshot');
+                  } else {
+                    onView?.(a.id);
+                  }
+                }}
               >
                 View
               </button>

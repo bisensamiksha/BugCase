@@ -21,6 +21,7 @@ import {
   isCaptureVisibleTabRequest,
   isFinalizeReportRequest,
   isOverlayInjectRequest,
+  isPeekReportAssetRequest,
   type CaptureReportRequest,
   type CaptureReportResponse,
   type CaptureVisibleTabRequest,
@@ -37,6 +38,7 @@ import {
   isContainsPermissionsRequest,
   isRequestPermissionsRequest,
 } from './permissions-handler';
+import { handlePeekReportAsset } from './report-asset-handler';
 import { createReportHold } from './report-hold';
 import { runScrollStitchCapture } from './scroll-stitch-runner';
 
@@ -235,6 +237,9 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isFinalizeReportRequest(message)) {
     return handleFinalizeReport(message);
+  }
+  if (isPeekReportAssetRequest(message)) {
+    return handlePeekReportAsset(message, { peek: (id) => reportHold.peek(id) });
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);
