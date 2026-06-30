@@ -4,7 +4,9 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import type { FinalizeReportResponse } from '../background/messages';
 import { requestFinalize } from '../overlay/request-capture';
 
+import { JsonTreeViewer } from './JsonTreeViewer';
 import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
+import { isJsonViewable, selectArtifactJson } from './artifact-json';
 import { buildArtifactList, formatBytes, type ArtifactId } from './artifact-list';
 import { resolveScreenshot } from './screenshot-source';
 
@@ -112,6 +114,17 @@ export function PreviewApp({
     );
   }
 
+  if (viewing && isJsonViewable(viewing)) {
+    return (
+      <JsonTreeViewer
+        title={artifacts.find((a) => a.id === viewing)?.label ?? ''}
+        data={selectArtifactJson(report, viewing)}
+        onCancel={() => setViewing(null)}
+        onComplete={() => setViewing(null)}
+      />
+    );
+  }
+
   return (
     <section
       data-testid="preview-review-screen-scaffold"
@@ -140,10 +153,12 @@ export function PreviewApp({
               <button
                 type="button"
                 data-testid={`view-${a.id}`}
-                disabled={!a.present || (a.id !== 'screenshot' && !onView)}
+                disabled={!a.present || (a.id !== 'screenshot' && !isJsonViewable(a.id) && !onView)}
                 onClick={() => {
                   if (a.id === 'screenshot') {
                     setViewing('screenshot');
+                  } else if (isJsonViewable(a.id)) {
+                    setViewing(a.id);
                   } else {
                     onView?.(a.id);
                   }
