@@ -31,7 +31,12 @@ import {
 } from './messages';
 import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
-import { handleRequestPermissions, isRequestPermissionsRequest } from './permissions-handler';
+import {
+  handleContainsPermissions,
+  handleRequestPermissions,
+  isContainsPermissionsRequest,
+  isRequestPermissionsRequest,
+} from './permissions-handler';
 import { createReportHold } from './report-hold';
 import { runScrollStitchCapture } from './scroll-stitch-runner';
 
@@ -233,6 +238,9 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);
+  }
+  if (isContainsPermissionsRequest(message)) {
+    return handleContainsPermissions(message);
   }
   if (isOriginAllowlistRequest(message)) {
     return handleOriginAllowlist(message).then(async (response) => {

@@ -1,4 +1,5 @@
 import {
+  hasOptionalPermissions,
   requestOptionalPermissions,
   type OptionalPermissionName,
   type OptionalPermissionRequest,
@@ -31,6 +32,54 @@ export function isRequestPermissionsRequest(value: unknown): value is RequestPer
     value !== null &&
     (value as { type?: unknown }).type === REQUEST_PERMISSIONS
   );
+}
+
+/**
+ * Runtime message: overlay → service worker, asking whether an optional permission set is already
+ * granted. Unlike a request, `permissions.contains` needs no user gesture, so this bridge is safe
+ * from the content-script overlay (where the gesture-bound `permissions.request` cannot be used).
+ */
+export const CONTAINS_PERMISSIONS = 'bugcase/contains-permissions';
+
+export interface ContainsPermissionsRequest {
+  readonly type: typeof CONTAINS_PERMISSIONS;
+  readonly permissions?: readonly OptionalPermissionName[];
+  readonly origins?: readonly string[];
+}
+
+export interface ContainsPermissionsHandlerDeps {
+  /** Defaults to {@link hasOptionalPermissions}; injected in tests. */
+  readonly has?: (request: OptionalPermissionRequest) => Promise<boolean>;
+}
+
+export function isContainsPermissionsRequest(value: unknown): value is ContainsPermissionsRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === CONTAINS_PERMISSIONS
+  );
+}
+
+/** Gesture-free check of whether an optional permission set is already granted. Never throws. */
+export async function handleContainsPermissions(
+  message: ContainsPermissionsRequest,
+  deps: ContainsPermissionsHandlerDeps = {},
+): Promise<RequestPermissionsResponse> {
+  const has = deps.has ?? hasOptionalPermissions;
+  const permissionRequest: OptionalPermissionRequest = {
+    ...(message.permissions ? { permissions: message.permissions } : {}),
+    ...(message.origins ? { origins: message.origins } : {}),
+  };
+  try {
+    const granted = await has(permissionRequest);
+    return { ok: true, granted };
+  } catch (error) {
+    return {
+      ok: false,
+      granted: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 /**

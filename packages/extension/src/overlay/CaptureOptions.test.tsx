@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // CaptureOptions reaches lib/browser via the permissions bridge; stub the polyfill. The permission
-// requester is injected in every test, so the real bridge is never invoked.
+// check is injected in every test, so the real bridge is never invoked.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 import { CaptureOptions } from './CaptureOptions';
@@ -43,7 +43,7 @@ describe('CaptureOptions', () => {
         <CaptureOptions
           value={CAPTURE_OPTION_DEFAULTS}
           onChange={() => {}}
-          requestPermission={() => Promise.resolve(true)}
+          checkPermission={() => Promise.resolve(true)}
         />,
       );
     });
@@ -53,81 +53,77 @@ describe('CaptureOptions', () => {
     expect(checkbox('cookies').checked).toBe(false);
   });
 
-  it('toggles a non-gated option without requesting a permission', () => {
+  it('toggles a non-gated option without checking a permission', () => {
     const onChange = vi.fn();
-    const requestPermission = vi.fn(() => Promise.resolve(true));
+    const checkPermission = vi.fn(() => Promise.resolve(true));
     act(() => {
       root.render(
         <CaptureOptions
           value={CAPTURE_OPTION_DEFAULTS}
           onChange={onChange}
-          requestPermission={requestPermission}
+          checkPermission={checkPermission}
         />,
       );
     });
     act(() => {
       checkbox('domSnapshot').click();
     });
-    expect(requestPermission).not.toHaveBeenCalled();
+    expect(checkPermission).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ domSnapshot: true }));
   });
 
-  it('requests the permission and enables a gated option on grant', async () => {
+  it('enables a gated option when its permission is already granted', async () => {
     const onChange = vi.fn();
-    let resolveGrant: (granted: boolean) => void = () => {};
-    const grant = new Promise<boolean>((resolve) => {
-      resolveGrant = resolve;
-    });
-    const requestPermission = vi.fn(() => grant);
+    const checkPermission = vi.fn(() => Promise.resolve(true));
     act(() => {
       root.render(
         <CaptureOptions
           value={CAPTURE_OPTION_DEFAULTS}
           onChange={onChange}
-          requestPermission={requestPermission}
+          checkPermission={checkPermission}
         />,
       );
     });
-    act(() => {
-      checkbox('cookies').click();
-    });
-    expect(requestPermission).toHaveBeenCalledWith('cookies');
+    const granted = Promise.resolve(true);
     await act(async () => {
-      resolveGrant(true);
-      await grant;
+      checkbox('cookies').click();
+      await granted;
     });
+    expect(checkPermission).toHaveBeenCalledWith('cookies');
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cookies: true }));
   });
 
-  it('leaves a gated option off and shows a note on denial', async () => {
+  it('leaves a gated option off and points to the popup when not yet granted', async () => {
     const onChange = vi.fn();
-    const denied = Promise.resolve(false);
+    const notGranted = Promise.resolve(false);
     act(() => {
       root.render(
         <CaptureOptions
           value={CAPTURE_OPTION_DEFAULTS}
           onChange={onChange}
-          requestPermission={() => denied}
+          checkPermission={() => notGranted}
         />,
       );
     });
     await act(async () => {
       checkbox('cookies').click();
-      await denied;
+      await notGranted;
     });
     expect(onChange).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-testid="capture-option-denied-cookies"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="capture-option-needs-grant-cookies"]'),
+    ).not.toBeNull();
   });
 
-  it('unchecks a gated option without requesting a permission', () => {
+  it('unchecks a gated option without checking a permission', () => {
     const onChange = vi.fn();
-    const requestPermission = vi.fn(() => Promise.resolve(true));
+    const checkPermission = vi.fn(() => Promise.resolve(true));
     act(() => {
       root.render(
         <CaptureOptions
           value={{ ...CAPTURE_OPTION_DEFAULTS, cookies: true }}
           onChange={onChange}
-          requestPermission={requestPermission}
+          checkPermission={checkPermission}
         />,
       );
     });
@@ -135,7 +131,7 @@ describe('CaptureOptions', () => {
     act(() => {
       checkbox('cookies').click();
     });
-    expect(requestPermission).not.toHaveBeenCalled();
+    expect(checkPermission).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cookies: false }));
   });
 });
