@@ -73,7 +73,7 @@ describe('PreviewApp', () => {
     expect(q('artifact-network')?.textContent).toContain('Not captured');
   });
 
-  it('disables View when no onView is provided', () => {
+  it('disables View for an artifact with no viewer that was not captured', () => {
     act(() => {
       root.render(
         <PreviewApp
@@ -84,7 +84,8 @@ describe('PreviewApp', () => {
         />,
       );
     });
-    expect((q('view-console') as HTMLButtonElement).disabled).toBe(true);
+    // dom is not JSON-viewable (it gets its own viewer in S3-04) and is not captured here.
+    expect((q('view-dom') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('removes an artifact and finalizes with the removed id, then completes', async () => {
@@ -196,5 +197,29 @@ describe('PreviewApp', () => {
     });
     expect(q('lightbox-screenshot-viewer')).not.toBeNull();
     expect(peekAsset).toHaveBeenCalledWith('r1', 'raw/screenshot-viewport.png');
+  });
+
+  it('opens the JSON tree viewer from a JSON artifact View button', () => {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    // metadata is always present and JSON-viewable, so its View is enabled.
+    expect((q('view-metadata') as HTMLButtonElement).disabled).toBe(false);
+    act(() => {
+      q('view-metadata')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('json-tree-viewer')).not.toBeNull();
+    // close returns to the list
+    act(() => {
+      q('json-close')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('preview-review-screen-scaffold')).not.toBeNull();
   });
 });
