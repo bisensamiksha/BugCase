@@ -88,7 +88,73 @@ describe('PreviewApp', () => {
     expect((q('view-dom') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('removes an artifact and finalizes with the removed id, then completes', async () => {
+  it('opens the privacy consent modal from Download without finalizing yet', () => {
+    const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          finalize={finalize}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('privacy-notice-modal')).not.toBeNull();
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
+  it('cancels the consent modal back to the review screen without downloading', () => {
+    const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          finalize={finalize}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('privacy-cancel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('privacy-notice-modal')).toBeNull();
+    expect(q('preview-review-screen-scaffold')).not.toBeNull();
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the capture privacy summary inside the consent modal', () => {
+    const report = makeReport({
+      metadata: {
+        page: { origin: 'https://example.com' },
+        permissionsAtCapture: [{ name: 'cookies', grantedAtCapture: true }],
+        scrubbersApplied: [
+          { id: 'dom-password-input-mask', description: 'Mask password inputs', hits: 2 },
+        ],
+      },
+    } as unknown as Partial<BugReportV1>);
+    act(() => {
+      root.render(
+        <PreviewApp reportId="r1" report={report} onCancel={() => {}} onComplete={() => {}} />,
+      );
+    });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('privacy-notice-modal')?.textContent).toContain('Mask password inputs');
+    expect(q('privacy-permissions')?.textContent).toContain('cookies');
+  });
+
+  it('removes an artifact, then finalizes with the removed id after consent', async () => {
     const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
     const onComplete = vi.fn();
     act(() => {
@@ -106,9 +172,15 @@ describe('PreviewApp', () => {
     act(() => {
       q('remove-console')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      (q('privacy-understand') as HTMLInputElement).click();
+    });
     const dl = Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' });
     await act(async () => {
-      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      q('privacy-confirm')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await dl;
     });
 
@@ -116,7 +188,7 @@ describe('PreviewApp', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the screen and shows the reason when finalize fails', async () => {
+  it('keeps the screen and shows the reason when finalize fails after consent', async () => {
     const finalize = vi.fn(() => Promise.resolve({ ok: false, reason: 'expired' }));
     const onComplete = vi.fn();
     act(() => {
@@ -130,9 +202,15 @@ describe('PreviewApp', () => {
         />,
       );
     });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      (q('privacy-understand') as HTMLInputElement).click();
+    });
     const done = Promise.resolve({ ok: false, reason: 'expired' });
     await act(async () => {
-      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      q('privacy-confirm')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await done;
     });
 

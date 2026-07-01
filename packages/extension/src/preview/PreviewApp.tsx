@@ -7,8 +7,10 @@ import { requestFinalize } from '../overlay/request-capture';
 import { SandboxedDomSnapshotViewer } from './DomSnapshotViewer';
 import { JsonTreeViewer } from './JsonTreeViewer';
 import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
+import { PrivacyNoticeModal } from './PrivacyNoticeModal';
 import { isJsonViewable, selectArtifactJson } from './artifact-json';
 import { buildArtifactList, formatBytes, type ArtifactId } from './artifact-list';
+import { summarizePrivacy } from './privacy-summary';
 import { resolveScreenshot } from './screenshot-source';
 
 export interface PreviewAppProps {
@@ -74,8 +76,10 @@ export function PreviewApp({
     [report, assetSizes],
   );
   const screenshot = useMemo(() => resolveScreenshot(report), [report]);
+  const privacySummary = useMemo(() => summarizePrivacy(report), [report]);
   const [viewing, setViewing] = useState<ArtifactId | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<ArtifactId>>(new Set());
+  const [consenting, setConsenting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +96,7 @@ export function PreviewApp({
   }
 
   async function handleDownload(): Promise<void> {
+    setConsenting(false);
     setBusy(true);
     setError(null);
     try {
@@ -140,6 +145,18 @@ export function PreviewApp({
         data={selectArtifactJson(report, viewing)}
         onCancel={() => setViewing(null)}
         onComplete={() => setViewing(null)}
+      />
+    );
+  }
+
+  if (consenting) {
+    return (
+      <PrivacyNoticeModal
+        reportId={reportId}
+        summary={privacySummary}
+        disabled={busy}
+        onCancel={() => setConsenting(false)}
+        onComplete={() => void handleDownload()}
       />
     );
   }
@@ -212,7 +229,7 @@ export function PreviewApp({
         <button
           type="button"
           data-testid="preview-download"
-          onClick={() => void handleDownload()}
+          onClick={() => setConsenting(true)}
           disabled={busy || (disabled ?? false)}
         >
           {busy ? 'Downloading…' : 'Download'}
