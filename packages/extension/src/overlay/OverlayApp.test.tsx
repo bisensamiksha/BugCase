@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // check is injected in every test, so the real runtime bridge is never invoked.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
+
 import { OverlayApp } from './OverlayApp';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,6 +33,30 @@ afterEach(() => {
 function queryTestId(id: string): HTMLElement | null {
   return container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 }
+
+describe('OverlayApp stored capture defaults', () => {
+  it('seeds the capture options from the stored default capture options', async () => {
+    const defaults = { ...DEFAULT_USER_OPTIONS, consoleLogs: true };
+    const loadDefaultCaptureOptions = vi.fn(() => Promise.resolve(defaults));
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          subscribeDebuggerActivity={() => () => {}}
+          loadDefaultCaptureOptions={loadDefaultCaptureOptions}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(loadDefaultCaptureOptions).toHaveBeenCalled();
+    // consoleLogs is off by default; the stored default flips it on.
+    expect((queryTestId('capture-option-consoleLogs') as HTMLInputElement).checked).toBe(true);
+  });
+});
 
 describe('OverlayApp passive-monitoring opt-in', () => {
   it('prompts to enable monitoring on an origin that is not yet allowlisted', async () => {

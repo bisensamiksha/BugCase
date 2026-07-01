@@ -14,6 +14,11 @@ const COMMON = {
     default_popup: 'src/popup/popup.html',
     default_title: 'Capture bug report',
   },
+  options_ui: {
+    page: 'src/options/options.html',
+    // Open the full settings page in a tab rather than the cramped in-toolbar embed.
+    open_in_tab: true,
+  },
   // `debugger` is required (install-time): Chrome forbids it in optional_permissions, so it cannot
   // be requested at runtime. Its on-demand use is gated by a stored opt-in (default off) + a banner.
   permissions: ['activeTab', 'storage', 'scripting', 'downloads', 'tabs', 'debugger'] as string[],
