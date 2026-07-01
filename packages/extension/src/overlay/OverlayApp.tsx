@@ -12,6 +12,7 @@ import { hasOptionalPermissions } from '../permissions/optional-permissions';
 import { PreviewApp } from '../preview/PreviewApp';
 import type { ArtifactId } from '../preview/artifact-list';
 import { normalizeOrigin } from '../storage/origin-allowlist';
+import { getSettings } from '../storage/settings';
 
 import { CaptureButton } from './CaptureButton';
 import { CaptureOptions } from './CaptureOptions';
@@ -51,6 +52,8 @@ export interface OverlayAppProps {
   readonly subscribeDebuggerActivity?: (handler: DebuggerActivityHandler) => () => void;
   /** Whether the optional `cookies` permission is granted; defaults to a live permissions check. */
   readonly checkCookiesGranted?: () => Promise<boolean>;
+  /** Loads the user's stored default capture options; defaults to reading persisted settings. */
+  readonly loadDefaultCaptureOptions?: () => Promise<UserOptions>;
   /** Runs the capture; defaults to the real overlay → service-worker flow. Injectable for tests. */
   readonly onCapture?: (input: {
     userOptions: UserOptions;
@@ -64,6 +67,11 @@ interface PreviewPayload {
   readonly reportId: string;
   readonly report: BugReportV1;
   readonly assetSizes?: Partial<Record<ArtifactId, number>>;
+}
+
+/** Structural equality over the flat boolean UserOptions, so seeding can bail out when unchanged. */
+function optionsEqual(a: UserOptions, b: UserOptions): boolean {
+  return (Object.keys(a) as (keyof UserOptions)[]).every((key) => a[key] === b[key]);
 }
 
 /** Best-effort host name for an origin (e.g. `https://example.com` → `example.com`). */
@@ -130,6 +138,7 @@ export function OverlayApp({
   checkAllowed,
   subscribeDebuggerActivity,
   checkCookiesGranted,
+  loadDefaultCaptureOptions,
   onCapture,
 }: OverlayAppProps) {
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
@@ -170,6 +179,31 @@ export function OverlayApp({
       cancelled = true;
     };
   }, [checkCookiesGranted]);
+
+  useEffect(() => {
+    // Seed the capture options from the user's stored defaults (S3-06 settings page). A failed read
+    // keeps the static defaults; the bail-out equality check avoids a needless re-render when the
+    // stored defaults match, and a manual toggle before the read resolves is preserved.
+    let cancelled = false;
+    const load =
+      loadDefaultCaptureOptions ??
+      (() => getSettings().then((settings) => settings.defaultCaptureOptions));
+    void load()
+      .then((loaded) => {
+        // Only touch state when the stored defaults actually differ from the static ones — this
+        // keeps a no-op read from scheduling a needless re-render. The overlay has only just
+        // mounted, so there is no user selection to clobber.
+        if (!cancelled && !optionsEqual(loaded, CAPTURE_OPTION_DEFAULTS)) {
+          setCaptureOptions(loaded);
+        }
+      })
+      .catch(() => {
+        // A failed settings read must not block capture; keep the static defaults.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadDefaultCaptureOptions]);
 
   useEffect(() => {
     // Passive monitoring only applies to real web origins. Skip the lookup for opaque
