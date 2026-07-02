@@ -57,6 +57,7 @@ async function renderApp(props: Partial<OptionsAppProps> = {}): Promise<void> {
       <OptionsApp
         loadSettings={() => Promise.resolve(DEFAULT_SETTINGS)}
         loadAllowlist={() => Promise.resolve(['https://a.com', 'https://b.com'])}
+        loadHistory={() => Promise.resolve([])}
         {...props}
       />,
     );
@@ -74,6 +75,29 @@ describe('OptionsApp', () => {
     expect(q('ring-buffer-size')).not.toBeNull();
     expect(q('blocked-headers')).not.toBeNull();
     expect(container.textContent).toContain('https://a.com');
+  });
+
+  it('renders the report history section from the injected loader', async () => {
+    await renderApp({
+      loadHistory: () =>
+        Promise.resolve([
+          {
+            id: 'cap-1',
+            capturedAt: '2026-07-02T10:00:00.000Z',
+            url: 'https://example.com/page',
+            title: 'Example page',
+            origin: 'https://example.com',
+            filename: 'bugcase-example-com.zip',
+            byteSize: 1536,
+            artifacts: ['screenshot', 'metadata'],
+            downloadId: 7,
+            toolVersion: '0.1.0',
+          },
+        ]),
+    });
+    expect(q('report-history')).not.toBeNull();
+    expect(qa('history-row')).toHaveLength(1);
+    expect(container.textContent).toContain('Example page');
   });
 
   it('persists a default capture-option toggle', async () => {

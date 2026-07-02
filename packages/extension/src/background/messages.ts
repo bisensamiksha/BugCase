@@ -10,6 +10,8 @@ import type {
 import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 import type { ArtifactId } from '../preview/artifact-list';
 
+import type { CaptureFlowResult } from './capture-flow';
+
 /** Runtime message: popup/overlay → service worker, asking it to capture the visible tab. */
 export const CAPTURE_VISIBLE_TAB = 'bugcase/capture-visible-tab';
 
@@ -92,7 +94,20 @@ export interface FinalizeReportResponse {
   readonly ok: boolean;
   readonly downloadId?: number;
   readonly filename?: string;
+  /** Final ZIP size in bytes; used by the preview to record report history (S3-07). */
+  readonly byteSize?: number;
   readonly reason?: string;
+}
+
+/** Map a `finalizeReport` result to the serializable message response, omitting absent optionals. */
+export function finalizeResponseFrom(result: CaptureFlowResult): FinalizeReportResponse {
+  return {
+    ok: result.ok,
+    ...(result.downloadId !== undefined ? { downloadId: result.downloadId } : {}),
+    ...(result.filename ? { filename: result.filename } : {}),
+    ...(result.byteSize !== undefined ? { byteSize: result.byteSize } : {}),
+    ...(result.reason ? { reason: result.reason } : {}),
+  };
 }
 
 /** Runtime message: overlay → service worker, asking for a held report's asset as a data URL. */

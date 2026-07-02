@@ -188,6 +188,83 @@ describe('PreviewApp', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
+  it('records report history after a successful download', async () => {
+    const finalize = vi.fn(() =>
+      Promise.resolve({ ok: true, downloadId: 5, filename: 'f.zip', byteSize: 2048 }),
+    );
+    const saveHistory = vi.fn(() => Promise.resolve());
+    const report = makeReport();
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={report}
+          finalize={finalize}
+          saveHistory={saveHistory}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    act(() => {
+      q('remove-console')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      (q('privacy-understand') as HTMLInputElement).click();
+    });
+    const dl = Promise.resolve({ ok: true, downloadId: 5, filename: 'f.zip', byteSize: 2048 });
+    await act(async () => {
+      q('privacy-confirm')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await dl;
+      await Promise.resolve();
+    });
+
+    expect(saveHistory).toHaveBeenCalledWith({
+      report,
+      removedIds: ['console'],
+      filename: 'f.zip',
+      byteSize: 2048,
+      downloadId: 5,
+    });
+  });
+
+  it('still completes the download when recording history fails', async () => {
+    const finalize = vi.fn(() =>
+      Promise.resolve({ ok: true, downloadId: 5, filename: 'f.zip', byteSize: 2048 }),
+    );
+    const saveHistory = vi.fn(() => Promise.reject(new Error('storage full')));
+    const onComplete = vi.fn();
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          finalize={finalize}
+          saveHistory={saveHistory}
+          onCancel={() => {}}
+          onComplete={onComplete}
+        />,
+      );
+    });
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      (q('privacy-understand') as HTMLInputElement).click();
+    });
+    const dl = Promise.resolve({ ok: true, downloadId: 5, filename: 'f.zip', byteSize: 2048 });
+    await act(async () => {
+      q('privacy-confirm')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await dl;
+      await Promise.resolve();
+    });
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the screen and shows the reason when finalize fails after consent', async () => {
     const finalize = vi.fn(() => Promise.resolve({ ok: false, reason: 'expired' }));
     const onComplete = vi.fn();

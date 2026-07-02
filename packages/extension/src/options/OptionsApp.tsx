@@ -7,6 +7,7 @@ import {
   getAllowedOrigins,
   removeAllowedOrigin,
 } from '../storage/origin-allowlist';
+import type { ReportHistoryEntry } from '../storage/report-history';
 import {
   DEFAULT_SETTINGS,
   MAX_RING_BUFFER_SIZE,
@@ -16,6 +17,8 @@ import {
   saveSettings,
   type BugCaseSettings,
 } from '../storage/settings';
+
+import { ReportHistory } from './ReportHistory';
 
 export interface OptionsAppProps {
   /** Loads persisted settings; defaults to `storage/settings.getSettings`. */
@@ -28,6 +31,8 @@ export interface OptionsAppProps {
   readonly addOrigin?: (origin: string) => Promise<string[]>;
   /** Removes an origin from the allowlist; defaults to `removeAllowedOrigin`. */
   readonly removeOrigin?: (origin: string) => Promise<string[]>;
+  /** Loads report history for the history section; defaults to `getReportHistory`. */
+  readonly loadHistory?: () => Promise<ReportHistoryEntry[]>;
 }
 
 const pageStyle: CSSProperties = {
@@ -67,6 +72,7 @@ export function OptionsApp({
   loadAllowlist,
   addOrigin,
   removeOrigin,
+  loadHistory,
 }: OptionsAppProps) {
   const persist = persistSettings ?? ((update) => saveSettings(update));
   const addOne = addOrigin ?? ((origin) => addAllowedOrigin(origin));
@@ -244,6 +250,8 @@ export function OptionsApp({
               </button>
             </div>
           </fieldset>
+
+          <ReportHistory {...(loadHistory ? { loadHistory } : {})} />
         </>
       ) : (
         <p data-testid="options-loading">Loading settings…</p>

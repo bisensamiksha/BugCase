@@ -17,6 +17,7 @@ import { createNavigationHistoryCollector } from './history-handler';
 import { createInstalledExtensionsCollector } from './management-handler';
 import {
   DEBUGGER_ACTIVITY,
+  finalizeResponseFrom,
   isCaptureReportRequest,
   isCaptureVisibleTabRequest,
   isFinalizeReportRequest,
@@ -217,12 +218,7 @@ async function handleFinalizeReport(
     writeZip: writeBugReportZip,
     download: downloadBlob,
   });
-  return {
-    ok: result.ok,
-    ...(result.downloadId !== undefined ? { downloadId: result.downloadId } : {}),
-    ...(result.filename ? { filename: result.filename } : {}),
-    ...(result.reason ? { reason: result.reason } : {}),
-  };
+  return finalizeResponseFrom(result);
 }
 
 browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.MessageSender) => {
