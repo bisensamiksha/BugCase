@@ -11,6 +11,7 @@ import { PrivacyNoticeModal } from './PrivacyNoticeModal';
 import { isJsonViewable, selectArtifactJson } from './artifact-json';
 import { buildArtifactList, formatBytes, type ArtifactId } from './artifact-list';
 import { summarizePrivacy } from './privacy-summary';
+import { saveDownloadedReport, type DownloadedReportInput } from './save-history';
 import { resolveScreenshot } from './screenshot-source';
 
 export interface PreviewAppProps {
@@ -28,6 +29,8 @@ export interface PreviewAppProps {
   readonly onView?: (id: ArtifactId) => void;
   /** Fetches a held asset as a data URL for the screenshot lightbox; defaults to the SW bridge. */
   readonly peekAsset?: PeekAssetFn;
+  /** Records a metadata-only history entry after a successful download; defaults to `saveDownloadedReport`. */
+  readonly saveHistory?: (input: DownloadedReportInput) => Promise<void>;
   readonly disabled?: boolean;
 }
 
@@ -69,6 +72,7 @@ export function PreviewApp({
   finalize,
   onView,
   peekAsset,
+  saveHistory,
   disabled,
 }: PreviewAppProps) {
   const artifacts = useMemo(
@@ -103,6 +107,15 @@ export function PreviewApp({
       const run = finalize ?? requestFinalize;
       const result = await run(reportId, [...removed]);
       if (result.ok) {
+        // Record a metadata-only history entry — best-effort, never block or fail the download.
+        const save = saveHistory ?? saveDownloadedReport;
+        void save({
+          report,
+          removedIds: [...removed],
+          filename: result.filename ?? '',
+          byteSize: result.byteSize ?? 0,
+          downloadId: result.downloadId ?? null,
+        }).catch(() => {});
         onComplete();
       } else {
         setError(result.reason ?? 'Download failed');

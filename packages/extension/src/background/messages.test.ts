@@ -6,11 +6,31 @@ import {
   FINALIZE_REPORT,
   OVERLAY_INJECT,
   PEEK_REPORT_ASSET,
+  finalizeResponseFrom,
   isCaptureReportRequest,
   isFinalizeReportRequest,
   isOverlayInjectRequest,
   isPeekReportAssetRequest,
 } from './messages';
+
+describe('finalizeResponseFrom', () => {
+  it('carries downloadId, filename, and byteSize from a successful finalize result', () => {
+    expect(
+      finalizeResponseFrom({ ok: true, downloadId: 7, filename: 'r.zip', byteSize: 2048 }),
+    ).toEqual({ ok: true, downloadId: 7, filename: 'r.zip', byteSize: 2048 });
+  });
+
+  it('omits absent optional fields', () => {
+    expect(finalizeResponseFrom({ ok: true })).toEqual({ ok: true });
+  });
+
+  it('carries the failure reason', () => {
+    expect(finalizeResponseFrom({ ok: false, reason: 'expired' })).toEqual({
+      ok: false,
+      reason: 'expired',
+    });
+  });
+});
 
 describe('isOverlayInjectRequest', () => {
   it('accepts a well-formed overlay inject request', () => {
