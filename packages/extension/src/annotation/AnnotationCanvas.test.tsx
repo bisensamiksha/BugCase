@@ -60,6 +60,7 @@ vi.mock('react-konva', async () => {
 });
 
 import { KonvaAnnotationCanvas, type KonvaAnnotationCanvasProps } from './AnnotationCanvas';
+import { PRESET_COLORS } from './palette';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -197,5 +198,16 @@ describe('KonvaAnnotationCanvas', () => {
       input!.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
     });
     expect(qa('konva-text')).toHaveLength(1);
+  });
+
+  it('renders the color/stroke picker and applies a picked color to state', async () => {
+    await render();
+    expect(q('color-stroke-pickers')).not.toBeNull();
+    // #ef4444 (PRESET_COLORS[0]) is the default; pick a different preset and confirm it becomes active.
+    const other = PRESET_COLORS[4]!;
+    act(() => {
+      q(`color-swatch-${other}`)?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q(`color-swatch-${other}`)?.getAttribute('aria-pressed')).toBe('true');
   });
 });

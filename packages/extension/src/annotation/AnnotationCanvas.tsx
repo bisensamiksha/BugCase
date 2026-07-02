@@ -14,6 +14,7 @@ import { requestPeekAsset } from '../overlay/request-capture';
 import type { PeekAssetFn } from '../preview/Lightbox';
 
 import { AnnotationToolbar } from './AnnotationToolbar';
+import { ColorStrokePicker } from './ColorStrokePicker';
 import {
   DEFAULT_FONT_SIZE,
   annotationReducer,
@@ -343,6 +344,13 @@ export function KonvaAnnotationCanvas({
         onClear={() => dispatch({ type: 'clear' })}
         onDone={handleDone}
         onCancel={() => onCancel?.()}
+      />
+      <ColorStrokePicker
+        color={state.color}
+        strokeWidth={state.strokeWidth}
+        onColorChange={(color) => dispatch({ type: 'setColor', color })}
+        onStrokeWidthChange={(strokeWidth) => dispatch({ type: 'setStrokeWidth', strokeWidth })}
+        disabled={disabled ?? false}
       />
 
       {status === 'loading' ? (
