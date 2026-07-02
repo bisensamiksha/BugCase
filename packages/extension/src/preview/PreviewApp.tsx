@@ -1,6 +1,7 @@
 import type { BugReportV1 } from '@bugcase/schema';
 import { useMemo, useState, type CSSProperties } from 'react';
 
+import { KonvaAnnotationCanvas } from '../annotation/AnnotationCanvas';
 import type { FinalizeReportResponse } from '../background/messages';
 import { requestFinalize } from '../overlay/request-capture';
 
@@ -81,7 +82,8 @@ export function PreviewApp({
   );
   const screenshot = useMemo(() => resolveScreenshot(report), [report]);
   const privacySummary = useMemo(() => summarizePrivacy(report), [report]);
-  const [viewing, setViewing] = useState<ArtifactId | null>(null);
+  const [viewing, setViewing] = useState<ArtifactId | 'annotate' | null>(null);
+  const [annotationJson, setAnnotationJson] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<ArtifactId>>(new Set());
   const [consenting, setConsenting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -139,6 +141,21 @@ export function PreviewApp({
     );
   }
 
+  if (viewing === 'annotate' && screenshot) {
+    return (
+      <KonvaAnnotationCanvas
+        reportId={reportId}
+        screenshot={screenshot}
+        onCancel={() => setViewing(null)}
+        onComplete={(json) => {
+          setAnnotationJson(json);
+          setViewing(null);
+        }}
+        {...(peekAsset ? { peekAsset } : {})}
+      />
+    );
+  }
+
   if (viewing === 'dom' && report.dom) {
     return (
       <SandboxedDomSnapshotViewer
@@ -151,7 +168,7 @@ export function PreviewApp({
     );
   }
 
-  if (viewing && isJsonViewable(viewing)) {
+  if (viewing && viewing !== 'annotate' && isJsonViewable(viewing)) {
     return (
       <JsonTreeViewer
         title={artifacts.find((a) => a.id === viewing)?.label ?? ''}
@@ -213,6 +230,23 @@ export function PreviewApp({
               >
                 View
               </button>
+              {a.id === 'screenshot' && a.present ? (
+                <button
+                  type="button"
+                  data-testid="annotate-screenshot"
+                  onClick={() => setViewing('annotate')}
+                >
+                  {annotationJson ? 'Re-annotate' : 'Annotate'}
+                </button>
+              ) : null}
+              {a.id === 'screenshot' && annotationJson ? (
+                <span
+                  data-testid="screenshot-annotated"
+                  style={{ color: '#16a34a', fontSize: '12px' }}
+                >
+                  Annotated
+                </span>
+              ) : null}
               {a.removable ? (
                 <button
                   type="button"

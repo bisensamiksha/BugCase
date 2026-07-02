@@ -7,6 +7,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // PreviewApp's default finalize reaches lib/browser; stub the polyfill so import succeeds.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+// Konva needs a real <canvas>; mock react-konva to plain divs. The Stage ref exposes toJSON() so the
+// canvas's default Done serialization (stageRef.toJSON()) works without a real stage.
+vi.mock('react-konva', async () => {
+  const React = await import('react');
+  const passthrough =
+    (name: string) =>
+    (props: { children?: React.ReactNode }): React.ReactElement =>
+      React.createElement('div', { 'data-testid': `konva-${name}` }, props.children);
+  const Stage = React.forwardRef(
+    (props: { children?: React.ReactNode }, ref: React.Ref<{ toJSON: () => string }>) => {
+      React.useImperativeHandle(ref, () => ({ toJSON: () => '{"mock":"stage"}' }));
+      return React.createElement('div', { 'data-testid': 'konva-stage' }, props.children);
+    },
+  );
+  return {
+    Stage,
+    Layer: passthrough('layer'),
+    Image: passthrough('image'),
+    Rect: passthrough('rect'),
+    Ellipse: passthrough('ellipse'),
+    Arrow: passthrough('arrow'),
+    Line: passthrough('line'),
+    Text: passthrough('text'),
+    Group: passthrough('group'),
+  };
+});
+
 import { PreviewApp } from './PreviewApp';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -421,5 +448,86 @@ describe('PreviewApp', () => {
       q('json-close')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(q('preview-review-screen-scaffold')).not.toBeNull();
+  });
+
+  const reportWithShot = () =>
+    makeReport({
+      screenshots: {
+        schemaVersion: 'v1',
+        viewport: {
+          path: 'raw/screenshot-viewport.png',
+          width: 800,
+          height: 600,
+          devicePixelRatio: 1,
+          captureMethod: 'visibleTab',
+          hasAnnotations: false,
+        },
+        elementCrops: [],
+      },
+    } as unknown as Partial<BugReportV1>);
+
+  it('shows an Annotate action when a screenshot was captured', () => {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    expect((q('annotate-screenshot') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('opens the annotation canvas from the Annotate action', async () => {
+    const peekAsset = vi.fn(() =>
+      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          peekAsset={peekAsset}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('konva-annotation-canvas')).not.toBeNull();
+  });
+
+  it('marks the screenshot annotated and returns to the list on Done', async () => {
+    const peekAsset = vi.fn(() =>
+      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          peekAsset={peekAsset}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotation-done')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('preview-review-screen-scaffold')).not.toBeNull();
+    expect(q('screenshot-annotated')).not.toBeNull();
   });
 });
