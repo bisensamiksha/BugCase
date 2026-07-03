@@ -176,6 +176,40 @@ describe('KonvaAnnotationCanvas', () => {
     });
   });
 
+  it('keeps the background image on its own layer so drawing never redraws it', async () => {
+    await render();
+    act(() => {
+      q('tool-rect')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    mouse('mousedown', 10, 10);
+    mouse('mousemove', 40, 30);
+    mouse('mouseup', 40, 30);
+
+    const layers = qa('konva-layer');
+    expect(layers.length).toBeGreaterThanOrEqual(2);
+    const bgLayer = layers.find((l) => l.querySelector('[data-testid="konva-image"]'));
+    expect(bgLayer).toBeTruthy();
+    // The drawn rectangle must NOT live on the image's layer — that is what stops the multi-megapixel
+    // screenshot from re-rasterising on every pointer move.
+    expect(bgLayer!.querySelectorAll('[data-testid="konva-rect"]')).toHaveLength(0);
+    expect(qa('konva-rect')).toHaveLength(1);
+  });
+
+  it('flattens at a pixel ratio that restores native resolution when scaled to fit', async () => {
+    const flatten = vi.fn(() => 'data:image/png;base64,FLAT');
+    await render({
+      screenshot: { ...screenshot, devicePixelRatio: 2 },
+      availableSize: { width: 400, height: 300 }, // scale = min(400/800, 300/600, 1) = 0.5
+      serialize: () => 'STAGE_JSON', // the mock stage has no toJSON; inject to reach the flatten path
+      flatten,
+    });
+    act(() => {
+      q('annotation-done')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // devicePixelRatio / scale = 2 / 0.5 = 4 keeps the exported PNG at the original device dimensions.
+    expect(flatten).toHaveBeenCalledWith(4);
+  });
+
   it('cancels via the toolbar', async () => {
     const onCancel = vi.fn();
     await render({ onCancel });

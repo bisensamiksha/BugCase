@@ -14,6 +14,7 @@ import { requestPeekAsset } from '../overlay/request-capture';
 import type { PeekAssetFn } from '../preview/Lightbox';
 
 import { AnnotationToolbar } from './AnnotationToolbar';
+import { computeFitScale, toImageSpace } from './canvas-fit';
 import { flattenAnnotatedScreenshot } from './export-annotations';
 import {
   DEFAULT_FONT_SIZE,
@@ -44,8 +45,16 @@ export interface KonvaAnnotationCanvasProps {
   readonly onComplete?: (result: AnnotationResult) => void;
   /** Serializes the stage; defaults to `stageRef.toJSON()`. Injectable so tests need no real canvas. */
   readonly serialize?: () => string;
-  /** Flattens the stage to a PNG data URL; defaults to `stage.toDataURL`. Injectable for tests. */
-  readonly flatten?: () => string;
+  /**
+   * Flattens the stage to a PNG data URL at the given `pixelRatio`; defaults to `stage.toDataURL`.
+   * Injectable for tests. `pixelRatio` restores native resolution after the fit-to-window down-scale.
+   */
+  readonly flatten?: (pixelRatio: number) => string;
+  /**
+   * The box (already net of the toolbar) the canvas may occupy, in CSS px. Defaults to the window.
+   * Injectable so tests can drive the fit-to-window scale deterministically.
+   */
+  readonly availableSize?: { readonly width: number; readonly height: number };
 }
 
 /** What the canvas hands back on Done: re-editable Konva JSON + the flattened image to ship in the ZIP. */
@@ -56,20 +65,42 @@ export interface AnnotationResult {
 
 type LoadStatus = 'loading' | 'loaded' | 'error';
 
+/** Vertical room the fixed, top-anchored toolbar needs (top offset + up to two wrapped rows + margin). */
+const TOOLBAR_RESERVE = 96;
+/** Breathing room around the canvas so it never butts against the window edges. */
+const EDGE_MARGIN = 24;
+
 const backdropStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(2, 6, 23, 0.92)',
   display: 'flex',
+  flexDirection: 'column',
   alignItems: 'center',
-  justifyContent: 'center',
+  // Top-anchor (not center) the canvas: a flex-*centered* child taller than the viewport clips its own
+  // top and can't be scrolled to, which is what previously hid everything but the screenshot's bottom.
+  justifyContent: 'flex-start',
+  paddingTop: `${TOOLBAR_RESERVE}px`,
+  paddingBottom: `${EDGE_MARGIN}px`,
   overflow: 'auto',
   zIndex: 2,
   outline: 'none',
 };
 
-function pointerFrom(e: KonvaPointerEvent): Point | null {
-  return e.target.getStage()?.getPointerPosition() ?? null;
+/** Read the pointer in the scaled stage's pixels, then map it back to full-resolution image-space. */
+function pointerFrom(e: KonvaPointerEvent, scale: number): Point | null {
+  return toImageSpace(e.target.getStage()?.getPointerPosition() ?? null, scale);
+}
+
+/** The box the canvas may occupy (net of the toolbar), derived from the current window. */
+function windowAvailableSize(): { width: number; height: number } {
+  if (typeof window === 'undefined') {
+    return { width: 0, height: 0 };
+  }
+  return {
+    width: window.innerWidth - EDGE_MARGIN * 2,
+    height: window.innerHeight - TOOLBAR_RESERVE - EDGE_MARGIN,
+  };
 }
 
 /** Live-drawing geometry kept in a ref so pointer handlers never read stale React state. */
@@ -88,6 +119,7 @@ export function KonvaAnnotationCanvas({
   onComplete,
   serialize,
   flatten,
+  availableSize,
 }: KonvaAnnotationCanvasProps) {
   const [state, dispatch] = useReducer(annotationReducer, undefined, () =>
     initialAnnotationState(),
@@ -96,9 +128,25 @@ export function KonvaAnnotationCanvas({
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [draft, setDraft] = useState<Annotation | null>(null);
   const [textAt, setTextAt] = useState<Point | null>(null);
+  const [autoSize, setAutoSize] = useState(windowAvailableSize);
   const drawing = useRef<DrawState | null>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Fit the whole screenshot into the available box (like the Lightbox's `object-fit: contain`) so
+  // full-page captures don't overflow, and re-fit when the window resizes. An injected `availableSize`
+  // pins the scale (tests, embedding) and skips the window listener.
+  useEffect(() => {
+    if (availableSize) {
+      return;
+    }
+    const onResize = (): void => setAutoSize(windowAvailableSize());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [availableSize]);
+
+  const avail = availableSize ?? autoSize;
+  const scale = computeFitScale(screenshot.width, screenshot.height, avail.width, avail.height);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,7 +195,7 @@ export function KonvaAnnotationCanvas({
     if (disabled || textAt) {
       return;
     }
-    const pos = pointerFrom(e);
+    const pos = pointerFrom(e, scale);
     if (!pos || state.tool === 'select' || state.tool === 'eraser') {
       return;
     }
@@ -169,7 +217,7 @@ export function KonvaAnnotationCanvas({
     if (!active || disabled) {
       return;
     }
-    const pos = pointerFrom(e);
+    const pos = pointerFrom(e, scale);
     if (!pos) {
       return;
     }
@@ -187,7 +235,7 @@ export function KonvaAnnotationCanvas({
     if (!active) {
       return;
     }
-    const pos = pointerFrom(e) ?? active.start;
+    const pos = pointerFrom(e, scale) ?? active.start;
     setDraft(null);
     if (state.tool === 'freehand') {
       if (active.points.length >= 4) {
@@ -240,10 +288,13 @@ export function KonvaAnnotationCanvas({
 
   function handleDone(): void {
     const konvaJson = serialize ? serialize() : (stageRef.current?.toJSON() ?? '');
+    // The stage is drawn at `scale`, so raster at devicePixelRatio / scale to land back on the original
+    // device dimensions (e.g. dpr 2 fitted to 0.5 → pixelRatio 4 → same pixels as the source screenshot).
+    const exportPixelRatio = screenshot.devicePixelRatio / (scale > 0 ? scale : 1);
     const pngDataUrl = flatten
-      ? flatten()
+      ? flatten(exportPixelRatio)
       : stageRef.current
-        ? flattenAnnotatedScreenshot(stageRef.current, screenshot.devicePixelRatio)
+        ? flattenAnnotatedScreenshot(stageRef.current, exportPixelRatio)
         : '';
     onComplete?.({ konvaJson, pngDataUrl });
   }
@@ -375,21 +426,26 @@ export function KonvaAnnotationCanvas({
         <div style={{ position: 'relative' }}>
           <Stage
             ref={stageRef}
-            width={screenshot.width}
-            height={screenshot.height}
+            width={screenshot.width * scale}
+            height={screenshot.height * scale}
+            scaleX={scale}
+            scaleY={scale}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
           >
-            <Layer>
+            {/* Background image on its own layer with hit-testing off: it never re-rasterises while
+                drawing, which is the multi-megapixel redraw that made annotation lag. */}
+            <Layer listening={false}>
               <KonvaImage
                 image={image ?? undefined}
                 width={screenshot.width}
                 height={screenshot.height}
               />
-              {state.shapes.map((shape, i) => renderShape(shape, `${shape.id}-${i}`))}
-              {draft ? renderShape(draft, 'draft') : null}
             </Layer>
+            <Layer>{state.shapes.map((shape, i) => renderShape(shape, `${shape.id}-${i}`))}</Layer>
+            {/* Live draft on a dedicated layer so only this small layer repaints on every pointer move. */}
+            <Layer>{draft ? renderShape(draft, 'draft') : null}</Layer>
           </Stage>
           {textAt ? (
             <textarea
@@ -398,9 +454,9 @@ export function KonvaAnnotationCanvas({
               defaultValue=""
               style={{
                 position: 'absolute',
-                left: `${textAt.x}px`,
-                top: `${textAt.y}px`,
-                font: `${DEFAULT_FONT_SIZE}px sans-serif`,
+                left: `${textAt.x * scale}px`,
+                top: `${textAt.y * scale}px`,
+                font: `${DEFAULT_FONT_SIZE * scale}px sans-serif`,
                 color: state.color,
                 background: 'rgba(255,255,255,0.9)',
                 border: '1px solid #2563eb',
