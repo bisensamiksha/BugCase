@@ -15,7 +15,8 @@ import type { PeekAssetFn } from '../preview/Lightbox';
 
 import { AnnotationToolbar } from './AnnotationToolbar';
 import { computeFitScale, toImageSpace } from './canvas-fit';
-import { flattenAnnotatedScreenshot } from './export-annotations';
+import { flattenAnnotatedScreenshot, flattenRedactedScreenshot } from './export-annotations';
+import { extractRedactions, scaleRedactions, type RedactionRect } from './redaction';
 import {
   DEFAULT_FONT_SIZE,
   annotationReducer,
@@ -50,6 +51,12 @@ export interface KonvaAnnotationCanvasProps {
    * Injectable for tests. `pixelRatio` restores native resolution after the fit-to-window down-scale.
    */
   readonly flatten?: (pixelRatio: number) => string;
+  /**
+   * Destructively flattens the stage with the redaction rects baked to opaque black; defaults to
+   * {@link flattenRedactedScreenshot}. Used instead of {@link flatten} whenever the annotation contains
+   * redactions. `rects` are already scaled into the exported PNG's pixel space. Injectable for tests.
+   */
+  readonly bakeRedacted?: (pixelRatio: number, rects: readonly RedactionRect[]) => string;
   /**
    * The box (already net of the toolbar) the canvas may occupy, in CSS px. Defaults to the window.
    * Injectable so tests can drive the fit-to-window scale deterministically.
@@ -119,6 +126,7 @@ export function KonvaAnnotationCanvas({
   onComplete,
   serialize,
   flatten,
+  bakeRedacted,
   availableSize,
 }: KonvaAnnotationCanvasProps) {
   const [state, dispatch] = useReducer(annotationReducer, undefined, () =>
@@ -291,11 +299,24 @@ export function KonvaAnnotationCanvas({
     // The stage is drawn at `scale`, so raster at devicePixelRatio / scale to land back on the original
     // device dimensions (e.g. dpr 2 fitted to 0.5 → pixelRatio 4 → same pixels as the source screenshot).
     const exportPixelRatio = screenshot.devicePixelRatio / (scale > 0 ? scale : 1);
-    const pngDataUrl = flatten
-      ? flatten(exportPixelRatio)
-      : stageRef.current
-        ? flattenAnnotatedScreenshot(stageRef.current, exportPixelRatio)
-        : '';
+    // Redact shapes are stored in image-space; scale them into the exported PNG's pixel space, which is
+    // image-space × devicePixelRatio (the fit `scale` and the export `pixelRatio` cancel out).
+    const redactions = scaleRedactions(
+      extractRedactions(state.shapes),
+      screenshot.devicePixelRatio,
+    );
+    const pngDataUrl =
+      redactions.length > 0
+        ? bakeRedacted
+          ? bakeRedacted(exportPixelRatio, redactions)
+          : stageRef.current
+            ? flattenRedactedScreenshot(stageRef.current, exportPixelRatio, redactions)
+            : ''
+        : flatten
+          ? flatten(exportPixelRatio)
+          : stageRef.current
+            ? flattenAnnotatedScreenshot(stageRef.current, exportPixelRatio)
+            : '';
     onComplete?.({ konvaJson, pngDataUrl });
   }
 

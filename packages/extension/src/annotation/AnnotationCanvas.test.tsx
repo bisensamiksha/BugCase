@@ -176,6 +176,51 @@ describe('KonvaAnnotationCanvas', () => {
     });
   });
 
+  it('bakes redactions through the destructive compositor on Done', async () => {
+    const onComplete = vi.fn();
+    const bakeRedacted = vi.fn(() => 'data:image/png;base64,REDACTED');
+    const flatten = vi.fn(() => 'data:image/png;base64,FLAT');
+    await render({
+      onComplete,
+      screenshot: { ...screenshot, devicePixelRatio: 2 },
+      availableSize: { width: 400, height: 300 }, // scale 0.5 → exportPixelRatio 2/0.5 = 4
+      serialize: () => 'STAGE_JSON',
+      flatten,
+      bakeRedacted,
+    });
+    act(() => {
+      q('tool-redact')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // Pointer is in scaled-stage px; toImageSpace(/0.5) → image-space (20,20)→(80,60).
+    mouse('mousedown', 10, 10);
+    mouse('mousemove', 40, 30);
+    mouse('mouseup', 40, 30);
+    act(() => {
+      q('annotation-done')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // Redaction present → the destructive path runs, NOT the plain flatten.
+    expect(flatten).not.toHaveBeenCalled();
+    // Rects are dpr-scaled (×2) into the exported PNG's pixel space.
+    expect(bakeRedacted).toHaveBeenCalledWith(4, [{ x: 40, y: 40, width: 120, height: 80 }]);
+    expect(onComplete).toHaveBeenCalledWith({
+      konvaJson: 'STAGE_JSON',
+      pngDataUrl: 'data:image/png;base64,REDACTED',
+    });
+  });
+
+  it('uses the plain flatten path when there are no redactions', async () => {
+    const bakeRedacted = vi.fn(() => 'data:image/png;base64,REDACTED');
+    await render({
+      serialize: () => 'STAGE_JSON',
+      flatten: () => 'data:image/png;base64,FLAT',
+      bakeRedacted,
+    });
+    act(() => {
+      q('annotation-done')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(bakeRedacted).not.toHaveBeenCalled();
+  });
+
   it('keeps the background image on its own layer so drawing never redraws it', async () => {
     await render();
     act(() => {
