@@ -14,6 +14,7 @@ import {
   PEEK_REPORT_ASSET,
   type CaptureReportRequest,
   type CaptureReportResponse,
+  type FinalizeAnnotationPayload,
   type FinalizeReportRequest,
   type FinalizeReportResponse,
   type PeekReportAssetRequest,
@@ -151,9 +152,15 @@ function defaultFinalizeSend(message: FinalizeReportRequest): Promise<FinalizeRe
 export function requestFinalize(
   reportId: string,
   removedIds: readonly ArtifactId[],
+  annotation?: FinalizeAnnotationPayload,
   send: FinalizeSendFn = defaultFinalizeSend,
 ): Promise<FinalizeReportResponse> {
-  return send({ type: FINALIZE_REPORT, reportId, removedIds });
+  return send({
+    type: FINALIZE_REPORT,
+    reportId,
+    removedIds,
+    ...(annotation ? { annotation } : {}),
+  });
 }
 
 /** Sends a PEEK_REPORT_ASSET message; defaults to the real runtime bridge. */

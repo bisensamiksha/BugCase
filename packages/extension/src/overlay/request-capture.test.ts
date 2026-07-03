@@ -199,7 +199,7 @@ describe('requestFinalize', () => {
       Promise.resolve({ ok: true, downloadId: 3, filename: 'f.zip' }),
     );
 
-    const result = await requestFinalize('r1', ['console', 'cookies'], send);
+    const result = await requestFinalize('r1', ['console', 'cookies'], undefined, send);
 
     expect(result).toEqual({ ok: true, downloadId: 3, filename: 'f.zip' });
     expect(send).toHaveBeenCalledTimes(1);
@@ -207,6 +207,20 @@ describe('requestFinalize', () => {
       type: FINALIZE_REPORT,
       reportId: 'r1',
       removedIds: ['console', 'cookies'],
+    });
+  });
+
+  it('forwards the annotation payload when one is provided', async () => {
+    const send = vi.fn((_message: FinalizeReportRequest) => Promise.resolve({ ok: true }));
+    const annotation = { konvaJson: '{"k":1}', screenshotDataUrl: 'data:image/png;base64,AAAA' };
+
+    await requestFinalize('r1', [], annotation, send);
+
+    expect(send.mock.calls[0]?.[0]).toEqual({
+      type: FINALIZE_REPORT,
+      reportId: 'r1',
+      removedIds: [],
+      annotation,
     });
   });
 });

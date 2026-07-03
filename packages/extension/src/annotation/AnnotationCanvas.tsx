@@ -14,6 +14,7 @@ import { requestPeekAsset } from '../overlay/request-capture';
 import type { PeekAssetFn } from '../preview/Lightbox';
 
 import { AnnotationToolbar } from './AnnotationToolbar';
+import { flattenAnnotatedScreenshot } from './export-annotations';
 import {
   DEFAULT_FONT_SIZE,
   annotationReducer,
@@ -39,10 +40,18 @@ export interface KonvaAnnotationCanvasProps {
   /** Fetches the held screenshot as a data URL; defaults to the SW bridge (as in the Lightbox). */
   readonly peekAsset?: PeekAssetFn;
   readonly onCancel?: () => void;
-  /** Receives the serialized annotations (Konva JSON) on Done; widened from the ticket's `() => void`. */
-  readonly onComplete?: (annotationJson: string) => void;
+  /** On Done: the Konva JSON + the flattened annotated PNG (data URL) for the S3-10 export. */
+  readonly onComplete?: (result: AnnotationResult) => void;
   /** Serializes the stage; defaults to `stageRef.toJSON()`. Injectable so tests need no real canvas. */
   readonly serialize?: () => string;
+  /** Flattens the stage to a PNG data URL; defaults to `stage.toDataURL`. Injectable for tests. */
+  readonly flatten?: () => string;
+}
+
+/** What the canvas hands back on Done: re-editable Konva JSON + the flattened image to ship in the ZIP. */
+export interface AnnotationResult {
+  readonly konvaJson: string;
+  readonly pngDataUrl: string;
 }
 
 type LoadStatus = 'loading' | 'loaded' | 'error';
@@ -78,6 +87,7 @@ export function KonvaAnnotationCanvas({
   onCancel,
   onComplete,
   serialize,
+  flatten,
 }: KonvaAnnotationCanvasProps) {
   const [state, dispatch] = useReducer(annotationReducer, undefined, () =>
     initialAnnotationState(),
@@ -229,8 +239,13 @@ export function KonvaAnnotationCanvas({
   }
 
   function handleDone(): void {
-    const json = serialize ? serialize() : (stageRef.current?.toJSON() ?? '');
-    onComplete?.(json);
+    const konvaJson = serialize ? serialize() : (stageRef.current?.toJSON() ?? '');
+    const pngDataUrl = flatten
+      ? flatten()
+      : stageRef.current
+        ? flattenAnnotatedScreenshot(stageRef.current, screenshot.devicePixelRatio)
+        : '';
+    onComplete?.({ konvaJson, pngDataUrl });
   }
 
   function eraseOnClick(id: string): void {

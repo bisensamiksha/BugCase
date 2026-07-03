@@ -17,10 +17,12 @@ import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 
 import {
+  applyAnnotations,
   applyArtifactRemovals,
   captureReport,
   finalizeReport,
   runCaptureFlow,
+  type AnnotationExport,
 } from './capture-flow';
 
 const metadata: CaptureMetadata = {
@@ -606,5 +608,104 @@ describe('finalizeReport', () => {
       download: () => Promise.resolve(1),
     });
     expect(result).toEqual({ ok: false, reason: 'zip failed' });
+  });
+});
+
+const VIEWPORT = BUG_REPORT_ZIP_LAYOUT.screenshots.viewport;
+
+function annotationFor(): AnnotationExport {
+  return {
+    screenshotPath: VIEWPORT,
+    annotatedScreenshot: new Blob([new Uint8Array([1, 1, 1])], { type: 'image/png' }),
+    annotationFile: { schemaVersion: 'v1', screenshotPath: VIEWPORT, konvaJson: '{"k":1}' },
+  };
+}
+
+describe('applyAnnotations', () => {
+  it('replaces the screenshot blob, writes the annotations file, and flags hasAnnotations', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const ann = annotationFor();
+    const { report, assets } = applyAnnotations(captured.report!, captured.assets!, ann);
+
+    expect(assets.files.get(VIEWPORT)).toBe(ann.annotatedScreenshot);
+    expect(assets.files.get('annotations/viewport.konva.json')).toBe(
+      JSON.stringify(ann.annotationFile),
+    );
+    expect(report.screenshots.viewport?.hasAnnotations).toBe(true);
+    expect(report.screenshots.viewport?.annotationsPath).toBe('annotations/viewport.konva.json');
+  });
+
+  it('does not mutate the input report or assets', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const originalBlob = captured.assets!.files.get(VIEWPORT);
+    applyAnnotations(captured.report!, captured.assets!, annotationFor());
+
+    expect(captured.assets!.files.get(VIEWPORT)).toBe(originalBlob);
+    expect(captured.assets!.files.has('annotations/viewport.konva.json')).toBe(false);
+    expect(captured.report!.screenshots.viewport?.hasAnnotations).toBe(false);
+  });
+
+  it('no-ops when the screenshot path is not present', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const missing: AnnotationExport = {
+      ...annotationFor(),
+      screenshotPath: 'screenshots/nope.png',
+    };
+    const { assets } = applyAnnotations(captured.report!, captured.assets!, missing);
+    expect(assets.files.has('annotations/nope.konva.json')).toBe(false);
+    expect(assets.files.get(VIEWPORT)).toBe(captured.assets!.files.get(VIEWPORT));
+  });
+});
+
+describe('finalizeReport — annotation', () => {
+  it('zips the annotated screenshot and annotations file when an annotation is given', async () => {
+    const writeZip = vi.fn((_r: BugReportV1, _a: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])])),
+    );
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const ann = annotationFor();
+    await finalizeReport(
+      captured.report!,
+      captured.assets!,
+      [],
+      { writeZip, download: () => Promise.resolve(1) },
+      ann,
+    );
+    const [report, assets] = writeZip.mock.calls[0] ?? [];
+    expect(assets?.files.get(VIEWPORT)).toBe(ann.annotatedScreenshot);
+    expect(assets?.files.get('annotations/viewport.konva.json')).toBeDefined();
+    expect(report?.screenshots.viewport?.hasAnnotations).toBe(true);
+  });
+
+  it('skips the annotation when the screenshot was removed', async () => {
+    const writeZip = vi.fn((_r: BugReportV1, _a: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])])),
+    );
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    await finalizeReport(
+      captured.report!,
+      captured.assets!,
+      ['screenshot'],
+      { writeZip, download: () => Promise.resolve(1) },
+      annotationFor(),
+    );
+    const [, assets] = writeZip.mock.calls[0] ?? [];
+    expect(assets?.files.has(VIEWPORT)).toBe(false);
+    expect(assets?.files.has('annotations/viewport.konva.json')).toBe(false);
   });
 });
