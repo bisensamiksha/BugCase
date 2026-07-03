@@ -1,8 +1,9 @@
 import type { BugReportV1 } from '@bugcase/schema';
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
-import { KonvaAnnotationCanvas } from '../annotation/AnnotationCanvas';
-import type { FinalizeReportResponse } from '../background/messages';
+import { KonvaAnnotationCanvas, type AnnotationResult } from '../annotation/AnnotationCanvas';
+import type { FinalizeAnnotationPayload, FinalizeReportResponse } from '../background/messages';
+import { startServiceWorkerKeepAlive, type KeepAliveHandle } from '../overlay/keepalive';
 import { requestFinalize } from '../overlay/request-capture';
 
 import { SandboxedDomSnapshotViewer } from './DomSnapshotViewer';
@@ -25,6 +26,7 @@ export interface PreviewAppProps {
   readonly finalize?: (
     reportId: string,
     removedIds: readonly ArtifactId[],
+    annotation?: FinalizeAnnotationPayload,
   ) => Promise<FinalizeReportResponse>;
   /** Opens an artifact viewer not handled in-app (none remain after S3-04); kept as an escape hatch. */
   readonly onView?: (id: ArtifactId) => void;
@@ -32,6 +34,12 @@ export interface PreviewAppProps {
   readonly peekAsset?: PeekAssetFn;
   /** Records a metadata-only history entry after a successful download; defaults to `saveDownloadedReport`. */
   readonly saveHistory?: (input: DownloadedReportInput) => Promise<void>;
+  /**
+   * Keeps the service worker alive while this screen holds a report (the report + assets live only in
+   * the worker's memory between capture and download; a long idle annotation session would otherwise
+   * evict the worker and expire the hold). Defaults to `startServiceWorkerKeepAlive`.
+   */
+  readonly keepAlive?: () => KeepAliveHandle;
   readonly disabled?: boolean;
 }
 
@@ -74,8 +82,16 @@ export function PreviewApp({
   onView,
   peekAsset,
   saveHistory,
+  keepAlive,
   disabled,
 }: PreviewAppProps) {
+  // Hold the worker awake for as long as this screen owns the in-memory report (across the annotation
+  // sub-view too, since that stays within this component), so the download can't find an evicted hold.
+  useEffect(() => {
+    const handle = (keepAlive ?? startServiceWorkerKeepAlive)();
+    return () => handle.stop();
+  }, [keepAlive]);
+
   const artifacts = useMemo(
     () => buildArtifactList({ report, ...(assetSizes ? { assetSizes } : {}) }),
     [report, assetSizes],
@@ -83,7 +99,7 @@ export function PreviewApp({
   const screenshot = useMemo(() => resolveScreenshot(report), [report]);
   const privacySummary = useMemo(() => summarizePrivacy(report), [report]);
   const [viewing, setViewing] = useState<ArtifactId | 'annotate' | null>(null);
-  const [annotationJson, setAnnotationJson] = useState<string | null>(null);
+  const [annotation, setAnnotation] = useState<AnnotationResult | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<ArtifactId>>(new Set());
   const [consenting, setConsenting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -107,7 +123,10 @@ export function PreviewApp({
     setError(null);
     try {
       const run = finalize ?? requestFinalize;
-      const result = await run(reportId, [...removed]);
+      const annotationPayload: FinalizeAnnotationPayload | undefined = annotation
+        ? { konvaJson: annotation.konvaJson, screenshotDataUrl: annotation.pngDataUrl }
+        : undefined;
+      const result = await run(reportId, [...removed], annotationPayload);
       if (result.ok) {
         // Record a metadata-only history entry — best-effort, never block or fail the download.
         const save = saveHistory ?? saveDownloadedReport;
@@ -147,8 +166,8 @@ export function PreviewApp({
         reportId={reportId}
         screenshot={screenshot}
         onCancel={() => setViewing(null)}
-        onComplete={(json) => {
-          setAnnotationJson(json);
+        onComplete={(result) => {
+          setAnnotation(result);
           setViewing(null);
         }}
         {...(peekAsset ? { peekAsset } : {})}
@@ -236,10 +255,10 @@ export function PreviewApp({
                   data-testid="annotate-screenshot"
                   onClick={() => setViewing('annotate')}
                 >
-                  {annotationJson ? 'Re-annotate' : 'Annotate'}
+                  {annotation ? 'Re-annotate' : 'Annotate'}
                 </button>
               ) : null}
-              {a.id === 'screenshot' && annotationJson ? (
+              {a.id === 'screenshot' && annotation ? (
                 <span
                   data-testid="screenshot-annotated"
                   style={{ color: '#16a34a', fontSize: '12px' }}

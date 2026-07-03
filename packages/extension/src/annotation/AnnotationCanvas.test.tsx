@@ -160,13 +160,20 @@ describe('KonvaAnnotationCanvas', () => {
     expect(qa('konva-rect')).toHaveLength(1);
   });
 
-  it('completes with the serialized annotation JSON', async () => {
+  it('completes with the Konva JSON and the flattened PNG data URL', async () => {
     const onComplete = vi.fn();
-    await render({ onComplete, serialize: () => 'STAGE_JSON' });
+    await render({
+      onComplete,
+      serialize: () => 'STAGE_JSON',
+      flatten: () => 'data:image/png;base64,FLAT',
+    });
     act(() => {
       q('annotation-done')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(onComplete).toHaveBeenCalledWith('STAGE_JSON');
+    expect(onComplete).toHaveBeenCalledWith({
+      konvaJson: 'STAGE_JSON',
+      pngDataUrl: 'data:image/png;base64,FLAT',
+    });
   });
 
   it('cancels via the toolbar', async () => {

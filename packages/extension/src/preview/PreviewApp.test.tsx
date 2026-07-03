@@ -16,8 +16,14 @@ vi.mock('react-konva', async () => {
     (props: { children?: React.ReactNode }): React.ReactElement =>
       React.createElement('div', { 'data-testid': `konva-${name}` }, props.children);
   const Stage = React.forwardRef(
-    (props: { children?: React.ReactNode }, ref: React.Ref<{ toJSON: () => string }>) => {
-      React.useImperativeHandle(ref, () => ({ toJSON: () => '{"mock":"stage"}' }));
+    (
+      props: { children?: React.ReactNode },
+      ref: React.Ref<{ toJSON: () => string; toDataURL: () => string }>,
+    ) => {
+      React.useImperativeHandle(ref, () => ({
+        toJSON: () => '{"mock":"stage"}',
+        toDataURL: () => 'data:image/png;base64,MOCK',
+      }));
       return React.createElement('div', { 'data-testid': 'konva-stage' }, props.children);
     },
   );
@@ -98,6 +104,28 @@ describe('PreviewApp', () => {
     expect(q('preview-review-screen-scaffold')).not.toBeNull();
     expect(q('artifact-console')).not.toBeNull();
     expect(q('artifact-network')?.textContent).toContain('Not captured');
+  });
+
+  it('keeps the service worker alive while mounted and stops it on unmount', () => {
+    const stop = vi.fn();
+    const keepAlive = vi.fn(() => ({ stop }));
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+          keepAlive={keepAlive}
+        />,
+      );
+    });
+    expect(keepAlive).toHaveBeenCalledTimes(1);
+    expect(stop).not.toHaveBeenCalled();
+    act(() => {
+      root.unmount();
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 
   it('disables View for an artifact with no viewer that was not captured', () => {
@@ -211,7 +239,7 @@ describe('PreviewApp', () => {
       await dl;
     });
 
-    expect(finalize).toHaveBeenCalledWith('r1', ['console']);
+    expect(finalize).toHaveBeenCalledWith('r1', ['console'], undefined);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
@@ -529,5 +557,50 @@ describe('PreviewApp', () => {
     });
     expect(q('preview-review-screen-scaffold')).not.toBeNull();
     expect(q('screenshot-annotated')).not.toBeNull();
+  });
+
+  it('forwards the annotation to finalize on download', async () => {
+    const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
+    const peekAsset = vi.fn(() =>
+      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          finalize={finalize}
+          peekAsset={peekAsset}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    // Annotate → Done (mock stage returns toJSON + toDataURL).
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotation-done')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    // Download → consent → confirm.
+    act(() => {
+      q('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      (q('privacy-understand') as HTMLInputElement).click();
+    });
+    await act(async () => {
+      q('privacy-confirm')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(finalize).toHaveBeenCalledWith('r1', [], {
+      konvaJson: '{"mock":"stage"}',
+      screenshotDataUrl: 'data:image/png;base64,MOCK',
+    });
   });
 });

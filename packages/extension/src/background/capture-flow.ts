@@ -1,5 +1,6 @@
 import {
   BUG_REPORT_ZIP_LAYOUT,
+  type AnnotationFile,
   type BrowserInfo,
   type BugReportV1,
   type BugReportZipAssets,
@@ -15,6 +16,7 @@ import {
   type UserInput,
 } from '@bugcase/schema';
 
+import { annotationFilePath } from '../annotation/konva-serialization';
 import type { DomSnapshotResult } from '../capture/dom-snapshot';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-capture';
@@ -252,18 +254,77 @@ export function applyArtifactRemovals(
   return { report: next, assets: { files } };
 }
 
+/** A flattened annotated screenshot + its Konva JSON, produced in the overlay and applied at finalize. */
+export interface AnnotationExport {
+  /** ZIP path of the screenshot the annotations cover (e.g. `screenshots/viewport.png`). */
+  readonly screenshotPath: string;
+  /** The flattened (screenshot + annotation layers) PNG that replaces the original screenshot. */
+  readonly annotatedScreenshot: Blob | Uint8Array;
+  /** The saved Konva annotations, written at `annotations/<name>.konva.json`. */
+  readonly annotationFile: AnnotationFile;
+}
+
 /**
- * Finalize phase: apply removals → ZIP via the schema writer → download with a timestamped
- * filename. Runs in the service worker. Any failure resolves to `{ ok: false, reason }`.
+ * Mark the screenshot ref whose path matches as annotated — set `hasAnnotations` and point
+ * `annotationsPath` at its saved `.konva.json` so consumers can locate it — preserving the shape.
+ */
+function flagAnnotated(manifest: ScreenshotsManifest, path: string): ScreenshotsManifest {
+  const mark = (ref: ScreenshotRef): ScreenshotRef =>
+    ref.path === path
+      ? { ...ref, hasAnnotations: true, annotationsPath: annotationFilePath(path) }
+      : ref;
+  return {
+    ...manifest,
+    ...(manifest.viewport ? { viewport: mark(manifest.viewport) } : {}),
+    ...(manifest.fullPage ? { fullPage: mark(manifest.fullPage) } : {}),
+    elementCrops: manifest.elementCrops.map(mark),
+  };
+}
+
+/**
+ * Replace the screenshot blob with its flattened annotated version, write the Konva JSON at
+ * `annotations/<name>.konva.json`, and flag that screenshot `hasAnnotations`. Pure — inputs are not
+ * mutated. No-op when the screenshot path is absent (e.g. it was removed).
+ */
+export function applyAnnotations(
+  report: BugReportV1,
+  assets: BugReportZipAssets,
+  annotation: AnnotationExport,
+): { report: BugReportV1; assets: BugReportZipAssets } {
+  if (!assets.files.has(annotation.screenshotPath)) {
+    return { report, assets };
+  }
+  const files = new Map(assets.files);
+  files.set(annotation.screenshotPath, annotation.annotatedScreenshot);
+  files.set(
+    annotationFilePath(annotation.screenshotPath),
+    JSON.stringify(annotation.annotationFile),
+  );
+  return {
+    report: {
+      ...report,
+      screenshots: flagAnnotated(report.screenshots, annotation.screenshotPath),
+    },
+    assets: { files },
+  };
+}
+
+/**
+ * Finalize phase: apply removals → apply annotations (if any) → ZIP via the schema writer → download
+ * with a timestamped filename. Runs in the service worker. Any failure resolves to `{ ok: false, reason }`.
  */
 export async function finalizeReport(
   report: BugReportV1,
   assets: BugReportZipAssets,
   removedIds: readonly ArtifactId[],
   deps: FinalizeReportDeps,
+  annotation?: AnnotationExport,
 ): Promise<CaptureFlowResult> {
   try {
-    const trimmed = applyArtifactRemovals(report, assets, removedIds);
+    let trimmed = applyArtifactRemovals(report, assets, removedIds);
+    if (annotation) {
+      trimmed = applyAnnotations(trimmed.report, trimmed.assets, annotation);
+    }
     const zip = await deps.writeZip(trimmed.report, trimmed.assets);
     const filename = buildCaptureReportFilename(
       deps.now?.() ?? new Date(),

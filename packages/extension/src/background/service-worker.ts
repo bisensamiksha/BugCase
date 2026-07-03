@@ -9,6 +9,7 @@ import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 
+import { buildAnnotationExport } from './annotation-finalize';
 import { captureReport, finalizeReport } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
 import { createCookiesCollector } from './cookies-handler';
@@ -17,6 +18,7 @@ import { createNavigationHistoryCollector } from './history-handler';
 import { createInstalledExtensionsCollector } from './management-handler';
 import {
   DEBUGGER_ACTIVITY,
+  KEEPALIVE_PORT_NAME,
   finalizeResponseFrom,
   isCaptureReportRequest,
   isCaptureVisibleTabRequest,
@@ -60,6 +62,16 @@ browser.runtime.onInstalled.addListener(() => {
 
 browser.runtime.onStartup.addListener(() => {
   void syncPassiveContentScripts();
+});
+
+// The overlay opens a keepalive port while it holds a report for preview/annotation. Accepting the
+// connection and its pings resets the worker's idle timer, so a long annotation session doesn't
+// evict the in-memory reportHold (which the user would otherwise hit as an "expired" download).
+browser.runtime.onConnect.addListener((port) => {
+  if (port.name === KEEPALIVE_PORT_NAME) {
+    // The connection + messages are what keep the worker alive; nothing else to do on receipt.
+    port.onMessage.addListener(() => {});
+  }
 });
 
 async function handleCaptureRequest(
@@ -214,10 +226,16 @@ async function handleFinalizeReport(
   if (!held) {
     return { ok: false, reason: 'expired' };
   }
-  const result = await finalizeReport(held.report, held.assets, message.removedIds, {
-    writeZip: writeBugReportZip,
-    download: downloadBlob,
-  });
+  const annotation = message.annotation
+    ? (buildAnnotationExport(held.report, message.annotation) ?? undefined)
+    : undefined;
+  const result = await finalizeReport(
+    held.report,
+    held.assets,
+    message.removedIds,
+    { writeZip: writeBugReportZip, download: downloadBlob },
+    annotation,
+  );
   return finalizeResponseFrom(result);
 }
 

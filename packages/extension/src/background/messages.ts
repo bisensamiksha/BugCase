@@ -81,12 +81,23 @@ export interface CaptureReportResponse {
 /** Runtime message: overlay → service worker, asking it to ZIP + download a held report. */
 export const FINALIZE_REPORT = 'bugcase/finalize-report';
 
+/**
+ * Flattened annotations for the finalize step (S3-10). Konva can only rasterize in the overlay, so the
+ * annotated PNG rides along as a data URL; the worker rehydrates it and replaces the screenshot blob.
+ */
+export interface FinalizeAnnotationPayload {
+  readonly konvaJson: string;
+  readonly screenshotDataUrl: string;
+}
+
 export interface FinalizeReportRequest {
   readonly type: typeof FINALIZE_REPORT;
   /** The `reportId` returned by CAPTURE_REPORT. */
   readonly reportId: string;
   /** Artifacts the user chose to exclude; their sections + files are dropped before zipping. */
   readonly removedIds: readonly ArtifactId[];
+  /** Present when the user annotated the screenshot; folded into the ZIP at finalize. */
+  readonly annotation?: FinalizeAnnotationPayload;
 }
 
 /** Serializable finalize result; `ok` is false on a handled failure (including `expired`). */
@@ -109,6 +120,13 @@ export function finalizeResponseFrom(result: CaptureFlowResult): FinalizeReportR
     ...(result.reason ? { reason: result.reason } : {}),
   };
 }
+
+/**
+ * Long-lived port name: the overlay opens this while a report is held for preview/annotation so the
+ * MV3 service worker isn't evicted mid-session (which would drop the in-memory hold → an "expired"
+ * download). The connection + its pings reset the worker's idle timer; the SW accepts it in onConnect.
+ */
+export const KEEPALIVE_PORT_NAME = 'bugcase/keepalive';
 
 /** Runtime message: overlay → service worker, asking for a held report's asset as a data URL. */
 export const PEEK_REPORT_ASSET = 'bugcase/peek-report-asset';
