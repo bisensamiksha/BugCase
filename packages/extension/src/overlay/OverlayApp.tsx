@@ -1,5 +1,5 @@
-import type { BugReportV1, UserInput, UserOptions } from '@bugcase/schema';
-import { useEffect, useState, type CSSProperties } from 'react';
+import type { BugReportV1, ReproductionRecording, UserInput, UserOptions } from '@bugcase/schema';
+import { useEffect, useReducer, useState, type CSSProperties } from 'react';
 
 import { isDebuggerActivityMessage, type CaptureReportResponse } from '../background/messages';
 import {
@@ -7,22 +7,52 @@ import {
   type OriginAllowlistRequest,
   type OriginAllowlistResponse,
 } from '../background/origin-allowlist-handler';
+import { toReproductionRecording } from '../capture/reproduction-log';
 import browser from '../lib/browser';
 import { hasOptionalPermissions } from '../permissions/optional-permissions';
 import { PreviewApp } from '../preview/PreviewApp';
 import type { ArtifactId } from '../preview/artifact-list';
+import { createVerifierToken, isRecorderStep } from '../shared/bridge-protocol';
 import { normalizeOrigin } from '../storage/origin-allowlist';
+import type { RecordedStep, RecordingSession } from '../storage/recording-session';
 import { getSettings } from '../storage/settings';
 
 import { CaptureButton } from './CaptureButton';
 import { CaptureOptions } from './CaptureOptions';
+import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
 import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+import {
+  appendRecordingStep,
+  clearRecording,
+  getRecording,
+  startRecording,
+  stopRecording,
+} from './recording-sync';
+import { sendRecorderControl } from './reproduction-control-bridge';
+import { REPRODUCTION_SESSION_INITIAL, reproductionSessionReducer } from './reproduction-session';
 import { requestCapture } from './request-capture';
 import { USER_REPORT_DEFAULTS } from './user-report-state';
+
+/** The durable-recording operations the overlay drives (S3-12 Part B); injectable for tests. */
+export interface RecordingClient {
+  readonly start: (startedAt: string, url: string) => Promise<void>;
+  readonly appendStep: (step: RecordedStep) => Promise<void>;
+  readonly stop: (endedAt: string) => Promise<void>;
+  readonly get: () => Promise<RecordingSession | null>;
+  readonly clear: () => Promise<void>;
+}
+
+const DEFAULT_RECORDING_CLIENT: RecordingClient = {
+  start: (startedAt, url) => startRecording(startedAt, url),
+  appendStep: (step) => appendRecordingStep(step),
+  stop: (endedAt) => stopRecording(endedAt),
+  get: () => getRecording(),
+  clear: () => clearRecording(),
+};
 
 /** Notified when the service worker reports the debugger attaching/detaching for this tab. */
 export type DebuggerActivityHandler = (active: boolean, hostName?: string) => void;
@@ -58,7 +88,13 @@ export interface OverlayAppProps {
   readonly onCapture?: (input: {
     userOptions: UserOptions;
     userInput: UserInput;
+    /** A completed reproduction recording (S3-12), assembled from the durable session when present. */
+    reproduction?: ReproductionRecording | null;
   }) => Promise<CaptureReportResponse>;
+  /** Durable-recording operations (S3-12 Part B); defaults to the real service-worker relay. */
+  readonly recordingClient?: RecordingClient;
+  /** The page url used to detect a navigation-interrupted recording; defaults to the live location. */
+  readonly currentUrl?: string;
 }
 
 type OverlayPhase = 'form' | 'preview';
@@ -116,6 +152,21 @@ const panelStyle: CSSProperties = {
   fontSize: '14px',
 };
 
+// While recording, the panel collapses to this small pill so the page underneath stays interactive.
+const pillStyle: CSSProperties = {
+  position: 'fixed',
+  top: '16px',
+  right: '16px',
+  maxWidth: '260px',
+  padding: '12px 16px',
+  borderRadius: '12px',
+  background: '#ffffff',
+  color: '#0f172a',
+  boxShadow: '0 10px 30px rgba(2, 6, 23, 0.25)',
+  fontFamily: 'system-ui, -apple-system, sans-serif',
+  fontSize: '14px',
+};
+
 const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -140,7 +191,10 @@ export function OverlayApp({
   checkCookiesGranted,
   loadDefaultCaptureOptions,
   onCapture,
+  recordingClient = DEFAULT_RECORDING_CLIENT,
+  currentUrl,
 }: OverlayAppProps) {
+  const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
   const host = hostNameOf(pageOrigin);
   const [showOptIn, setShowOptIn] = useState(false);
@@ -149,6 +203,10 @@ export function OverlayApp({
   const [userReport, setUserReport] = useState<UserInput>(USER_REPORT_DEFAULTS);
   const [phase, setPhase] = useState<OverlayPhase>('form');
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [reproSession, dispatchRepro] = useReducer(
+    reproductionSessionReducer,
+    REPRODUCTION_SESSION_INITIAL,
+  );
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
@@ -227,6 +285,84 @@ export function OverlayApp({
     };
   }, [pageOrigin, checkAllowed]);
 
+  const pageWindow = typeof window !== 'undefined' ? window : undefined;
+
+  const handleStartRecording = (): void => {
+    const token = createVerifierToken();
+    const startedAt = new Date().toISOString();
+    dispatchRepro({ type: 'start', token, at: startedAt });
+    sendRecorderControl(pageWindow, 'start', token);
+    // Persist the session so it survives a navigation (the in-page buffer does not).
+    void recordingClient.start(startedAt, pageUrl);
+  };
+
+  const handleStopRecording = (): void => {
+    const { sessionToken } = reproSession;
+    const endedAt = new Date().toISOString();
+    dispatchRepro({ type: 'stop', at: endedAt });
+    if (sessionToken) {
+      sendRecorderControl(pageWindow, 'stop', sessionToken);
+    }
+    void recordingClient.stop(endedAt);
+  };
+
+  // Relay each recorded step (pushed from the MAIN-world recorder) to the durable session while
+  // recording, so a navigation keeps everything captured up to that point.
+  useEffect(() => {
+    if (reproSession.status !== 'recording' || !pageWindow) {
+      return;
+    }
+    const token = reproSession.sessionToken;
+    const onMessage = (event: MessageEvent): void => {
+      const data: unknown = event.data;
+      if (isRecorderStep(data) && data.token === token) {
+        void recordingClient.appendStep(data.step as RecordedStep);
+      }
+    };
+    pageWindow.addEventListener('message', onMessage);
+    return () => pageWindow.removeEventListener('message', onMessage);
+  }, [reproSession.status, reproSession.sessionToken, recordingClient, pageWindow]);
+
+  // On open, recover a recording persisted on a prior page load. If it is still recording (the worker
+  // re-injected us to continue across a navigation), resume: re-arm the recorder on this page and keep
+  // the pill. If it was stopped, show it as a completed recording ready to capture.
+  useEffect(() => {
+    let cancelled = false;
+    void recordingClient.get().then((session) => {
+      if (cancelled || !session) {
+        return;
+      }
+      if (session.status === 'recording') {
+        const token = createVerifierToken();
+        dispatchRepro({ type: 'start', token, at: session.startedAt });
+        sendRecorderControl(pageWindow, 'start', token);
+      } else {
+        dispatchRepro({
+          type: 'restore',
+          startedAt: session.startedAt,
+          endedAt: session.endedAt ?? new Date().toISOString(),
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; recordingClient/pageWindow are stable for the overlay's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Assemble the reproduction recording from the durable session for a capture (S3-12 Part B). */
+  const buildReproduction = async (): Promise<ReproductionRecording | null> => {
+    const session = await recordingClient.get();
+    if (!session || session.steps.length === 0) {
+      return null;
+    }
+    return toReproductionRecording(session.steps, {
+      startedAt: session.startedAt,
+      endedAt: session.endedAt ?? new Date().toISOString(),
+    });
+  };
+
   if (phase === 'preview' && preview) {
     return (
       <PreviewApp
@@ -237,8 +373,31 @@ export function OverlayApp({
           setPhase('form');
           setPreview(null);
         }}
-        onComplete={onClose}
+        onComplete={() => {
+          // The recording has been folded into the downloaded report; drop the durable session.
+          void recordingClient.clear();
+          onClose();
+        }}
       />
+    );
+  }
+
+  if (reproSession.status === 'recording') {
+    // Collapse to a small pill so the user can interact with the page while the MAIN-world recorder
+    // captures steps; the full capture form is restored on Stop.
+    return (
+      <div
+        role="dialog"
+        aria-label="BugCase recording"
+        data-testid="bugcase-recording-pill"
+        style={pillStyle}
+      >
+        <ReproductionControls
+          status="recording"
+          onStart={handleStartRecording}
+          onStop={handleStopRecording}
+        />
+      </div>
     );
   }
 
@@ -296,6 +455,13 @@ export function OverlayApp({
       </p>
       <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
       <UserReportForm value={userReport} onChange={setUserReport} />
+      {captureOptions.reproductionSteps ? (
+        <ReproductionControls
+          status={reproSession.status}
+          onStart={handleStartRecording}
+          onStop={handleStopRecording}
+        />
+      ) : null}
       <CaptureButton
         onComplete={(result) => {
           if (result.ok && result.reportId && result.report) {
@@ -307,9 +473,14 @@ export function OverlayApp({
             setPhase('preview');
           }
         }}
-        onCapture={() =>
-          (onCapture ?? requestCapture)({ userOptions: captureOptions, userInput: userReport })
-        }
+        onCapture={async () => {
+          const reproduction = await buildReproduction();
+          return (onCapture ?? requestCapture)({
+            userOptions: captureOptions,
+            userInput: userReport,
+            ...(reproduction ? { reproduction } : {}),
+          });
+        }}
       />
     </div>
   );

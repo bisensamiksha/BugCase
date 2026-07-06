@@ -107,7 +107,7 @@ describe('requestCapture', () => {
   it('flushes and includes the console log when consoleLogs is enabled', async () => {
     const collectMetadata = vi.fn(() => Promise.resolve(metadata));
     const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
-    const flushChannel = vi.fn((channel: 'console' | 'network') =>
+    const flushChannel = vi.fn((channel: 'console' | 'network' | 'reproduction') =>
       Promise.resolve(
         channel === 'console'
           ? [{ type: 'console', level: 'warn', args: ['hi'], timestamp: Date.now() }]
@@ -145,7 +145,7 @@ describe('requestCapture', () => {
       failed: false,
       errorText: null,
     };
-    const flushChannel = vi.fn((channel: 'console' | 'network') =>
+    const flushChannel = vi.fn((channel: 'console' | 'network' | 'reproduction') =>
       Promise.resolve(channel === 'network' ? [networkRaw] : []),
     );
 
@@ -180,6 +180,42 @@ describe('requestCapture', () => {
     const msg = send.mock.calls[0]?.[0];
     expect(msg?.console).toBeNull();
     expect(msg?.network).toBeNull();
+  });
+
+  it('forwards a reproduction recording (assembled by the overlay) into the message', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+    const reproduction = {
+      schemaVersion: 'v1' as const,
+      startedAt: '2026-07-04T10:00:00.000Z',
+      endedAt: '2026-07-04T10:00:30.000Z',
+      steps: [
+        {
+          id: 'r1',
+          type: 'click' as const,
+          selector: '#save',
+          description: 'Clicked #save',
+          timestamp: '2026-07-04T10:00:05.000Z',
+          metadata: { tag: 'button' },
+        },
+      ],
+    };
+
+    await requestCapture({ collectMetadata, send, reproduction });
+
+    const msg = send.mock.calls[0]?.[0];
+    expect(msg?.reproduction?.steps[0]?.selector).toBe('#save');
+    expect(msg?.reproduction?.startedAt).toBe('2026-07-04T10:00:00.000Z');
+  });
+
+  it('omits reproduction when the overlay has none', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+
+    await requestCapture({ collectMetadata, send });
+
+    const msg = send.mock.calls[0]?.[0];
+    expect(msg?.reproduction ?? null).toBeNull();
   });
 
   it('threads userOptions into the metadata collector', async () => {

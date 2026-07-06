@@ -1,5 +1,7 @@
 import browser from '../lib/browser';
 
+import { PASSIVE_MAIN_SCRIPT_FILE } from './content-script-registration';
+
 /**
  * Content entry the service worker injects via `chrome.scripting.executeScript` (uses
  * `activeTab`, so no host permissions). Injecting toggles the overlay: mount if absent,
@@ -12,6 +14,17 @@ import browser from '../lib/browser';
  * this needs its own build step. Injecting with `activeTab` needs no host permissions.
  */
 export const OVERLAY_CONTENT_SCRIPT = 'content/overlay.js';
+
+/**
+ * The MAIN-world script that hosts the reproduction recorder + the page-bridge responder (S3-12).
+ * It is registered at document_start only on passive-allowlisted origins (see
+ * content-script-registration.ts), so on any other page — or an allowlisted page that hasn't reloaded
+ * since opt-in — the recorder is absent and recording captures nothing. Injecting it on demand
+ * alongside the overlay (via `activeTab`, `world: 'MAIN'`) makes recording work on any page the
+ * overlay opens on. It is the same built artifact and is idempotent (self-install guard), so this is a
+ * no-op where document_start already ran it.
+ */
+export const RECORDER_MAIN_SCRIPT = PASSIVE_MAIN_SCRIPT_FILE;
 
 /** Result of an overlay inject/remove attempt. Serializable so it can cross the message boundary. */
 export interface OverlayInjectResult {
@@ -26,11 +39,21 @@ export interface OverlayController {
   remove(tabId: number): Promise<OverlayInjectResult>;
   /** Resolve the active tab in the current window and inject into it only. */
   injectActiveTab(): Promise<OverlayInjectResult>;
+  /** Re-inject the recorder + overlay to continue a recording across a navigation (mount, not toggle). */
+  reinject(tabId: number): Promise<OverlayInjectResult>;
 }
 
 /** Runs in the page; removes the overlay host. Must stay self-contained (serialized for injection). */
 function removeOverlayInPage(): void {
   document.getElementById('bugcase-overlay-root')?.remove();
+}
+
+/**
+ * Runs in the page; flags the next overlay inject to mount (not toggle). Must stay self-contained
+ * (serialized for injection) — the literal must match `OVERLAY_MOUNT_ONLY_FLAG` in overlay-root.
+ */
+function setOverlayMountOnlyFlag(): void {
+  (window as unknown as Record<string, unknown>).__bugcaseOverlayMountOnly = true;
 }
 
 function isValidTabId(tabId: number): boolean {
@@ -42,10 +65,27 @@ function toReason(error: unknown): string {
 }
 
 export function createOverlayController(): OverlayController {
+  /**
+   * Best-effort: ensure the MAIN-world recorder is present on the tab. Never throws — the overlay and
+   * the rest of capture still work without it (e.g. on a restricted page that rejects MAIN injection).
+   */
+  async function ensureRecorder(tabId: number): Promise<void> {
+    try {
+      await browser.scripting.executeScript({
+        target: { tabId },
+        files: [RECORDER_MAIN_SCRIPT],
+        world: 'MAIN',
+      });
+    } catch {
+      // Reproduction recording is unavailable on this page; the overlay still opens.
+    }
+  }
+
   async function inject(tabId: number): Promise<OverlayInjectResult> {
     if (!isValidTabId(tabId)) {
       return { ok: false, reason: `invalid tab id: ${String(tabId)}` };
     }
+    await ensureRecorder(tabId);
     try {
       await browser.scripting.executeScript({
         target: { tabId },
@@ -77,5 +117,19 @@ export function createOverlayController(): OverlayController {
     return inject(tab.id);
   }
 
-  return { inject, remove, injectActiveTab };
+  async function reinject(tabId: number): Promise<OverlayInjectResult> {
+    if (!isValidTabId(tabId)) {
+      return { ok: false, reason: `invalid tab id: ${String(tabId)}` };
+    }
+    await ensureRecorder(tabId);
+    try {
+      await browser.scripting.executeScript({ target: { tabId }, func: setOverlayMountOnlyFlag });
+      await browser.scripting.executeScript({ target: { tabId }, files: [OVERLAY_CONTENT_SCRIPT] });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: toReason(error) };
+    }
+  }
+
+  return { inject, remove, injectActiveTab, reinject };
 }

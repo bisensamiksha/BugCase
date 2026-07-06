@@ -4,6 +4,7 @@ import type {
   CaptureMetadata,
   ConsoleLog,
   NetworkLog,
+  ReproductionRecording,
   UserInput,
 } from '@bugcase/schema';
 
@@ -60,6 +61,8 @@ export interface CaptureReportRequest {
   readonly console?: ConsoleLog | null;
   /** Network ring-buffer log, flushed + scrubbed in the overlay (S2-25); `null` when not collected. */
   readonly network?: NetworkLog | null;
+  /** Reproduction recording, flushed + mapped in the overlay (S3-12); `null` when not recorded. */
+  readonly reproduction?: ReproductionRecording | null;
 }
 
 /**

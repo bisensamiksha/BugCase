@@ -1,9 +1,17 @@
 import { createRoot, type Root } from 'react-dom/client';
 
 import { OverlayApp } from '../overlay/OverlayApp';
+import { OVERLAY_HOST_ID } from '../shared/overlay-host';
 
 /** Id of the host element that holds the overlay's Shadow DOM. Kept stable so removal can find it. */
-export const OVERLAY_HOST_ID = 'bugcase-overlay-root';
+export { OVERLAY_HOST_ID };
+
+/**
+ * Window flag the content entry checks to mount (not toggle) the overlay. Set by the service worker
+ * before re-injecting the overlay to continue a recording across a navigation (S3-12), so a repeated
+ * inject can't accidentally remove the freshly-mounted pill.
+ */
+export const OVERLAY_MOUNT_ONLY_FLAG = '__bugcaseOverlayMountOnly';
 
 // One overlay per page; the module tracks the live React root so removal can unmount it cleanly.
 let active: { host: HTMLElement; root: Root } | null = null;

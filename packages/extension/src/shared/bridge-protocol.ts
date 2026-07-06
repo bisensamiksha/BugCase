@@ -15,7 +15,7 @@
 export const BUGCASE_BRIDGE_SOURCE = 'bugcase-bridge' as const;
 
 /** Buffers that can be flushed across the bridge. */
-export type FlushChannel = 'console' | 'network';
+export type FlushChannel = 'console' | 'network' | 'reproduction';
 
 interface BridgeEnvelope {
   readonly source: typeof BUGCASE_BRIDGE_SOURCE;
@@ -38,7 +38,38 @@ export interface BridgeFlushResponse extends BridgeEnvelope {
   readonly entries: readonly unknown[];
 }
 
-export type BridgeMessage = BridgeFlushRequest | BridgeFlushResponse;
+/**
+ * Isolated world → MAIN world: arm or disarm the reproduction recorder (S3-12).
+ *
+ * Deliberately a distinct message kind, not a flush-request: the MAIN-world bridge client pins the
+ * first flush-request's token forever (trust-on-first-use), so routing recorder control through a
+ * flush would poison the capture-time console/network flush token. Control carries no captured data,
+ * so like the rest of the bridge it is best-effort authenticity (source tag + session token), not a
+ * secrecy boundary.
+ */
+export interface RecorderControlMessage extends BridgeEnvelope {
+  readonly kind: 'recorder-control';
+  readonly action: 'start' | 'stop';
+}
+
+/**
+ * MAIN world → isolated world: one recorded reproduction step, pushed as it happens (S3-12, Part B).
+ *
+ * The recorder buffers in the page's MAIN world, which a navigation destroys; relaying each step to the
+ * overlay (which persists it via the service worker) is what lets a recording survive page changes.
+ * `step` is an opaque record — the report mapper coerces it. `token` is the recording's session token,
+ * so the overlay can ignore page-forged steps.
+ */
+export interface RecorderStepMessage extends BridgeEnvelope {
+  readonly kind: 'recorder-step';
+  readonly step: unknown;
+}
+
+export type BridgeMessage =
+  | BridgeFlushRequest
+  | BridgeFlushResponse
+  | RecorderControlMessage
+  | RecorderStepMessage;
 
 /** Generate a random, hard-to-guess token (verifier token, also reused for correlation ids). */
 export function createVerifierToken(): string {
@@ -73,6 +104,27 @@ export function createFlushResponse(
   };
 }
 
+export function createRecorderControl(
+  action: RecorderControlMessage['action'],
+  token: string,
+): RecorderControlMessage {
+  return {
+    source: BUGCASE_BRIDGE_SOURCE,
+    kind: 'recorder-control',
+    action,
+    token,
+  };
+}
+
+export function createRecorderStep(step: unknown, token: string): RecorderStepMessage {
+  return {
+    source: BUGCASE_BRIDGE_SOURCE,
+    kind: 'recorder-step',
+    step,
+    token,
+  };
+}
+
 function hasBridgeSource(value: unknown): value is BridgeEnvelope & { kind: unknown } {
   return (
     typeof value === 'object' &&
@@ -89,8 +141,21 @@ export function isFlushResponse(value: unknown): value is BridgeFlushResponse {
   return hasBridgeSource(value) && value.kind === 'flush-response';
 }
 
+export function isRecorderControl(value: unknown): value is RecorderControlMessage {
+  return hasBridgeSource(value) && value.kind === 'recorder-control';
+}
+
+export function isRecorderStep(value: unknown): value is RecorderStepMessage {
+  return hasBridgeSource(value) && value.kind === 'recorder-step';
+}
+
 export function isBridgeMessage(value: unknown): value is BridgeMessage {
-  return isFlushRequest(value) || isFlushResponse(value);
+  return (
+    isFlushRequest(value) ||
+    isFlushResponse(value) ||
+    isRecorderControl(value) ||
+    isRecorderStep(value)
+  );
 }
 
 /** Whether `message` is from our bridge and bears the expected verifier token. */

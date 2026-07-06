@@ -9,8 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
+import type { RecordingSession } from '../storage/recording-session';
 
-import { OverlayApp } from './OverlayApp';
+import { OverlayApp, type RecordingClient } from './OverlayApp';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -316,5 +317,176 @@ describe('OverlayApp capture → preview', () => {
 
     expect(queryTestId('capture-button')).not.toBeNull();
     expect(queryTestId('preview-review-screen-scaffold')).toBeNull();
+  });
+});
+
+describe('OverlayApp reproduction recorder', () => {
+  function previewReport(): BugReportV1 {
+    return {
+      schemaVersion: 'v1',
+      metadata: { page: { origin: 'https://example.com' } },
+      userInput: {
+        schemaVersion: 'v1',
+        title: '',
+        stepsToReproduce: '',
+        severity: 'minor',
+        notes: '',
+      },
+      screenshots: { schemaVersion: 'v1', elementCrops: [] },
+      browser: null,
+      console: null,
+      network: null,
+      dom: null,
+      storage: null,
+      cookies: null,
+      navigation: null,
+      reproduction: null,
+      elementInspections: null,
+    } as unknown as BugReportV1;
+  }
+
+  const withOption = () => Promise.resolve({ ...DEFAULT_USER_OPTIONS, reproductionSteps: true });
+
+  function fakeRecordingClient(initial: RecordingSession | null = null) {
+    let session: RecordingSession | null = initial;
+    const client: RecordingClient = {
+      start: vi.fn((startedAt: string, url: string) => {
+        session = { status: 'recording', startedAt, endedAt: null, url, steps: [] };
+        return Promise.resolve();
+      }),
+      appendStep: vi.fn((step) => {
+        if (session) session = { ...session, steps: [...session.steps, step] };
+        return Promise.resolve();
+      }),
+      stop: vi.fn((endedAt: string) => {
+        if (session) session = { ...session, status: 'stopped', endedAt };
+        return Promise.resolve();
+      }),
+      get: vi.fn(() => Promise.resolve(session)),
+      clear: vi.fn(() => {
+        session = null;
+        return Promise.resolve();
+      }),
+    };
+    return client;
+  }
+
+  async function renderWithRecorder(
+    options: {
+      onCapture?: ReturnType<typeof vi.fn>;
+      recordingClient?: RecordingClient;
+      currentUrl?: string;
+    } = {},
+  ): Promise<{ onCapture: ReturnType<typeof vi.fn>; recordingClient: RecordingClient }> {
+    const onCapture =
+      options.onCapture ??
+      vi.fn(() => Promise.resolve({ ok: true, reportId: 'r1', report: previewReport() }));
+    const recordingClient = options.recordingClient ?? fakeRecordingClient();
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          subscribeDebuggerActivity={() => () => {}}
+          loadDefaultCaptureOptions={withOption}
+          onCapture={onCapture}
+          recordingClient={recordingClient}
+          {...(options.currentUrl ? { currentUrl: options.currentUrl } : {})}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    return { onCapture, recordingClient };
+  }
+
+  it('hides the recorder until the reproduction-steps option is enabled', async () => {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(queryTestId('reproduction-controls')).toBeNull();
+  });
+
+  it('collapses to a pill and starts a durable recording on Start', async () => {
+    const recordingClient = fakeRecordingClient();
+    await renderWithRecorder({ recordingClient, currentUrl: 'https://example.com/page1' });
+    expect(queryTestId('reproduction-start')).not.toBeNull();
+    act(() => {
+      queryTestId('reproduction-start')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // Collapsed: the full form (capture options + capture button) is hidden; only Stop remains.
+    expect(queryTestId('reproduction-stop')).not.toBeNull();
+    expect(queryTestId('capture-options')).toBeNull();
+    // The recording is persisted with the current page url so it can survive a navigation.
+    expect(recordingClient.start).toHaveBeenCalledWith(
+      expect.any(String),
+      'https://example.com/page1',
+    );
+  });
+
+  it('threads the durable reproduction recording into the capture', async () => {
+    const session: RecordingSession = {
+      status: 'stopped',
+      startedAt: '2026-07-05T10:00:00.000Z',
+      endedAt: '2026-07-05T10:00:30.000Z',
+      url: 'https://example.com/page1',
+      steps: [
+        {
+          type: 'click',
+          selector: '#save',
+          description: 'Clicked #save',
+          timestamp: Date.parse('2026-07-05T10:00:05.000Z'),
+          metadata: { tag: 'button' },
+        },
+      ],
+    };
+    const { onCapture } = await renderWithRecorder({
+      recordingClient: fakeRecordingClient(session),
+      currentUrl: 'https://example.com/page1',
+    });
+    // Recovered as a recorded session.
+    expect(queryTestId('reproduction-status')?.textContent).toMatch(/recorded/i);
+
+    await act(async () => {
+      queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const arg = onCapture.mock.calls[0]?.[0] as {
+      reproduction?: { steps?: Array<{ selector?: unknown }> };
+    };
+    expect(arg.reproduction?.steps?.[0]?.selector).toBe('#save');
+  });
+
+  it('resumes a recording that is still in progress (re-injected after a navigation)', async () => {
+    const session: RecordingSession = {
+      status: 'recording',
+      startedAt: '2026-07-05T10:00:00.000Z',
+      endedAt: null,
+      url: 'https://example.com/page1',
+      steps: [],
+    };
+    await renderWithRecorder({
+      recordingClient: fakeRecordingClient(session),
+      currentUrl: 'https://example.com/page2',
+    });
+    // Resumed on the new page: the recording pill (with Stop) is shown, not the completed summary.
+    expect(queryTestId('bugcase-recording-pill')).not.toBeNull();
+    expect(queryTestId('reproduction-stop')).not.toBeNull();
   });
 });

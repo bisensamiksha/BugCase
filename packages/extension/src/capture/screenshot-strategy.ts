@@ -17,15 +17,24 @@ export interface ScreenshotStrategyDeps {
   readonly captureViewport: () => Promise<CapturedScreenshot>;
 }
 
+export interface ScreenshotStrategyOptions {
+  /** When true, capture the whole page (scroll-stitch); otherwise capture only the visible viewport. */
+  readonly preferFullPage: boolean;
+}
+
 /**
- * Pick the screenshot: a scroll-and-stitch full-page capture, falling back to the visible viewport if
- * stitching fails. Scroll-stitch works in every browser and reflects the user's actual (responsive)
- * viewport, so it's the screenshot path in all modes; the on-demand debugger (when opted in) is used
- * only for network response bodies, not screenshots.
+ * Pick the screenshot honoring the user's choice (S3-06 capture options): a full-page scroll-and-stitch
+ * when full page is selected (falling back to the visible viewport if stitching fails), or the visible
+ * viewport only when it is not. The on-demand debugger (when opted in) is used only for network response
+ * bodies, not screenshots.
  */
 export async function captureScreenshotWithStrategy(
   deps: ScreenshotStrategyDeps,
+  options: ScreenshotStrategyOptions,
 ): Promise<CapturedScreenshot> {
+  if (!options.preferFullPage) {
+    return deps.captureViewport();
+  }
   try {
     return await deps.captureScrollStitch();
   } catch {
