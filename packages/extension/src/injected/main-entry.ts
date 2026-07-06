@@ -5,9 +5,16 @@
 // world can pull buffered data out. The console (S2-06) and network (S2-07) ring buffers register
 // their flush providers on this client.
 
+import { createRecorderStep } from '../shared/bridge-protocol';
+
 import { installConsoleRingBuffer, type ConsoleRingBufferHandle } from './console-ring-buffer';
 import { installNetworkRingBuffer, type NetworkRingBufferHandle } from './network-ring-buffer';
 import { installPageBridgeClient, type PageBridgeClient } from './page-bridge-client';
+import {
+  installRecorderControlListener,
+  installReproductionRecorder,
+  type ReproductionRecorderHandle,
+} from './reproduction-recorder';
 
 /** Window flag marking that the MAIN-world script has installed, so a re-injection is a no-op. */
 export const PASSIVE_MAIN_INSTALLED_FLAG = '__bugcasePassiveMainInstalled';
@@ -20,6 +27,9 @@ let consoleBuffer: ConsoleRingBufferHandle | undefined;
 
 /** The fetch + XMLHttpRequest ring buffer, installed alongside the bridge client (S2-07). */
 let networkBuffer: NetworkRingBufferHandle | undefined;
+
+/** The reproduction-steps recorder, armed on demand from the overlay (S3-12). */
+let reproductionRecorder: ReproductionRecorderHandle | undefined;
 
 /** Accessor for the installed bridge client (e.g. S2-06/S2-07 register flush providers on it). */
 export function getPageBridgeClient(): PageBridgeClient | undefined {
@@ -34,6 +44,11 @@ export function getConsoleBuffer(): ConsoleRingBufferHandle | undefined {
 /** Accessor for the installed network ring buffer (used by capture flows / tests). */
 export function getNetworkBuffer(): NetworkRingBufferHandle | undefined {
   return networkBuffer;
+}
+
+/** Accessor for the installed reproduction recorder (used by capture flows / tests). */
+export function getReproductionRecorder(): ReproductionRecorderHandle | undefined {
+  return reproductionRecorder;
 }
 
 /**
@@ -66,4 +81,15 @@ if (typeof window !== 'undefined' && installPassiveMainWorld(window)) {
   // Capture fetch + XMLHttpRequest metadata (never bodies) and serve it over the `network` channel.
   networkBuffer = installNetworkRingBuffer(window);
   pageBridgeClient.registerFlushProvider('network', () => networkBuffer?.snapshot() ?? []);
+  // Reproduction recorder (S3-12): idle until the overlay arms it via a recorder-control message.
+  // Its buffered steps are served over the `reproduction` channel at capture time, and each step is
+  // also pushed to the overlay as it happens so a recording survives navigation (Part B).
+  reproductionRecorder = installReproductionRecorder(window, {
+    onStep: (step, token) => window.postMessage(createRecorderStep(step, token), '*'),
+  });
+  pageBridgeClient.registerFlushProvider(
+    'reproduction',
+    () => reproductionRecorder?.snapshot() ?? [],
+  );
+  installRecorderControlListener(window, reproductionRecorder);
 }

@@ -8,6 +8,7 @@ import { captureScreenshotWithStrategy } from '../capture/screenshot-strategy';
 import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
+import { getRecordingSession } from '../storage/recording-session';
 
 import { buildAnnotationExport } from './annotation-finalize';
 import { captureReport, finalizeReport } from './capture-flow';
@@ -41,11 +42,24 @@ import {
   isContainsPermissionsRequest,
   isRequestPermissionsRequest,
 } from './permissions-handler';
+import { handleRecordingRequest, isRecordingRequest } from './recording-handler';
+import { createRecordingNavigationHandler } from './recording-navigation';
 import { handlePeekReportAsset } from './report-asset-handler';
 import { createReportHold } from './report-hold';
 import { runScrollStitchCapture } from './scroll-stitch-runner';
 
 const overlay = createOverlayController();
+
+// Continue a reproduction recording across page navigations (S3-12): when a recording tab finishes
+// loading a new page, re-inject the recorder + overlay so recording resumes. Uses `tabs.onUpdated`
+// (the `tabs` permission we already hold) — no extra permission needed.
+const onRecordingNavigation = createRecordingNavigationHandler({
+  getRecording: (tabId) => getRecordingSession(tabId),
+  reinject: (tabId) => overlay.reinject(tabId),
+});
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  void onRecordingNavigation(tabId, changeInfo.status, tab.url);
+});
 
 // Holds the assembled report + assets between CAPTURE_REPORT (assemble) and FINALIZE_REPORT
 // (ZIP + download), keyed by reportId. The worker may be evicted between the two; a missing
@@ -122,14 +136,19 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   const { devicePixelRatio } = message.metadata.viewport;
   const onActiveChange = typeof tabId === 'number' ? bannerBroadcaster(tabId, hostName) : undefined;
 
+  // Respect the user's Screenshot choice (S3-06): full page → scroll-stitch, else the visible viewport.
+  const preferFullPage = message.metadata.userOptions.fullPageScreenshot === true;
   const captureScreenshot = () =>
-    captureScreenshotWithStrategy({
-      captureScrollStitch: () =>
-        typeof tabId === 'number'
-          ? runScrollStitchCapture(tabId, devicePixelRatio)
-          : Promise.reject(new Error('no tab id for scroll-stitch capture')),
-      captureViewport: () => captureVisibleViewport({ devicePixelRatio }),
-    });
+    captureScreenshotWithStrategy(
+      {
+        captureScrollStitch: () =>
+          typeof tabId === 'number'
+            ? runScrollStitchCapture(tabId, devicePixelRatio)
+            : Promise.reject(new Error('no tab id for scroll-stitch capture')),
+        captureViewport: () => captureVisibleViewport({ devicePixelRatio }),
+      },
+      { preferFullPage },
+    );
 
   const captureDebuggerNetwork =
     typeof tabId === 'number'
@@ -203,6 +222,7 @@ async function captureAndHold(
       browser: message.browser,
       console: message.console ?? null,
       network: message.network ?? null,
+      reproduction: message.reproduction ?? null,
     },
     deps,
   );
@@ -254,6 +274,9 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isPeekReportAssetRequest(message)) {
     return handlePeekReportAsset(message, { peek: (id) => reportHold.peek(id) });
+  }
+  if (isRecordingRequest(message)) {
+    return handleRecordingRequest(message, sender.tab?.id);
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);

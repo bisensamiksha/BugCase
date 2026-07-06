@@ -8,7 +8,11 @@ vi.mock('webextension-polyfill', () => ({
   default: { scripting: { executeScript }, tabs: { query } },
 }));
 
-import { OVERLAY_CONTENT_SCRIPT, createOverlayController } from './overlay-controller';
+import {
+  OVERLAY_CONTENT_SCRIPT,
+  RECORDER_MAIN_SCRIPT,
+  createOverlayController,
+} from './overlay-controller';
 
 describe('OVERLAY_CONTENT_SCRIPT', () => {
   it('points at a built, injectable JS artifact (not a TS/TSX source)', () => {
@@ -28,10 +32,37 @@ describe('createOverlayController', () => {
   });
 
   describe('inject', () => {
-    it('injects the overlay content script into the given tab only', async () => {
+    it('injects the overlay content script into the given tab', async () => {
       const result = await createOverlayController().inject(7);
       expect(result).toEqual({ ok: true });
-      expect(executeScript).toHaveBeenCalledTimes(1);
+      expect(executeScript).toHaveBeenCalledWith({
+        target: { tabId: 7 },
+        files: [OVERLAY_CONTENT_SCRIPT],
+      });
+    });
+
+    it('also injects the MAIN-world reproduction recorder so recording works on any page', async () => {
+      // The recorder (main-entry.js) is otherwise registered only on passive-allowlisted origins at
+      // document_start; injecting it on demand alongside the overlay makes reproduction recording work
+      // on any page the overlay opens on, without pre-allowlisting or a reload.
+      const result = await createOverlayController().inject(7);
+      expect(result).toEqual({ ok: true });
+      expect(executeScript).toHaveBeenCalledWith({
+        target: { tabId: 7 },
+        files: [RECORDER_MAIN_SCRIPT],
+        world: 'MAIN',
+      });
+    });
+
+    it('still opens the overlay when the MAIN-world recorder injection fails', async () => {
+      // The recorder inject is best-effort: a page that rejects the MAIN-world injection must not stop
+      // the overlay (and the rest of capture) from working.
+      executeScript.mockReset();
+      executeScript
+        .mockRejectedValueOnce(new Error('MAIN world blocked'))
+        .mockResolvedValueOnce([{ result: undefined }]);
+      const result = await createOverlayController().inject(7);
+      expect(result).toEqual({ ok: true });
       expect(executeScript).toHaveBeenCalledWith({
         target: { tabId: 7 },
         files: [OVERLAY_CONTENT_SCRIPT],
@@ -50,6 +81,32 @@ describe('createOverlayController', () => {
       const result = await createOverlayController().inject(7);
       expect(result.ok).toBe(false);
       expect(result.reason).toMatch(/chrome:\/\//);
+    });
+  });
+
+  describe('reinject', () => {
+    it('injects the recorder, sets the mount-only flag, and mounts the overlay', async () => {
+      const result = await createOverlayController().reinject(7);
+      expect(result).toEqual({ ok: true });
+      expect(executeScript).toHaveBeenCalledWith({
+        target: { tabId: 7 },
+        files: [RECORDER_MAIN_SCRIPT],
+        world: 'MAIN',
+      });
+      expect(executeScript).toHaveBeenCalledWith({
+        target: { tabId: 7 },
+        files: [OVERLAY_CONTENT_SCRIPT],
+      });
+      // A func injection sets the mount-only flag so re-injection can't toggle the overlay off.
+      const funcCall = executeScript.mock.calls.find(
+        (c) => typeof (c[0] as { func?: unknown })?.func === 'function',
+      );
+      expect(funcCall).toBeDefined();
+    });
+
+    it('rejects an invalid tab id', async () => {
+      const result = await createOverlayController().reinject(-1);
+      expect(result.ok).toBe(false);
     });
   });
 

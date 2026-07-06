@@ -3,6 +3,7 @@ import type {
   CaptureMetadata,
   ConsoleLog,
   NetworkLog,
+  ReproductionRecording,
   ScrubberRuleApplied,
   UserInput,
   UserOptions,
@@ -47,6 +48,11 @@ export interface RequestCaptureDeps {
   readonly userOptions?: UserOptions;
   /** Flushes a ring-buffer channel across the page bridge; defaults to a real page-bridge flush. */
   readonly flushChannel?: FlushChannelFn;
+  /**
+   * A completed reproduction recording (S3-12), already assembled by the overlay from the durable
+   * service-worker session; recorded as `report.reproduction` when present.
+   */
+  readonly reproduction?: ReproductionRecording | null;
 }
 
 interface RingBufferLogs {
@@ -84,15 +90,20 @@ async function collectRingBufferLogs(
   };
 }
 
-/** Default flush: open a short-lived page bridge to the MAIN world, flush, then detach. */
-function defaultFlushChannel(channel: FlushChannel): Promise<readonly unknown[]> {
+/**
+ * Resolve the flush function for a single capture. Both ring-buffer channels (console/network) share
+ * ONE page bridge, so they share ONE verifier token — the MAIN-world client pins the first
+ * flush-request's token, and a per-channel bridge would have its later flushes rejected.
+ */
+function resolveFlush(injected?: FlushChannelFn): { flush: FlushChannelFn; dispose: () => void } {
+  if (injected) {
+    return { flush: injected, dispose: () => {} };
+  }
   if (typeof window === 'undefined') {
-    return Promise.resolve([]);
+    return { flush: () => Promise.resolve([]), dispose: () => {} };
   }
   const bridge = createPageBridge(window);
-  return bridge.flush(channel).finally(() => {
-    bridge.dispose();
-  });
+  return { flush: (channel) => bridge.flush(channel), dispose: () => bridge.dispose() };
 }
 
 /** Collect page metadata in the overlay context, then ask the service worker to run the capture flow. */
@@ -102,28 +113,36 @@ export async function requestCapture(
   const collectMetadata = deps.collectMetadata ?? defaultCollectMetadata;
   const collectBrowser = deps.collectBrowserInfo ?? (() => collectBrowserInfo());
   const send = deps.send ?? defaultSend;
-  const flush = deps.flushChannel ?? defaultFlushChannel;
+  const { flush, dispose } = resolveFlush(deps.flushChannel);
 
-  const [metadata, browserInfo, rings] = await Promise.all([
-    collectMetadata(deps.userOptions),
-    collectBrowser(),
-    collectRingBufferLogs(deps.userOptions, flush),
-  ]);
+  try {
+    const [metadata, browserInfo, rings] = await Promise.all([
+      collectMetadata(deps.userOptions),
+      collectBrowser(),
+      collectRingBufferLogs(deps.userOptions, flush),
+    ]);
 
-  // Network header scrubbing happens during mapping; surface its hits in the report's scrub summary.
-  const finalMetadata =
-    rings.scrubbersApplied.length > 0
-      ? { ...metadata, scrubbersApplied: [...metadata.scrubbersApplied, ...rings.scrubbersApplied] }
-      : metadata;
+    // Network header scrubbing happens during mapping; surface its hits in the report's scrub summary.
+    const finalMetadata =
+      rings.scrubbersApplied.length > 0
+        ? {
+            ...metadata,
+            scrubbersApplied: [...metadata.scrubbersApplied, ...rings.scrubbersApplied],
+          }
+        : metadata;
 
-  return send({
-    type: CAPTURE_REPORT,
-    metadata: finalMetadata,
-    userInput: deps.userInput ?? USER_REPORT_DEFAULTS,
-    browser: browserInfo,
-    console: rings.console,
-    network: rings.network,
-  });
+    return await send({
+      type: CAPTURE_REPORT,
+      metadata: finalMetadata,
+      userInput: deps.userInput ?? USER_REPORT_DEFAULTS,
+      browser: browserInfo,
+      console: rings.console,
+      network: rings.network,
+      ...(deps.reproduction ? { reproduction: deps.reproduction } : {}),
+    });
+  } finally {
+    dispose();
+  }
 }
 
 function defaultCollectMetadata(userOptions?: UserOptions): Promise<CaptureMetadata> {

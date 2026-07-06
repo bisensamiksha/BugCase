@@ -272,6 +272,52 @@ describe('runCaptureFlow', () => {
     expect(parsed.network).toBeNull();
   });
 
+  it('records the reproduction recording in report.reproduction when provided', async () => {
+    const reproduction = {
+      schemaVersion: 'v1' as const,
+      startedAt: '2026-07-04T10:00:00.000Z',
+      endedAt: '2026-07-04T10:00:30.000Z',
+      steps: [
+        {
+          id: 'r1',
+          type: 'click' as const,
+          selector: '#save',
+          description: 'Clicked #save',
+          timestamp: '2026-07-04T10:00:05.000Z',
+          metadata: { tag: 'button' },
+        },
+      ],
+    };
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(3));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput, reproduction },
+      { captureScreenshot, writeZip, download },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.reproduction?.steps[0]?.selector).toBe('#save');
+  });
+
+  it('leaves reproduction null when not provided', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(4));
+
+    await runCaptureFlow({ metadata, userInput }, { captureScreenshot, writeZip, download });
+
+    const [report] = writeZip.mock.calls[0] ?? [];
+    expect(BugReportV1Schema.parse(report).reproduction).toBeNull();
+  });
+
   it('records browser info in report.browser when provided', async () => {
     const browserInfo = {
       schemaVersion: 'v1' as const,

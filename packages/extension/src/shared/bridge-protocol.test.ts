@@ -4,10 +4,14 @@ import {
   BUGCASE_BRIDGE_SOURCE,
   createFlushRequest,
   createFlushResponse,
+  createRecorderControl,
+  createRecorderStep,
   createVerifierToken,
   isBridgeMessage,
   isFlushRequest,
   isFlushResponse,
+  isRecorderControl,
+  isRecorderStep,
   tokenMatches,
 } from './bridge-protocol';
 
@@ -73,6 +77,77 @@ describe('type guards', () => {
   it('rejects a bridge-shaped message with an unknown kind', () => {
     expect(isFlushRequest({ source: BUGCASE_BRIDGE_SOURCE, kind: 'nope' })).toBe(false);
     expect(isBridgeMessage({ source: BUGCASE_BRIDGE_SOURCE, kind: 'nope' })).toBe(false);
+  });
+});
+
+describe('createRecorderControl', () => {
+  it('builds a tagged control message carrying the action and token', () => {
+    const msg = createRecorderControl('start', 'tok');
+    expect(msg).toEqual({
+      source: BUGCASE_BRIDGE_SOURCE,
+      kind: 'recorder-control',
+      action: 'start',
+      token: 'tok',
+    });
+  });
+
+  it('supports the stop action', () => {
+    expect(createRecorderControl('stop', 'tok').action).toBe('stop');
+  });
+});
+
+describe('isRecorderControl', () => {
+  it('accepts a recorder-control message and rejects flush messages', () => {
+    const control = createRecorderControl('start', 'tok');
+    const flush = createFlushRequest('reproduction', 'tok');
+    expect(isRecorderControl(control)).toBe(true);
+    expect(isRecorderControl(flush)).toBe(false);
+    // A recorder-control is not mistaken for a flush request/response.
+    expect(isFlushRequest(control)).toBe(false);
+    expect(isFlushResponse(control)).toBe(false);
+  });
+
+  it('is recognized as a bridge message', () => {
+    expect(isBridgeMessage(createRecorderControl('stop', 'tok'))).toBe(true);
+  });
+
+  it('rejects a look-alike without our source tag', () => {
+    expect(isRecorderControl({ source: 'other', kind: 'recorder-control', action: 'start' })).toBe(
+      false,
+    );
+  });
+});
+
+describe('createRecorderStep / isRecorderStep', () => {
+  it('builds a tagged recorder-step message carrying the step and token', () => {
+    const step = { type: 'click', selector: '#x' };
+    const msg = createRecorderStep(step, 'tok');
+    expect(msg).toEqual({
+      source: BUGCASE_BRIDGE_SOURCE,
+      kind: 'recorder-step',
+      step,
+      token: 'tok',
+    });
+    expect(isRecorderStep(msg)).toBe(true);
+  });
+
+  it('is a bridge message but not a flush or control message', () => {
+    const msg = createRecorderStep({}, 'tok');
+    expect(isBridgeMessage(msg)).toBe(true);
+    expect(isFlushRequest(msg)).toBe(false);
+    expect(isRecorderControl(msg)).toBe(false);
+  });
+
+  it('rejects a look-alike without our source tag', () => {
+    expect(isRecorderStep({ kind: 'recorder-step', step: {}, token: 't' })).toBe(false);
+  });
+});
+
+describe('reproduction flush channel', () => {
+  it('is a valid flush channel', () => {
+    const req = createFlushRequest('reproduction', 'tok');
+    expect(req.channel).toBe('reproduction');
+    expect(isFlushRequest(req)).toBe(true);
   });
 });
 

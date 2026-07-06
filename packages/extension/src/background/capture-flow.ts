@@ -10,6 +10,7 @@ import {
   type InstalledExtensionInfo,
   type NavigationLog,
   type NetworkLog,
+  type ReproductionRecording,
   type ScreenshotRef,
   type ScreenshotsManifest,
   type StorageDump,
@@ -33,6 +34,8 @@ export interface CaptureFlowInput {
   readonly console?: ConsoleLog | null;
   /** Network ring-buffer log collected in the overlay (S2-25); recorded as `report.network`. */
   readonly network?: NetworkLog | null;
+  /** Reproduction recording flushed + mapped in the overlay (S3-12); recorded as `report.reproduction`. */
+  readonly reproduction?: ReproductionRecording | null;
 }
 
 /** Capture-side injected effects: assemble the report. Never downloads. */
@@ -181,7 +184,7 @@ export async function captureReport(
       storage,
       cookies,
       navigation,
-      reproduction: null,
+      reproduction: input.reproduction ?? null,
       elementInspections: null,
     };
 
