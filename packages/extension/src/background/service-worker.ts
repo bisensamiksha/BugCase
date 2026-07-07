@@ -15,6 +15,7 @@ import { captureReport, finalizeReport } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
 import { createCookiesCollector } from './cookies-handler';
 import { downloadBlob } from './downloads';
+import { handleCropElement } from './element-crop';
 import { createNavigationHistoryCollector } from './history-handler';
 import { createInstalledExtensionsCollector } from './management-handler';
 import {
@@ -23,6 +24,7 @@ import {
   finalizeResponseFrom,
   isCaptureReportRequest,
   isCaptureVisibleTabRequest,
+  isCropElementRequest,
   isFinalizeReportRequest,
   isOverlayInjectRequest,
   isPeekReportAssetRequest,
@@ -223,6 +225,7 @@ async function captureAndHold(
       console: message.console ?? null,
       network: message.network ?? null,
       reproduction: message.reproduction ?? null,
+      elementInspections: message.elementInspections ?? null,
     },
     deps,
   );
@@ -277,6 +280,17 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isRecordingRequest(message)) {
     return handleRecordingRequest(message, sender.tab?.id);
+  }
+  if (isCropElementRequest(message)) {
+    // Capture the visible tab and crop the picked element's box (S3-13). Best-effort.
+    return handleCropElement(message, {
+      captureViewport: () =>
+        captureVisibleViewport(
+          message.devicePixelRatio === undefined
+            ? {}
+            : { devicePixelRatio: message.devicePixelRatio },
+        ),
+    });
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);

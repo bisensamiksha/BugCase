@@ -12,6 +12,8 @@ import type { VisibleTabCapture } from '../capture/capture-visible-tab';
 import type { ArtifactId } from '../preview/artifact-list';
 
 import type { CaptureFlowResult } from './capture-flow';
+import type { CropElementPayload, CropElementResponse } from './element-crop';
+import type { CaptureElementInspection } from './element-inspection-finalize';
 
 /** Runtime message: popup/overlay → service worker, asking it to capture the visible tab. */
 export const CAPTURE_VISIBLE_TAB = 'bugcase/capture-visible-tab';
@@ -63,6 +65,25 @@ export interface CaptureReportRequest {
   readonly network?: NetworkLog | null;
   /** Reproduction recording, flushed + mapped in the overlay (S3-12); `null` when not recorded. */
   readonly reproduction?: ReproductionRecording | null;
+  /** Elements the user inspected with the picker (S3-13); `null`/absent when none were picked. */
+  readonly elementInspections?: readonly CaptureElementInspection[] | null;
+}
+
+/** Runtime message: overlay → service worker, asking it to capture + crop a picked element (S3-13). */
+export const CROP_ELEMENT = 'bugcase/crop-element';
+
+export interface CropElementRequest extends CropElementPayload {
+  readonly type: typeof CROP_ELEMENT;
+}
+
+export type CropElementResult = CropElementResponse;
+
+export function isCropElementRequest(value: unknown): value is CropElementRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === CROP_ELEMENT
+  );
 }
 
 /**

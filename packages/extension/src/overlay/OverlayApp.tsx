@@ -1,13 +1,30 @@
 import type { BugReportV1, ReproductionRecording, UserInput, UserOptions } from '@bugcase/schema';
-import { useEffect, useReducer, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 
-import { isDebuggerActivityMessage, type CaptureReportResponse } from '../background/messages';
+import type { CropRect } from '../background/element-crop';
+import type { CaptureElementInspection } from '../background/element-inspection-finalize';
+import {
+  CROP_ELEMENT,
+  isDebuggerActivityMessage,
+  type CaptureReportResponse,
+  type CropElementRequest,
+  type CropElementResult,
+} from '../background/messages';
 import {
   ORIGIN_ALLOWLIST_MESSAGE,
   type OriginAllowlistRequest,
   type OriginAllowlistResponse,
 } from '../background/origin-allowlist-handler';
+import { buildElementInspection } from '../capture/element-inspection';
 import { toReproductionRecording } from '../capture/reproduction-log';
+import { installElementPicker } from '../injected/element-picker';
 import browser from '../lib/browser';
 import { hasOptionalPermissions } from '../permissions/optional-permissions';
 import { PreviewApp } from '../preview/PreviewApp';
@@ -19,12 +36,18 @@ import { getSettings } from '../storage/settings';
 
 import { CaptureButton } from './CaptureButton';
 import { CaptureOptions } from './CaptureOptions';
+import { ElementPickerControls } from './ElementPickerControls';
 import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
 import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+import { clampPanelPosition, type PanelPosition } from './draggable-panel';
+import {
+  ELEMENT_INSPECTION_SESSION_INITIAL,
+  elementInspectionSessionReducer,
+} from './element-inspection-session';
 import {
   appendRecordingStep,
   clearRecording,
@@ -52,6 +75,42 @@ const DEFAULT_RECORDING_CLIENT: RecordingClient = {
   stop: (endedAt) => stopRecording(endedAt),
   get: () => getRecording(),
   clear: () => clearRecording(),
+};
+
+/** Drives the element inspector picker (S3-13); injectable for tests. */
+export interface ElementPickerController {
+  /** Start picking; `onPick` receives a fully-built inspection per pick. Returns a stop handle. */
+  readonly start: (
+    onPick: (inspection: CaptureElementInspection) => void,
+    onCancel: () => void,
+  ) => { stop: () => void };
+}
+
+/** Ask the service worker to capture the viewport + crop the picked element's box; `null` on failure. */
+function requestElementCrop(rect: CropRect, devicePixelRatio: number): Promise<string | null> {
+  const message: CropElementRequest = { type: CROP_ELEMENT, rect, devicePixelRatio };
+  return browser.runtime
+    .sendMessage<CropElementRequest, CropElementResult>(message)
+    .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
+    .catch(() => null);
+}
+
+const DEFAULT_ELEMENT_PICKER: ElementPickerController = {
+  start(onPick, onCancel) {
+    if (typeof document === 'undefined') {
+      return { stop: () => {} };
+    }
+    return installElementPicker(document, {
+      onPick: (el) => {
+        const raw = buildElementInspection(el);
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        void requestElementCrop(raw.boundingClientRect, dpr).then((cropDataUrl) => {
+          onPick({ ...raw, cropDataUrl });
+        });
+      },
+      onCancel,
+    });
+  },
 };
 
 /** Notified when the service worker reports the debugger attaching/detaching for this tab. */
@@ -90,9 +149,13 @@ export interface OverlayAppProps {
     userInput: UserInput;
     /** A completed reproduction recording (S3-12), assembled from the durable session when present. */
     reproduction?: ReproductionRecording | null;
+    /** Elements the user inspected with the picker (S3-13). */
+    elementInspections?: readonly CaptureElementInspection[] | null;
   }) => Promise<CaptureReportResponse>;
   /** Durable-recording operations (S3-12 Part B); defaults to the real service-worker relay. */
   readonly recordingClient?: RecordingClient;
+  /** Element inspector picker controller (S3-13); defaults to the real picker + crop. Injectable for tests. */
+  readonly elementPicker?: ElementPickerController;
   /** The page url used to detect a navigation-interrupted recording; defaults to the live location. */
   readonly currentUrl?: string;
 }
@@ -139,10 +202,11 @@ const panelStyle: CSSProperties = {
   top: '16px',
   right: '16px',
   width: '320px',
-  // The panel is fixed-position, so it can't ride the page scroll: cap it to the viewport (minus the
-  // 16px top/bottom insets) and scroll its own overflow, or controls below the fold are unreachable.
+  // A flex column: the header stays pinned (drag handle + close) while the body scrolls, so the
+  // controls below the fold (notes, capture button) are always reachable. Capped to the viewport.
+  display: 'flex',
+  flexDirection: 'column',
   maxHeight: 'calc(100vh - 32px)',
-  overflowY: 'auto',
   padding: '16px',
   borderRadius: '12px',
   background: '#ffffff',
@@ -150,6 +214,13 @@ const panelStyle: CSSProperties = {
   boxShadow: '0 10px 30px rgba(2, 6, 23, 0.25)',
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
+};
+
+// The scrollable body inside the panel; the pinned header sits above it.
+const bodyStyle: CSSProperties = {
+  flex: '1 1 auto',
+  minHeight: 0,
+  overflowY: 'auto',
 };
 
 // While recording, the panel collapses to this small pill so the page underneath stays interactive.
@@ -172,6 +243,9 @@ const headerStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: '8px',
+  flexShrink: 0,
+  cursor: 'move',
+  userSelect: 'none',
 };
 
 const closeStyle: CSSProperties = {
@@ -192,6 +266,7 @@ export function OverlayApp({
   loadDefaultCaptureOptions,
   onCapture,
   recordingClient = DEFAULT_RECORDING_CLIENT,
+  elementPicker = DEFAULT_ELEMENT_PICKER,
   currentUrl,
 }: OverlayAppProps) {
   const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
@@ -207,6 +282,13 @@ export function OverlayApp({
     reproductionSessionReducer,
     REPRODUCTION_SESSION_INITIAL,
   );
+  const [elementSession, dispatchElement] = useReducer(
+    elementInspectionSessionReducer,
+    ELEMENT_INSPECTION_SESSION_INITIAL,
+  );
+  const pickerHandleRef = useRef<{ stop: () => void } | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
@@ -363,6 +445,75 @@ export function OverlayApp({
     });
   };
 
+  const handleStopPicking = (): void => {
+    pickerHandleRef.current?.stop();
+    pickerHandleRef.current = null;
+    dispatchElement({ type: 'stopPicking' });
+  };
+
+  const handleStartPicking = (): void => {
+    dispatchElement({ type: 'startPicking' });
+    pickerHandleRef.current = elementPicker.start(
+      (inspection) => dispatchElement({ type: 'add', inspection }),
+      handleStopPicking,
+    );
+  };
+
+  // Tear the picker down if the overlay unmounts mid-pick, so no listeners/highlight are left behind.
+  useEffect(() => {
+    return () => {
+      pickerHandleRef.current?.stop();
+      pickerHandleRef.current = null;
+    };
+  }, []);
+
+  // Drag the panel by its header so it doesn't obscure the page. The position is clamped so a
+  // grabbable strip always stays on-screen, and the max height tracks the top so the body still fits.
+  const onHeaderMouseDown = (event: ReactMouseEvent): void => {
+    const view = typeof window !== 'undefined' ? window : null;
+    const panelEl = panelRef.current;
+    if (event.button !== 0 || !view || !panelEl) {
+      return;
+    }
+    const rect = panelEl.getBoundingClientRect();
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const size = { width: rect.width, height: rect.height };
+    const onMove = (moveEvent: MouseEvent): void => {
+      setPanelPos(
+        clampPanelPosition(
+          {
+            left: startLeft + (moveEvent.clientX - startX),
+            top: startTop + (moveEvent.clientY - startY),
+          },
+          size,
+          { innerWidth: view.innerWidth, innerHeight: view.innerHeight },
+        ),
+      );
+    };
+    const onUp = (): void => {
+      view.removeEventListener('mousemove', onMove);
+      view.removeEventListener('mouseup', onUp);
+    };
+    view.addEventListener('mousemove', onMove);
+    view.addEventListener('mouseup', onUp);
+  };
+
+  const draggedPanelStyle: CSSProperties = panelPos
+    ? {
+        ...panelStyle,
+        top: `${panelPos.top}px`,
+        left: `${panelPos.left}px`,
+        right: 'auto',
+        maxHeight: `${Math.max(
+          160,
+          (typeof window !== 'undefined' ? window.innerHeight : 800) - panelPos.top - 16,
+        )}px`,
+      }
+    : panelStyle;
+
   if (phase === 'preview' && preview) {
     return (
       <PreviewApp
@@ -401,87 +552,125 @@ export function OverlayApp({
     );
   }
 
+  if (elementSession.status === 'picking') {
+    // Collapse to a small toolbar so the user can hover + click page elements; Done restores the form.
+    return (
+      <div
+        role="dialog"
+        aria-label="BugCase element inspector"
+        data-testid="bugcase-picker-pill"
+        style={pillStyle}
+      >
+        <ElementPickerControls
+          status="picking"
+          count={elementSession.inspections.length}
+          onStartPicking={handleStartPicking}
+          onStopPicking={handleStopPicking}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       role="dialog"
       aria-label="BugCase capture overlay"
       data-testid="bugcase-overlay"
-      style={panelStyle}
+      ref={panelRef}
+      style={draggedPanelStyle}
     >
-      <header style={headerStyle}>
+      <header
+        style={headerStyle}
+        data-testid="bugcase-overlay-header"
+        onMouseDown={onHeaderMouseDown}
+      >
         <strong>Bug Reporter</strong>
         <button
           type="button"
           aria-label="Close overlay"
           data-testid="bugcase-overlay-close"
           onClick={onClose}
+          onMouseDown={(event) => event.stopPropagation()}
           style={closeStyle}
         >
           ×
         </button>
       </header>
-      {debuggerActivity.active ? (
-        <div style={{ marginBottom: '12px' }}>
-          <DebuggerBanner
-            active
-            {...(debuggerActivity.hostName === undefined
-              ? {}
-              : { hostName: debuggerActivity.hostName })}
-          />
-        </div>
-      ) : null}
-      {cookiesGranted ? (
-        <div style={{ marginBottom: '12px' }}>
-          <CookiesWarning active {...(host === undefined ? {} : { hostName: host })} />
-        </div>
-      ) : null}
-      {showOptIn ? (
-        <div style={{ marginBottom: '12px' }}>
-          <OriginOptInModal
-            origin={pageOrigin}
-            onResult={(result) => {
-              if (result.ok) {
+      <div style={bodyStyle} data-testid="bugcase-overlay-body">
+        {debuggerActivity.active ? (
+          <div style={{ marginBottom: '12px' }}>
+            <DebuggerBanner
+              active
+              {...(debuggerActivity.hostName === undefined
+                ? {}
+                : { hostName: debuggerActivity.hostName })}
+            />
+          </div>
+        ) : null}
+        {cookiesGranted ? (
+          <div style={{ marginBottom: '12px' }}>
+            <CookiesWarning active {...(host === undefined ? {} : { hostName: host })} />
+          </div>
+        ) : null}
+        {showOptIn ? (
+          <div style={{ marginBottom: '12px' }}>
+            <OriginOptInModal
+              origin={pageOrigin}
+              onResult={(result) => {
+                if (result.ok) {
+                  setShowOptIn(false);
+                }
+              }}
+              onDismiss={() => {
                 setShowOptIn(false);
-              }
-            }}
-            onDismiss={() => {
-              setShowOptIn(false);
-            }}
+              }}
+            />
+          </div>
+        ) : null}
+        <p style={{ margin: '0 0 8px', color: '#475569' }}>
+          Choose what to capture, then download a bug report ZIP.
+        </p>
+        <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
+        <UserReportForm value={userReport} onChange={setUserReport} />
+        {captureOptions.reproductionSteps ? (
+          <ReproductionControls
+            status={reproSession.status}
+            onStart={handleStartRecording}
+            onStop={handleStopRecording}
           />
-        </div>
-      ) : null}
-      <p style={{ margin: '0 0 8px', color: '#475569' }}>
-        Choose what to capture, then download a bug report ZIP.
-      </p>
-      <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
-      <UserReportForm value={userReport} onChange={setUserReport} />
-      {captureOptions.reproductionSteps ? (
-        <ReproductionControls
-          status={reproSession.status}
-          onStart={handleStartRecording}
-          onStop={handleStopRecording}
-        />
-      ) : null}
-      <CaptureButton
-        onComplete={(result) => {
-          if (result.ok && result.reportId && result.report) {
-            setPreview({
-              reportId: result.reportId,
-              report: result.report,
-              ...(result.assetSizes ? { assetSizes: result.assetSizes } : {}),
+        ) : null}
+        {captureOptions.elementInspections ? (
+          <ElementPickerControls
+            status={elementSession.status}
+            count={elementSession.inspections.length}
+            onStartPicking={handleStartPicking}
+            onStopPicking={handleStopPicking}
+          />
+        ) : null}
+        <CaptureButton
+          onComplete={(result) => {
+            if (result.ok && result.reportId && result.report) {
+              setPreview({
+                reportId: result.reportId,
+                report: result.report,
+                ...(result.assetSizes ? { assetSizes: result.assetSizes } : {}),
+              });
+              setPhase('preview');
+            }
+          }}
+          onCapture={async () => {
+            const reproduction = await buildReproduction();
+            return (onCapture ?? requestCapture)({
+              userOptions: captureOptions,
+              userInput: userReport,
+              ...(reproduction ? { reproduction } : {}),
+              ...(elementSession.inspections.length > 0
+                ? { elementInspections: elementSession.inspections }
+                : {}),
             });
-            setPhase('preview');
-          }
-        }}
-        onCapture={async () => {
-          const reproduction = await buildReproduction();
-          return (onCapture ?? requestCapture)({
-            userOptions: captureOptions,
-            userInput: userReport,
-            ...(reproduction ? { reproduction } : {}),
-          });
-        }}
-      />
+          }}
+        />
+      </div>
     </div>
   );
 }

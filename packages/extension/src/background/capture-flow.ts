@@ -24,6 +24,10 @@ import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-captu
 import type { ArtifactId } from '../preview/artifact-list';
 
 import { buildCaptureReportFilename } from './downloads';
+import {
+  buildElementInspections,
+  type CaptureElementInspection,
+} from './element-inspection-finalize';
 
 export interface CaptureFlowInput {
   readonly metadata: CaptureMetadata;
@@ -36,6 +40,8 @@ export interface CaptureFlowInput {
   readonly network?: NetworkLog | null;
   /** Reproduction recording flushed + mapped in the overlay (S3-12); recorded as `report.reproduction`. */
   readonly reproduction?: ReproductionRecording | null;
+  /** Elements the user inspected with the picker (S3-13); folded into `report.elementInspections`. */
+  readonly elementInspections?: readonly CaptureElementInspection[] | null;
 }
 
 /** Capture-side injected effects: assemble the report. Never downloads. */
@@ -166,10 +172,13 @@ export async function captureReport(
       captureMethod: shot.captureMethod,
       hasAnnotations: false,
     };
+    // Element inspections (S3-13): assign ids + crop paths, and surface the crop refs + files.
+    const inspections = buildElementInspections(input.elementInspections ?? []);
+
     const screenshots: ScreenshotsManifest = {
       schemaVersion: 'v1',
       ...(isFullPage ? { fullPage: screenshotRef } : { viewport: screenshotRef }),
-      elementCrops: [],
+      elementCrops: inspections?.elementCrops ?? [],
     };
 
     const report: BugReportV1 = {
@@ -185,12 +194,17 @@ export async function captureReport(
       cookies,
       navigation,
       reproduction: input.reproduction ?? null,
-      elementInspections: null,
+      elementInspections: inspections?.manifest ?? null,
     };
 
     const files = new Map<string, Blob | string | Uint8Array>([[screenshotPath, shot.blob]]);
     if (dom) {
       files.set(dom.snapshot.contentPath, dom.html);
+    }
+    if (inspections) {
+      for (const [path, blob] of inspections.cropFiles) {
+        files.set(path, blob);
+      }
     }
 
     const assetSizes: Partial<Record<ArtifactId, number>> = { screenshot: shot.blob.size };

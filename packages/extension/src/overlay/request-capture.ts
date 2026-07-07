@@ -9,6 +9,7 @@ import type {
   UserOptions,
 } from '@bugcase/schema';
 
+import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import {
   CAPTURE_REPORT,
   FINALIZE_REPORT,
@@ -53,6 +54,8 @@ export interface RequestCaptureDeps {
    * service-worker session; recorded as `report.reproduction` when present.
    */
   readonly reproduction?: ReproductionRecording | null;
+  /** Elements the user inspected with the picker (S3-13); recorded as `report.elementInspections`. */
+  readonly elementInspections?: readonly CaptureElementInspection[] | null;
 }
 
 interface RingBufferLogs {
@@ -139,6 +142,9 @@ export async function requestCapture(
       console: rings.console,
       network: rings.network,
       ...(deps.reproduction ? { reproduction: deps.reproduction } : {}),
+      ...(deps.elementInspections && deps.elementInspections.length > 0
+        ? { elementInspections: deps.elementInspections }
+        : {}),
     });
   } finally {
     dispose();
