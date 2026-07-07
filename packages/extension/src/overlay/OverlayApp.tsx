@@ -1,13 +1,23 @@
 import type { BugReportV1, ReproductionRecording, UserInput, UserOptions } from '@bugcase/schema';
-import { useEffect, useReducer, useState, type CSSProperties } from 'react';
+import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
 
-import { isDebuggerActivityMessage, type CaptureReportResponse } from '../background/messages';
+import type { CropRect } from '../background/element-crop';
+import type { CaptureElementInspection } from '../background/element-inspection-finalize';
+import {
+  CROP_ELEMENT,
+  isDebuggerActivityMessage,
+  type CaptureReportResponse,
+  type CropElementRequest,
+  type CropElementResult,
+} from '../background/messages';
 import {
   ORIGIN_ALLOWLIST_MESSAGE,
   type OriginAllowlistRequest,
   type OriginAllowlistResponse,
 } from '../background/origin-allowlist-handler';
+import { buildElementInspection } from '../capture/element-inspection';
 import { toReproductionRecording } from '../capture/reproduction-log';
+import { installElementPicker } from '../injected/element-picker';
 import browser from '../lib/browser';
 import { hasOptionalPermissions } from '../permissions/optional-permissions';
 import { PreviewApp } from '../preview/PreviewApp';
@@ -19,12 +29,17 @@ import { getSettings } from '../storage/settings';
 
 import { CaptureButton } from './CaptureButton';
 import { CaptureOptions } from './CaptureOptions';
+import { ElementPickerControls } from './ElementPickerControls';
 import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
 import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+import {
+  ELEMENT_INSPECTION_SESSION_INITIAL,
+  elementInspectionSessionReducer,
+} from './element-inspection-session';
 import {
   appendRecordingStep,
   clearRecording,
@@ -52,6 +67,42 @@ const DEFAULT_RECORDING_CLIENT: RecordingClient = {
   stop: (endedAt) => stopRecording(endedAt),
   get: () => getRecording(),
   clear: () => clearRecording(),
+};
+
+/** Drives the element inspector picker (S3-13); injectable for tests. */
+export interface ElementPickerController {
+  /** Start picking; `onPick` receives a fully-built inspection per pick. Returns a stop handle. */
+  readonly start: (
+    onPick: (inspection: CaptureElementInspection) => void,
+    onCancel: () => void,
+  ) => { stop: () => void };
+}
+
+/** Ask the service worker to capture the viewport + crop the picked element's box; `null` on failure. */
+function requestElementCrop(rect: CropRect, devicePixelRatio: number): Promise<string | null> {
+  const message: CropElementRequest = { type: CROP_ELEMENT, rect, devicePixelRatio };
+  return browser.runtime
+    .sendMessage<CropElementRequest, CropElementResult>(message)
+    .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
+    .catch(() => null);
+}
+
+const DEFAULT_ELEMENT_PICKER: ElementPickerController = {
+  start(onPick, onCancel) {
+    if (typeof document === 'undefined') {
+      return { stop: () => {} };
+    }
+    return installElementPicker(document, {
+      onPick: (el) => {
+        const raw = buildElementInspection(el);
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        void requestElementCrop(raw.boundingClientRect, dpr).then((cropDataUrl) => {
+          onPick({ ...raw, cropDataUrl });
+        });
+      },
+      onCancel,
+    });
+  },
 };
 
 /** Notified when the service worker reports the debugger attaching/detaching for this tab. */
@@ -90,9 +141,13 @@ export interface OverlayAppProps {
     userInput: UserInput;
     /** A completed reproduction recording (S3-12), assembled from the durable session when present. */
     reproduction?: ReproductionRecording | null;
+    /** Elements the user inspected with the picker (S3-13). */
+    elementInspections?: readonly CaptureElementInspection[] | null;
   }) => Promise<CaptureReportResponse>;
   /** Durable-recording operations (S3-12 Part B); defaults to the real service-worker relay. */
   readonly recordingClient?: RecordingClient;
+  /** Element inspector picker controller (S3-13); defaults to the real picker + crop. Injectable for tests. */
+  readonly elementPicker?: ElementPickerController;
   /** The page url used to detect a navigation-interrupted recording; defaults to the live location. */
   readonly currentUrl?: string;
 }
@@ -192,6 +247,7 @@ export function OverlayApp({
   loadDefaultCaptureOptions,
   onCapture,
   recordingClient = DEFAULT_RECORDING_CLIENT,
+  elementPicker = DEFAULT_ELEMENT_PICKER,
   currentUrl,
 }: OverlayAppProps) {
   const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
@@ -207,6 +263,11 @@ export function OverlayApp({
     reproductionSessionReducer,
     REPRODUCTION_SESSION_INITIAL,
   );
+  const [elementSession, dispatchElement] = useReducer(
+    elementInspectionSessionReducer,
+    ELEMENT_INSPECTION_SESSION_INITIAL,
+  );
+  const pickerHandleRef = useRef<{ stop: () => void } | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
@@ -363,6 +424,28 @@ export function OverlayApp({
     });
   };
 
+  const handleStopPicking = (): void => {
+    pickerHandleRef.current?.stop();
+    pickerHandleRef.current = null;
+    dispatchElement({ type: 'stopPicking' });
+  };
+
+  const handleStartPicking = (): void => {
+    dispatchElement({ type: 'startPicking' });
+    pickerHandleRef.current = elementPicker.start(
+      (inspection) => dispatchElement({ type: 'add', inspection }),
+      handleStopPicking,
+    );
+  };
+
+  // Tear the picker down if the overlay unmounts mid-pick, so no listeners/highlight are left behind.
+  useEffect(() => {
+    return () => {
+      pickerHandleRef.current?.stop();
+      pickerHandleRef.current = null;
+    };
+  }, []);
+
   if (phase === 'preview' && preview) {
     return (
       <PreviewApp
@@ -396,6 +479,25 @@ export function OverlayApp({
           status="recording"
           onStart={handleStartRecording}
           onStop={handleStopRecording}
+        />
+      </div>
+    );
+  }
+
+  if (elementSession.status === 'picking') {
+    // Collapse to a small toolbar so the user can hover + click page elements; Done restores the form.
+    return (
+      <div
+        role="dialog"
+        aria-label="BugCase element inspector"
+        data-testid="bugcase-picker-pill"
+        style={pillStyle}
+      >
+        <ElementPickerControls
+          status="picking"
+          count={elementSession.inspections.length}
+          onStartPicking={handleStartPicking}
+          onStopPicking={handleStopPicking}
         />
       </div>
     );
@@ -462,6 +564,14 @@ export function OverlayApp({
           onStop={handleStopRecording}
         />
       ) : null}
+      {captureOptions.elementInspections ? (
+        <ElementPickerControls
+          status={elementSession.status}
+          count={elementSession.inspections.length}
+          onStartPicking={handleStartPicking}
+          onStopPicking={handleStopPicking}
+        />
+      ) : null}
       <CaptureButton
         onComplete={(result) => {
           if (result.ok && result.reportId && result.report) {
@@ -479,6 +589,9 @@ export function OverlayApp({
             userOptions: captureOptions,
             userInput: userReport,
             ...(reproduction ? { reproduction } : {}),
+            ...(elementSession.inspections.length > 0
+              ? { elementInspections: elementSession.inspections }
+              : {}),
           });
         }}
       />

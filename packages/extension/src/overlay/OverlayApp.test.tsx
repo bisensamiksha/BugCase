@@ -8,10 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // check is injected in every test, so the real runtime bridge is never invoked.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import type { RecordingSession } from '../storage/recording-session';
 
-import { OverlayApp, type RecordingClient } from './OverlayApp';
+import { OverlayApp, type ElementPickerController, type RecordingClient } from './OverlayApp';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -488,5 +489,135 @@ describe('OverlayApp reproduction recorder', () => {
     // Resumed on the new page: the recording pill (with Stop) is shown, not the completed summary.
     expect(queryTestId('bugcase-recording-pill')).not.toBeNull();
     expect(queryTestId('reproduction-stop')).not.toBeNull();
+  });
+});
+
+describe('OverlayApp element inspector', () => {
+  function previewReport(): BugReportV1 {
+    return {
+      schemaVersion: 'v1',
+      metadata: { page: { origin: 'https://example.com' } },
+      userInput: {
+        schemaVersion: 'v1',
+        title: '',
+        stepsToReproduce: '',
+        severity: 'minor',
+        notes: '',
+      },
+      screenshots: { schemaVersion: 'v1', elementCrops: [] },
+      browser: null,
+      console: null,
+      network: null,
+      dom: null,
+      storage: null,
+      cookies: null,
+      navigation: null,
+      reproduction: null,
+      elementInspections: null,
+    } as unknown as BugReportV1;
+  }
+
+  const withPickerOption = () =>
+    Promise.resolve({ ...DEFAULT_USER_OPTIONS, elementInspections: true });
+
+  const sampleInspection = (html: string): CaptureElementInspection => ({
+    outerHtml: html,
+    computedStyles: {},
+    boundingClientRect: { x: 0, y: 0, width: 1, height: 1 },
+    ancestors: [],
+    cropDataUrl: null,
+  });
+
+  /** A fake picker whose `onPick` is captured so a test can simulate a pick. */
+  function fakePicker() {
+    let onPick: ((i: CaptureElementInspection) => void) | undefined;
+    const stop = vi.fn();
+    const controller: ElementPickerController = {
+      start: (pick) => {
+        onPick = pick;
+        return { stop };
+      },
+    };
+    return { controller, stop, pick: (i: CaptureElementInspection) => onPick?.(i) };
+  }
+
+  async function renderPicker(
+    picker: ElementPickerController,
+    onCapture = vi.fn(() => Promise.resolve({ ok: true, reportId: 'r1', report: previewReport() })),
+  ): Promise<ReturnType<typeof vi.fn>> {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          subscribeDebuggerActivity={() => () => {}}
+          loadDefaultCaptureOptions={withPickerOption}
+          onCapture={onCapture}
+          elementPicker={picker}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    return onCapture;
+  }
+
+  it('shows the picker controls only when the element-inspections option is on', async () => {
+    const { controller } = fakePicker();
+    await renderPicker(controller);
+    expect(queryTestId('element-picker-controls')).not.toBeNull();
+    expect(queryTestId('element-picker-start')).not.toBeNull();
+  });
+
+  it('collapses to a picker toolbar on Start and counts a pick', async () => {
+    const picker = fakePicker();
+    await renderPicker(picker.controller);
+    act(() => {
+      queryTestId('element-picker-start')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    // Collapsed to the picker pill with a Done button; the full form is hidden.
+    expect(queryTestId('bugcase-picker-pill')).not.toBeNull();
+    expect(queryTestId('element-picker-done')).not.toBeNull();
+    expect(queryTestId('capture-button')).toBeNull();
+
+    act(() => picker.pick(sampleInspection('<a/>')));
+    expect(queryTestId('element-picker-status')?.textContent).toMatch(/1/);
+
+    act(() => {
+      queryTestId('element-picker-done')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(picker.stop).toHaveBeenCalled();
+    expect(queryTestId('capture-button')).not.toBeNull();
+  });
+
+  it('threads picked inspections into the capture', async () => {
+    const picker = fakePicker();
+    const onCapture = await renderPicker(picker.controller);
+    act(() => {
+      queryTestId('element-picker-start')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    act(() => picker.pick(sampleInspection('<button/>')));
+    act(() => {
+      queryTestId('element-picker-done')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    await act(async () => {
+      queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const arg = onCapture.mock.calls[0]?.[0] as {
+      elementInspections?: CaptureElementInspection[];
+    };
+    expect(arg.elementInspections).toHaveLength(1);
+    expect(arg.elementInspections?.[0]?.outerHtml).toBe('<button/>');
   });
 });

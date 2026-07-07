@@ -218,6 +218,33 @@ describe('requestCapture', () => {
     expect(msg?.reproduction ?? null).toBeNull();
   });
 
+  it('forwards picked element inspections into the message', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+    const elementInspections = [
+      {
+        outerHtml: '<button/>',
+        computedStyles: {},
+        boundingClientRect: { x: 0, y: 0, width: 1, height: 1 },
+        ancestors: [],
+        cropDataUrl: 'data:image/png;base64,AA',
+      },
+    ];
+
+    await requestCapture({ collectMetadata, send, elementInspections });
+
+    expect(send.mock.calls[0]?.[0]?.elementInspections).toEqual(elementInspections);
+  });
+
+  it('omits elementInspections when none were picked', async () => {
+    const collectMetadata = vi.fn(() => Promise.resolve(metadata));
+    const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));
+
+    await requestCapture({ collectMetadata, send, elementInspections: [] });
+
+    expect(send.mock.calls[0]?.[0]?.elementInspections ?? null).toBeNull();
+  });
+
   it('threads userOptions into the metadata collector', async () => {
     const collectMetadata = vi.fn((_userOptions?: UserOptions) => Promise.resolve(metadata));
     const send = vi.fn((_message: CaptureReportRequest) => Promise.resolve({ ok: true }));

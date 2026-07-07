@@ -318,6 +318,50 @@ describe('runCaptureFlow', () => {
     expect(BugReportV1Schema.parse(report).reproduction).toBeNull();
   });
 
+  it('folds picked element inspections + their crops into the report and ZIP', async () => {
+    const elementInspections = [
+      {
+        outerHtml: '<button id="go">Go</button>',
+        computedStyles: { display: 'flex' },
+        boundingClientRect: { x: 1, y: 2, width: 100, height: 40 },
+        ancestors: [{ tag: 'section', id: null, classes: [] as string[] }],
+        cropDataUrl: 'data:image/png;base64,AAAA',
+      },
+    ];
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(5));
+
+    const result = await runCaptureFlow(
+      { metadata, userInput, elementInspections },
+      { captureScreenshot, writeZip, download },
+    );
+
+    expect(result.ok).toBe(true);
+    const [report, assets] = writeZip.mock.calls[0] ?? [];
+    const parsed = BugReportV1Schema.parse(report);
+    expect(parsed.elementInspections?.inspections).toHaveLength(1);
+    const cropPath = parsed.elementInspections?.inspections[0]?.screenshotCropPath ?? '';
+    expect(cropPath).toMatch(/^screenshots\/crops\//);
+    expect(parsed.screenshots.elementCrops).toHaveLength(1);
+    expect(assets?.files.has(cropPath)).toBe(true);
+  });
+
+  it('leaves elementInspections null when none are provided', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
+      Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
+    );
+    const download = vi.fn(() => Promise.resolve(6));
+
+    await runCaptureFlow({ metadata, userInput }, { captureScreenshot, writeZip, download });
+
+    const [report] = writeZip.mock.calls[0] ?? [];
+    expect(BugReportV1Schema.parse(report).elementInspections).toBeNull();
+  });
+
   it('records browser info in report.browser when provided', async () => {
     const browserInfo = {
       schemaVersion: 'v1' as const,
