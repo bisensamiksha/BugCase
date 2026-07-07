@@ -221,7 +221,7 @@ describe('OverlayApp capture options', () => {
 });
 
 describe('OverlayApp layout', () => {
-  it('caps the panel height to the viewport and scrolls overflow internally', () => {
+  it('pins the header and scrolls the body so controls below the fold stay reachable', () => {
     act(() => {
       root.render(
         <OverlayApp
@@ -233,10 +233,39 @@ describe('OverlayApp layout', () => {
     });
     const panel = queryTestId('bugcase-overlay');
     expect(panel).not.toBeNull();
-    // A fixed-position panel taller than the viewport must scroll itself; otherwise the controls
-    // below the fold (notes, capture button) become unreachable.
-    expect(panel?.style.overflowY).toBe('auto');
+    // The panel is capped to the viewport; the body (not the panel) scrolls, so the pinned header
+    // (drag handle + close) stays put while notes/capture below the fold remain reachable.
     expect(panel?.style.maxHeight).not.toBe('');
+    const body = queryTestId('bugcase-overlay-body');
+    expect(body?.style.overflowY).toBe('auto');
+  });
+
+  it('moves the panel when its header is dragged, and clamps it on-screen', () => {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+        />,
+      );
+    });
+    const header = queryTestId('bugcase-overlay-header')!;
+    act(() => {
+      header.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }),
+      );
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 120, clientY: 80 }));
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup', {}));
+    });
+    const panel = queryTestId('bugcase-overlay');
+    // Dragging switches the panel to an explicit left/top position (no longer right-anchored).
+    expect(panel?.style.left).not.toBe('');
+    expect(panel?.style.right).toBe('auto');
   });
 });
 
