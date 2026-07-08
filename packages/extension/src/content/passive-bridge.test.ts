@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PASSIVE_BRIDGE_INSTALLED_FLAG, installPassiveBridge } from './passive-bridge';
+vi.mock('webextension-polyfill', () => ({ default: {} }));
+
+import { PASSIVE_ERROR, type PassiveErrorRequest } from '../background/messages';
+import { createPassiveError } from '../shared/bridge-protocol';
+
+import {
+  PASSIVE_BRIDGE_INSTALLED_FLAG,
+  installPassiveBridge,
+  installPassiveErrorRelay,
+} from './passive-bridge';
 
 describe('installPassiveBridge', () => {
   beforeEach(() => {
@@ -23,5 +32,32 @@ describe('installPassiveBridge', () => {
 
   it('does not throw when invoked', () => {
     expect(() => installPassiveBridge(window)).not.toThrow();
+  });
+});
+
+describe('installPassiveErrorRelay', () => {
+  it('relays a passive-error signal to the runtime send', () => {
+    const sent: PassiveErrorRequest[] = [];
+    const stop = installPassiveErrorRelay(window, (m) => sent.push(m));
+    window.dispatchEvent(new MessageEvent('message', { data: createPassiveError() }));
+    expect(sent).toEqual([{ type: PASSIVE_ERROR }]);
+    stop();
+  });
+
+  it('ignores messages that are not passive-error signals', () => {
+    const sent: PassiveErrorRequest[] = [];
+    const stop = installPassiveErrorRelay(window, (m) => sent.push(m));
+    window.dispatchEvent(new MessageEvent('message', { data: { source: 'other', kind: 'x' } }));
+    window.dispatchEvent(new MessageEvent('message', { data: 'nope' }));
+    expect(sent).toEqual([]);
+    stop();
+  });
+
+  it('stops relaying after the disposer runs', () => {
+    const sent: PassiveErrorRequest[] = [];
+    const stop = installPassiveErrorRelay(window, (m) => sent.push(m));
+    stop();
+    window.dispatchEvent(new MessageEvent('message', { data: createPassiveError() }));
+    expect(sent).toEqual([]);
   });
 });

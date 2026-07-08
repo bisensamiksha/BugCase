@@ -52,6 +52,11 @@ export interface ConsoleRingBufferOptions {
   readonly maxSize?: number;
   /** Clock injection for deterministic tests; defaults to `Date.now`. */
   readonly now?: () => number;
+  /**
+   * Called on each *uncaught* error — a window `error` event or an `unhandledrejection` (not a
+   * `console.error` call). Used by the passive error badge (S3-14) to count genuine runtime errors.
+   */
+  readonly onError?: () => void;
 }
 
 export interface ConsoleRingBufferHandle {
@@ -105,6 +110,13 @@ export function installConsoleRingBuffer(
     });
   }
 
+  const notifyError = (): void => {
+    try {
+      options.onError?.();
+    } catch {
+      // A misbehaving listener must not break error capture.
+    }
+  };
   const onError = (event: unknown): void => {
     try {
       const e = event as { message?: unknown; error?: unknown };
@@ -112,6 +124,7 @@ export function installConsoleRingBuffer(
     } catch {
       // ignore
     }
+    notifyError();
   };
   const onRejection = (event: unknown): void => {
     try {
@@ -120,6 +133,7 @@ export function installConsoleRingBuffer(
     } catch {
       // ignore
     }
+    notifyError();
   };
 
   scope.addEventListener('error', onError);

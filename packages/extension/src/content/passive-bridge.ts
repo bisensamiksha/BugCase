@@ -5,6 +5,10 @@
 // the page bridge here (window.postMessage + verifier-token channel to the MAIN world) and exposes
 // its `flush` API for the service-worker-triggered capture in later tickets.
 
+import { PASSIVE_ERROR, type PassiveErrorRequest } from '../background/messages';
+import browser from '../lib/browser';
+import { isPassiveError } from '../shared/bridge-protocol';
+
 import { createPageBridge, type PageBridge } from './page-bridge';
 
 /** Window flag marking that the bridge has bootstrapped, so a re-injection is a no-op. */
@@ -32,8 +36,38 @@ export function installPassiveBridge(win: Window): boolean {
   return true;
 }
 
+/**
+ * Relay MAIN-world passive-error signals (S3-14) to the service worker. The MAIN world posts a
+ * source-tagged `passive-error` on each uncaught error; only the isolated world can reach
+ * `chrome.runtime`, so it forwards a `PASSIVE_ERROR` (the worker reads the sending tab from the
+ * message sender). Best-effort — a page that never errors sends nothing; a failed relay never throws.
+ * Returns a disposer for tests. `send` is injectable so the relay is unit-tested without the runtime.
+ */
+export function installPassiveErrorRelay(
+  win: Window,
+  send: (message: PassiveErrorRequest) => void,
+): () => void {
+  const onMessage = (event: MessageEvent): void => {
+    if (!isPassiveError(event.data)) {
+      return;
+    }
+    try {
+      send({ type: PASSIVE_ERROR });
+    } catch {
+      // Best-effort: relaying the badge signal must never throw in the page.
+    }
+  };
+  win.addEventListener('message', onMessage as EventListener);
+  return () => win.removeEventListener('message', onMessage as EventListener);
+}
+
 // Self-install when injected into a page. Guarded so importing the module in a non-DOM context
 // (e.g. a node test) is side-effect free. The bridge is created only on first injection.
 if (typeof window !== 'undefined' && installPassiveBridge(window)) {
   pageBridge = createPageBridge(window);
+  installPassiveErrorRelay(window, (message) => {
+    void browser.runtime.sendMessage(message).catch(() => {
+      // The worker may be asleep or the tab restricted; the badge signal is non-critical.
+    });
+  });
 }

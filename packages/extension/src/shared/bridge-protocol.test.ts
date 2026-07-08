@@ -4,12 +4,14 @@ import {
   BUGCASE_BRIDGE_SOURCE,
   createFlushRequest,
   createFlushResponse,
+  createPassiveError,
   createRecorderControl,
   createRecorderStep,
   createVerifierToken,
   isBridgeMessage,
   isFlushRequest,
   isFlushResponse,
+  isPassiveError,
   isRecorderControl,
   isRecorderStep,
   tokenMatches,
@@ -140,6 +142,26 @@ describe('createRecorderStep / isRecorderStep', () => {
 
   it('rejects a look-alike without our source tag', () => {
     expect(isRecorderStep({ kind: 'recorder-step', step: {}, token: 't' })).toBe(false);
+  });
+});
+
+describe('createPassiveError / isPassiveError', () => {
+  it('builds a tagged passive-error signal', () => {
+    const msg = createPassiveError();
+    expect(msg).toEqual({ source: BUGCASE_BRIDGE_SOURCE, kind: 'passive-error' });
+    expect(isPassiveError(msg)).toBe(true);
+    expect(isBridgeMessage(msg)).toBe(true);
+  });
+
+  it('is not confused with a flush or control message', () => {
+    const msg = createPassiveError();
+    expect(isFlushRequest(msg)).toBe(false);
+    expect(isRecorderControl(msg)).toBe(false);
+    expect(isRecorderStep(msg)).toBe(false);
+  });
+
+  it('rejects a look-alike without our source tag', () => {
+    expect(isPassiveError({ kind: 'passive-error' })).toBe(false);
   });
 });
 

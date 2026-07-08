@@ -34,6 +34,22 @@ function createFakeScope() {
   return { scope, console, original, dispatch };
 }
 
+describe('installConsoleRingBuffer onError', () => {
+  it('fires onError for uncaught errors and rejections, but not for console.error', () => {
+    const fake = createFakeScope();
+    const onError = vi.fn();
+    installConsoleRingBuffer(fake.scope, { onError });
+
+    fake.dispatch('error', { message: 'boom' });
+    fake.dispatch('unhandledrejection', { reason: 'nope' });
+    expect(onError).toHaveBeenCalledTimes(2);
+
+    // console.error is a logged message, not an uncaught error — it must not bump the badge.
+    fake.scope.console.error('handled, logged on purpose');
+    expect(onError).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('installConsoleRingBuffer', () => {
   it('captures console calls while still invoking the original method', () => {
     const fake = createFakeScope();

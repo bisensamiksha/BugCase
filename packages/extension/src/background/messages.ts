@@ -86,6 +86,57 @@ export function isCropElementRequest(value: unknown): value is CropElementReques
   );
 }
 
+/** Passive error badge (S3-14): page → SW, "an uncaught error just happened on my tab". */
+export const PASSIVE_ERROR = 'bugcase/passive-error';
+
+export interface PassiveErrorRequest {
+  readonly type: typeof PASSIVE_ERROR;
+}
+
+export function isPassiveErrorRequest(value: unknown): value is PassiveErrorRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === PASSIVE_ERROR
+  );
+}
+
+/** Overlay → SW: dismiss (clear) the passive error badge for the sending tab. */
+export const DISMISS_ERROR_BADGE = 'bugcase/dismiss-error-badge';
+
+export interface DismissErrorBadgeRequest {
+  readonly type: typeof DISMISS_ERROR_BADGE;
+}
+
+export function isDismissErrorBadgeRequest(value: unknown): value is DismissErrorBadgeRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === DISMISS_ERROR_BADGE
+  );
+}
+
+/** Overlay → SW: read the current passive error count for the sending tab (drives the dismiss UI). */
+export const GET_PASSIVE_ERROR_COUNT = 'bugcase/get-passive-error-count';
+
+export interface GetPassiveErrorCountRequest {
+  readonly type: typeof GET_PASSIVE_ERROR_COUNT;
+}
+
+export interface GetPassiveErrorCountResponse {
+  readonly count: number;
+}
+
+export function isGetPassiveErrorCountRequest(
+  value: unknown,
+): value is GetPassiveErrorCountRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === GET_PASSIVE_ERROR_COUNT
+  );
+}
+
 /**
  * Serializable capture result. The worker assembles + holds the report (binary assets stay in the
  * worker) and returns the JSON report + a `reportId` so the overlay can preview it, then ask the

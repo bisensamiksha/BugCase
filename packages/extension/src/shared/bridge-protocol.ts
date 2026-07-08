@@ -65,11 +65,22 @@ export interface RecorderStepMessage extends BridgeEnvelope {
   readonly step: unknown;
 }
 
+/**
+ * MAIN world → isolated world: an uncaught error just occurred (S3-14). A signal only — no payload —
+ * so the isolated passive-bridge can relay a count to the worker for the toolbar badge. Token-free:
+ * it carries no data and only bumps a per-tab count, so source-tag authenticity is enough.
+ */
+export interface PassiveErrorMessage {
+  readonly source: typeof BUGCASE_BRIDGE_SOURCE;
+  readonly kind: 'passive-error';
+}
+
 export type BridgeMessage =
   | BridgeFlushRequest
   | BridgeFlushResponse
   | RecorderControlMessage
-  | RecorderStepMessage;
+  | RecorderStepMessage
+  | PassiveErrorMessage;
 
 /** Generate a random, hard-to-guess token (verifier token, also reused for correlation ids). */
 export function createVerifierToken(): string {
@@ -116,6 +127,10 @@ export function createRecorderControl(
   };
 }
 
+export function createPassiveError(): PassiveErrorMessage {
+  return { source: BUGCASE_BRIDGE_SOURCE, kind: 'passive-error' };
+}
+
 export function createRecorderStep(step: unknown, token: string): RecorderStepMessage {
   return {
     source: BUGCASE_BRIDGE_SOURCE,
@@ -149,16 +164,25 @@ export function isRecorderStep(value: unknown): value is RecorderStepMessage {
   return hasBridgeSource(value) && value.kind === 'recorder-step';
 }
 
+export function isPassiveError(value: unknown): value is PassiveErrorMessage {
+  return hasBridgeSource(value) && value.kind === 'passive-error';
+}
+
 export function isBridgeMessage(value: unknown): value is BridgeMessage {
   return (
     isFlushRequest(value) ||
     isFlushResponse(value) ||
     isRecorderControl(value) ||
-    isRecorderStep(value)
+    isRecorderStep(value) ||
+    isPassiveError(value)
   );
 }
 
 /** Whether `message` is from our bridge and bears the expected verifier token. */
 export function tokenMatches(message: BridgeMessage, token: string): boolean {
-  return message.source === BUGCASE_BRIDGE_SOURCE && message.token === token;
+  // Not every bridge message carries a token (e.g. the token-free passive-error signal); read it
+  // defensively so those simply never match.
+  return (
+    message.source === BUGCASE_BRIDGE_SOURCE && (message as { token?: unknown }).token === token
+  );
 }
