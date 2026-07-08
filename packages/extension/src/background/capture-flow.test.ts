@@ -726,6 +726,30 @@ describe('applyAnnotations', () => {
     );
     expect(report.screenshots.viewport?.hasAnnotations).toBe(true);
     expect(report.screenshots.viewport?.annotationsPath).toBe('annotations/viewport.konva.json');
+    // S3-15: the applied annotation is also recorded in the report's annotations manifest.
+    expect(report.annotations).toEqual({ schemaVersion: 'v1', annotations: [ann.annotationFile] });
+  });
+
+  it('accumulates multiple annotated screenshots into the manifest', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    const first = applyAnnotations(captured.report!, captured.assets!, annotationFor());
+    const secondAnn: AnnotationExport = {
+      ...annotationFor(),
+      konvaJson: '{"n":2}',
+    } as AnnotationExport;
+    const second = applyAnnotations(first.report, first.assets, secondAnn);
+    expect(second.report.annotations?.annotations).toHaveLength(2);
+  });
+
+  it('leaves annotations null before any annotation is applied', async () => {
+    const captured = await captureReport(
+      { metadata, userInput },
+      { captureScreenshot: () => Promise.resolve(fakeShot()) },
+    );
+    expect(captured.report!.annotations).toBeNull();
   });
 
   it('does not mutate the input report or assets', async () => {

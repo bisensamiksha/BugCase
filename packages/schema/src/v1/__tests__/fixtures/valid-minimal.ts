@@ -67,4 +67,5 @@ export const validMinimal: BugReportV1 = {
   navigation: null,
   reproduction: null,
   elementInspections: null,
+  annotations: null,
 };

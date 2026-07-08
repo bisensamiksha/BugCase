@@ -1,3 +1,4 @@
+import type { AnnotationsManifest } from './annotation';
 import type { BrowserInfo } from './browser';
 import type { ConsoleLog } from './console';
 import type { CookiesDump } from './cookies';
@@ -25,4 +26,5 @@ export interface BugReportV1 {
   readonly navigation: NavigationLog | null;
   readonly reproduction: ReproductionRecording | null;
   readonly elementInspections: ElementInspectionsManifest | null;
+  readonly annotations: AnnotationsManifest | null;
 }

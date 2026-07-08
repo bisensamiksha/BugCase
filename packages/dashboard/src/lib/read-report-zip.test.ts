@@ -57,6 +57,7 @@ const validReport: BugReportV1 = {
   navigation: null,
   reproduction: null,
   elementInspections: null,
+  annotations: null,
 };
 
 async function zipWith(path: string, content: string): Promise<Blob> {

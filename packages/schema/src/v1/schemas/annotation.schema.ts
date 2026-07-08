@@ -7,3 +7,10 @@ export const AnnotationFileSchema = z
     konvaJson: z.string(),
   })
   .strict();
+
+export const AnnotationsManifestSchema = z
+  .object({
+    schemaVersion: z.literal('v1'),
+    annotations: z.array(AnnotationFileSchema).readonly(),
+  })
+  .strict();
