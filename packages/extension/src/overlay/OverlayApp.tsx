@@ -12,10 +12,15 @@ import type { CropRect } from '../background/element-crop';
 import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import {
   CROP_ELEMENT,
+  DISMISS_ERROR_BADGE,
+  GET_PASSIVE_ERROR_COUNT,
   isDebuggerActivityMessage,
   type CaptureReportResponse,
   type CropElementRequest,
   type CropElementResult,
+  type DismissErrorBadgeRequest,
+  type GetPassiveErrorCountRequest,
+  type GetPassiveErrorCountResponse,
 } from '../background/messages';
 import {
   ORIGIN_ALLOWLIST_MESSAGE,
@@ -36,6 +41,7 @@ import { getSettings } from '../storage/settings';
 
 import { CaptureButton } from './CaptureButton';
 import { CaptureOptions } from './CaptureOptions';
+import { DismissErrorBadgeButton } from './DismissErrorBadgeButton';
 import { ElementPickerControls } from './ElementPickerControls';
 import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
@@ -93,6 +99,33 @@ function requestElementCrop(rect: CropRect, devicePixelRatio: number): Promise<s
     .sendMessage<CropElementRequest, CropElementResult>(message)
     .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
     .catch(() => null);
+}
+
+/** Read the passive error count for this tab (S3-14); defaults to the runtime bridge. */
+function requestPassiveErrorCount(): Promise<number> {
+  try {
+    return browser.runtime
+      .sendMessage<GetPassiveErrorCountRequest, GetPassiveErrorCountResponse>({
+        type: GET_PASSIVE_ERROR_COUNT,
+      })
+      .then((res) => res?.count ?? 0)
+      .catch(() => 0);
+  } catch {
+    // No runtime bridge available (e.g. a non-extension context) — treat as no errors.
+    return Promise.resolve(0);
+  }
+}
+
+/** Dismiss (clear) the passive error badge for this tab (S3-14). */
+function requestDismissPassiveErrors(): Promise<void> {
+  try {
+    return browser.runtime
+      .sendMessage<DismissErrorBadgeRequest, void>({ type: DISMISS_ERROR_BADGE })
+      .then(() => undefined)
+      .catch(() => undefined);
+  } catch {
+    return Promise.resolve();
+  }
 }
 
 const DEFAULT_ELEMENT_PICKER: ElementPickerController = {
@@ -156,6 +189,10 @@ export interface OverlayAppProps {
   readonly recordingClient?: RecordingClient;
   /** Element inspector picker controller (S3-13); defaults to the real picker + crop. Injectable for tests. */
   readonly elementPicker?: ElementPickerController;
+  /** Reads the current passive error count for this tab (S3-14); defaults to the runtime bridge. */
+  readonly loadPassiveErrorCount?: () => Promise<number>;
+  /** Dismisses the passive error badge for this tab (S3-14); defaults to the runtime bridge. */
+  readonly dismissPassiveErrors?: () => Promise<void>;
   /** The page url used to detect a navigation-interrupted recording; defaults to the live location. */
   readonly currentUrl?: string;
 }
@@ -267,6 +304,8 @@ export function OverlayApp({
   onCapture,
   recordingClient = DEFAULT_RECORDING_CLIENT,
   elementPicker = DEFAULT_ELEMENT_PICKER,
+  loadPassiveErrorCount = requestPassiveErrorCount,
+  dismissPassiveErrors = requestDismissPassiveErrors,
   currentUrl,
 }: OverlayAppProps) {
   const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
@@ -293,6 +332,26 @@ export function OverlayApp({
     active: boolean;
     hostName?: string;
   }>({ active: false });
+  const [passiveErrorCount, setPassiveErrorCount] = useState(0);
+
+  // Passive error badge (S3-14): read how many uncaught errors this page logged, so the overlay can
+  // offer to dismiss the toolbar badge. Guarded against a late resolve after unmount.
+  useEffect(() => {
+    let active = true;
+    void loadPassiveErrorCount().then((count) => {
+      if (active) {
+        setPassiveErrorCount(count);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [loadPassiveErrorCount]);
+
+  const handleDismissPassiveErrors = (): void => {
+    setPassiveErrorCount(0);
+    void dismissPassiveErrors();
+  };
 
   useEffect(() => {
     const subscribe = subscribeDebuggerActivity ?? subscribeDebuggerActivityViaRuntime;
@@ -607,6 +666,7 @@ export function OverlayApp({
             />
           </div>
         ) : null}
+        <DismissErrorBadgeButton count={passiveErrorCount} onDismiss={handleDismissPassiveErrors} />
         {cookiesGranted ? (
           <div style={{ marginBottom: '12px' }}>
             <CookiesWarning active {...(host === undefined ? {} : { hostName: host })} />

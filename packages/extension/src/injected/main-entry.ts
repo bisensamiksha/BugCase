@@ -5,7 +5,7 @@
 // world can pull buffered data out. The console (S2-06) and network (S2-07) ring buffers register
 // their flush providers on this client.
 
-import { createRecorderStep } from '../shared/bridge-protocol';
+import { createPassiveError, createRecorderStep } from '../shared/bridge-protocol';
 
 import { installConsoleRingBuffer, type ConsoleRingBufferHandle } from './console-ring-buffer';
 import { installNetworkRingBuffer, type NetworkRingBufferHandle } from './network-ring-buffer';
@@ -72,11 +72,18 @@ if (typeof window !== 'undefined' && installPassiveMainWorld(window)) {
   // Capture console calls + global errors into a ring buffer, and serve it over the bridge's
   // `console` channel so the isolated world can pull it during a capture. The event-listener methods
   // are wrapped to the minimal scope signature so the buffer's listeners can be added/removed.
-  consoleBuffer = installConsoleRingBuffer({
-    console: window.console,
-    addEventListener: (type, listener) => window.addEventListener(type, listener),
-    removeEventListener: (type, listener) => window.removeEventListener(type, listener),
-  });
+  consoleBuffer = installConsoleRingBuffer(
+    {
+      console: window.console,
+      addEventListener: (type, listener) => window.addEventListener(type, listener),
+      removeEventListener: (type, listener) => window.removeEventListener(type, listener),
+    },
+    {
+      // Passive error badge (S3-14): signal the isolated bridge on each uncaught error/rejection so it
+      // can relay a per-tab count to the worker. Fire-and-forget; the page world can't reach runtime.
+      onError: () => window.postMessage(createPassiveError(), '*'),
+    },
+  );
   pageBridgeClient.registerFlushProvider('console', () => consoleBuffer?.snapshot() ?? []);
   // Capture fetch + XMLHttpRequest metadata (never bodies) and serve it over the `network` channel.
   networkBuffer = installNetworkRingBuffer(window);

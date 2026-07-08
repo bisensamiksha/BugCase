@@ -25,8 +25,11 @@ import {
   isCaptureReportRequest,
   isCaptureVisibleTabRequest,
   isCropElementRequest,
+  isDismissErrorBadgeRequest,
   isFinalizeReportRequest,
+  isGetPassiveErrorCountRequest,
   isOverlayInjectRequest,
+  isPassiveErrorRequest,
   isPeekReportAssetRequest,
   type CaptureReportRequest,
   type CaptureReportResponse,
@@ -35,9 +38,15 @@ import {
   type DebuggerActivityMessage,
   type FinalizeReportRequest,
   type FinalizeReportResponse,
+  type GetPassiveErrorCountResponse,
 } from './messages';
 import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
+import {
+  clearPassiveErrorBadge,
+  getPassiveErrorCount,
+  recordPassiveError,
+} from './passive-error-badge';
 import {
   handleContainsPermissions,
   handleRequestPermissions,
@@ -61,6 +70,11 @@ const onRecordingNavigation = createRecordingNavigationHandler({
 });
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void onRecordingNavigation(tabId, changeInfo.status, tab.url);
+  // Passive error badge (S3-14): a fresh page load resets the per-page error count + badge, so the
+  // count always reflects "errors on this page" (and a clean page clears a stale badge).
+  if (changeInfo.status === 'loading') {
+    void clearPassiveErrorBadge(tabId);
+  }
 });
 
 // Holds the assembled report + assets between CAPTURE_REPORT (assemble) and FINALIZE_REPORT
@@ -137,6 +151,9 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   const hostName = safeHost(message.metadata.page.origin);
   const { devicePixelRatio } = message.metadata.viewport;
   const onActiveChange = typeof tabId === 'number' ? bannerBroadcaster(tabId, hostName) : undefined;
+
+  // Capturing a report acknowledges the page's errors, so clear the passive error badge (S3-14).
+  void clearPassiveErrorBadge(tabId);
 
   // Respect the user's Screenshot choice (S3-06): full page → scroll-stitch, else the visible viewport.
   const preferFullPage = message.metadata.userOptions.fullPageScreenshot === true;
@@ -291,6 +308,19 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
             : { devicePixelRatio: message.devicePixelRatio },
         ),
     });
+  }
+  if (isPassiveErrorRequest(message)) {
+    // Passive error badge (S3-14): count one uncaught error for the sending tab + update its badge.
+    return recordPassiveError(sender.tab?.id).then(() => undefined);
+  }
+  if (isDismissErrorBadgeRequest(message)) {
+    return clearPassiveErrorBadge(sender.tab?.id).then(() => undefined);
+  }
+  if (isGetPassiveErrorCountRequest(message)) {
+    const tabId = sender.tab?.id;
+    return (tabId === undefined ? Promise.resolve(0) : getPassiveErrorCount(tabId)).then(
+      (count): GetPassiveErrorCountResponse => ({ count }),
+    );
   }
   if (isRequestPermissionsRequest(message)) {
     return handleRequestPermissions(message);

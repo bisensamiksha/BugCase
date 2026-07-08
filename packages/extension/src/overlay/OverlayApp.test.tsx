@@ -521,6 +521,53 @@ describe('OverlayApp reproduction recorder', () => {
   });
 });
 
+describe('OverlayApp passive error badge', () => {
+  it('shows the dismiss banner when the tab logged errors and clears it on dismiss', async () => {
+    const dismissPassiveErrors = vi.fn(() => Promise.resolve());
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          subscribeDebuggerActivity={() => () => {}}
+          loadPassiveErrorCount={() => Promise.resolve(3)}
+          dismissPassiveErrors={dismissPassiveErrors}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(queryTestId('dismiss-error-badge-count')?.textContent).toMatch(/3 errors/);
+
+    act(() => {
+      queryTestId('dismiss-error-badge')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(dismissPassiveErrors).toHaveBeenCalledTimes(1);
+    // The banner disappears immediately after dismiss.
+    expect(queryTestId('dismiss-error-badge-banner')).toBeNull();
+  });
+
+  it('shows no banner when the tab logged no errors', async () => {
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          subscribeDebuggerActivity={() => () => {}}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(queryTestId('dismiss-error-badge-banner')).toBeNull();
+  });
+});
+
 describe('OverlayApp element inspector', () => {
   function previewReport(): BugReportV1 {
     return {
