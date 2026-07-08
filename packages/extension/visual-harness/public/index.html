@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BugCase preview visual harness</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Shim Node globals the bundled React/Konva reference, before the bundle runs (browser has none). -->
+    <script>
+      window.global = window;
+      window.process = { env: { NODE_ENV: 'production' } };
+    </script>
+    <!-- Classic script (not type=module) so it loads over file:// without CORS. Built by vite.harness.config.ts. -->
+    <script src="./preview-harness.iife.js"></script>
+  </body>
+</html>

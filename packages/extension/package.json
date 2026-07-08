@@ -12,6 +12,7 @@
     "build:chrome": "cross-env BROWSER=chrome vite build && cross-env BROWSER=chrome vite build --config vite.content.config.ts && cross-env BROWSER=chrome INJECTED_ENTRY=main-entry vite build --config vite.injected.config.ts && cross-env BROWSER=chrome INJECTED_ENTRY=passive-bridge vite build --config vite.injected.config.ts",
     "build:firefox": "cross-env BROWSER=firefox vite build && cross-env BROWSER=firefox vite build --config vite.content.config.ts && cross-env BROWSER=firefox INJECTED_ENTRY=main-entry vite build --config vite.injected.config.ts && cross-env BROWSER=firefox INJECTED_ENTRY=passive-bridge vite build --config vite.injected.config.ts",
     "build:all": "pnpm run build:chrome && pnpm run build:firefox",
+    "build:harness": "vite build --config vite.harness.config.ts",
     "lint:firefox-manifest": "web-ext lint --source-dir=dist-firefox",
     "test": "vitest run",
     "test:watch": "vitest",
