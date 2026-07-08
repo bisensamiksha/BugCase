@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { AnnotationsManifestSchema } from './annotation.schema';
 import { BrowserInfoSchema } from './browser.schema';
 import { ConsoleLogSchema } from './console.schema';
 import { CookiesDumpSchema } from './cookies.schema';
@@ -28,6 +29,7 @@ export const BugReportV1Schema = z
     navigation: NavigationLogSchema.nullable(),
     reproduction: ReproductionRecordingSchema.nullable(),
     elementInspections: ElementInspectionsManifestSchema.nullable(),
+    annotations: AnnotationsManifestSchema.nullable(),
   })
   .strict();
 

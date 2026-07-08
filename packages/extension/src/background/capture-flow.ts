@@ -1,6 +1,7 @@
 import {
   BUG_REPORT_ZIP_LAYOUT,
   type AnnotationFile,
+  type AnnotationsManifest,
   type BrowserInfo,
   type BugReportV1,
   type BugReportZipAssets,
@@ -195,6 +196,8 @@ export async function captureReport(
       navigation,
       reproduction: input.reproduction ?? null,
       elementInspections: inspections?.manifest ?? null,
+      // Populated at finalize by applyAnnotations; not yet annotated at capture time (S3-15).
+      annotations: null,
     };
 
     const files = new Map<string, Blob | string | Uint8Array>([[screenshotPath, shot.blob]]);
@@ -317,10 +320,17 @@ export function applyAnnotations(
     annotationFilePath(annotation.screenshotPath),
     JSON.stringify(annotation.annotationFile),
   );
+  // Record the annotation in the report's manifest too (S3-15), appending to any existing one so
+  // multiple annotated screenshots accumulate. Complements the per-screenshot `annotationsPath` flag.
+  const annotations: AnnotationsManifest = {
+    schemaVersion: 'v1',
+    annotations: [...(report.annotations?.annotations ?? []), annotation.annotationFile],
+  };
   return {
     report: {
       ...report,
       screenshots: flagAnnotated(report.screenshots, annotation.screenshotPath),
+      annotations,
     },
     assets: { files },
   };
