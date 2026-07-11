@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Worker } from '@playwright/test';
 
 import { CHROMIUM_ONLY, launchExtension } from './helpers/preview';
 
@@ -29,6 +29,20 @@ async function openOptions(page: Page, extensionId: string): Promise<void> {
   await page.waitForSelector('[data-testid="options-app"]');
 }
 
+/**
+ * Mark the first-install onboarding tour (S3-18) as already seen, so its overlay doesn't cover the
+ * settings controls this spec drives. Seeded in the worker before opening the options page; persists
+ * in `storage.local` across the restart. Without this, the tour can race the options-page interaction.
+ */
+async function seedOnboardingSeen(worker: Worker): Promise<void> {
+  await worker.evaluate(() => {
+    const g = globalThis as unknown as {
+      chrome: { storage: { local: { set: (items: Record<string, unknown>) => Promise<void> } } };
+    };
+    return g.chrome.storage.local.set({ 'bugcase/onboarding-seen': true });
+  });
+}
+
 test.describe('S3-16 settings persistence (Chromium)', () => {
   test('settings changed in the options page survive a service-worker restart', async ({
     browserName,
@@ -39,6 +53,7 @@ test.describe('S3-16 settings persistence (Chromium)', () => {
     try {
       // First launch: change a scrubber toggle + the ring-buffer size, which auto-save to storage.local.
       const first = await launchExtension({ userDataDir });
+      await seedOnboardingSeen(first.worker); // suppress the first-run tour overlay (persists across restart)
       const scrubberId = await (async (): Promise<string> => {
         const page = await first.context.newPage();
         await openOptions(page, first.extensionId);
@@ -111,6 +126,7 @@ test.describe('S3-16 settings persistence (Chromium)', () => {
     try {
       // First launch: seed a metadata-only history entry, then confirm the shipped options UI renders it.
       const first = await launchExtension({ userDataDir });
+      await seedOnboardingSeen(first.worker); // suppress the first-run tour overlay (persists across restart)
       const page = await first.context.newPage();
       await openOptions(page, first.extensionId);
       await page.evaluate(async (e) => {
