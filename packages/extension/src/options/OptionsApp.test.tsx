@@ -58,6 +58,7 @@ async function renderApp(props: Partial<OptionsAppProps> = {}): Promise<void> {
         loadSettings={() => Promise.resolve(DEFAULT_SETTINGS)}
         loadAllowlist={() => Promise.resolve(['https://a.com', 'https://b.com'])}
         loadHistory={() => Promise.resolve([])}
+        loadOnboardingSeen={() => Promise.resolve(true)}
         {...props}
       />,
     );
@@ -65,6 +66,34 @@ async function renderApp(props: Partial<OptionsAppProps> = {}): Promise<void> {
     await Promise.resolve();
   });
 }
+
+describe('OptionsApp onboarding tour', () => {
+  it('overlays the first-install tour when it has not been seen', async () => {
+    await renderApp({ loadOnboardingSeen: () => Promise.resolve(false) });
+    expect(q('onboarding-tour')).not.toBeNull();
+    // The settings page is still rendered underneath.
+    expect(q('options-app')).not.toBeNull();
+  });
+
+  it('does not show the tour when it has already been seen', async () => {
+    await renderApp({ loadOnboardingSeen: () => Promise.resolve(true) });
+    expect(q('onboarding-tour')).toBeNull();
+  });
+
+  it('hides the tour after it is completed', async () => {
+    await renderApp({ loadOnboardingSeen: () => Promise.resolve(false) });
+    // Advance to the last slide and finish; markSeen defaults to a no-op storage write here.
+    const click = (id: string): void => {
+      act(() => {
+        q(id)?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    };
+    click('onboarding-next');
+    click('onboarding-next');
+    click('onboarding-done');
+    expect(q('onboarding-tour')).toBeNull();
+  });
+});
 
 describe('OptionsApp', () => {
   it('loads settings + allowlist and renders every settings section', async () => {

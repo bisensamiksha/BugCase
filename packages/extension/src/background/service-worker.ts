@@ -8,6 +8,7 @@ import { captureScreenshotWithStrategy } from '../capture/screenshot-strategy';
 import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
+import { openOnboardingOnInstall } from '../onboarding/open-on-install';
 import { getRecordingSession } from '../storage/recording-session';
 
 import { buildAnnotationExport } from './annotation-finalize';
@@ -85,9 +86,13 @@ const reportHold = createReportHold();
 // Reconcile passive-monitoring content-script registrations with the allowlist. Registrations
 // persist across service-worker restarts, so syncing on install and startup repairs any drift
 // (e.g. the allowlist changed while the worker was asleep). Sync is error-safe and never throws.
-browser.runtime.onInstalled.addListener(() => {
+browser.runtime.onInstalled.addListener((details) => {
   console.info('[BugCase] installed');
   void syncPassiveContentScripts();
+  // First-install onboarding (S3-18): open the options page so the tour can overlay on first run.
+  void openOnboardingOnInstall(details.reason, {
+    openOptionsPage: () => browser.runtime.openOptionsPage(),
+  });
 });
 
 browser.runtime.onStartup.addListener(() => {

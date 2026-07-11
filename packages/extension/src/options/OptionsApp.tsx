@@ -1,7 +1,9 @@
 import type { UserOptions } from '@bugcase/schema';
 import { useEffect, useState, type CSSProperties } from 'react';
 
+import { OnboardingTour } from '../onboarding/OnboardingTour';
 import { CaptureOptions } from '../overlay/CaptureOptions';
+import { getOnboardingSeen } from '../storage/onboarding';
 import {
   addAllowedOrigin,
   getAllowedOrigins,
@@ -33,6 +35,8 @@ export interface OptionsAppProps {
   readonly removeOrigin?: (origin: string) => Promise<string[]>;
   /** Loads report history for the history section; defaults to `getReportHistory`. */
   readonly loadHistory?: () => Promise<ReportHistoryEntry[]>;
+  /** Whether the first-install tour has been seen; defaults to `getOnboardingSeen`. Injectable for tests. */
+  readonly loadOnboardingSeen?: () => Promise<boolean>;
 }
 
 const pageStyle: CSSProperties = {
@@ -73,6 +77,7 @@ export function OptionsApp({
   addOrigin,
   removeOrigin,
   loadHistory,
+  loadOnboardingSeen,
 }: OptionsAppProps) {
   const persist = persistSettings ?? ((update) => saveSettings(update));
   const addOne = addOrigin ?? ((origin) => addAllowedOrigin(origin));
@@ -84,6 +89,23 @@ export function OptionsApp({
   // Local text mirrors for the free-text fields, so controlled re-renders never fight typing.
   const [headerText, setHeaderText] = useState('');
   const [ringText, setRingText] = useState('');
+  // First-install tour (S3-18): overlay it on first run, until it's completed or skipped.
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const runSeen = loadOnboardingSeen ?? (() => getOnboardingSeen());
+    void runSeen()
+      .then((seen) => {
+        if (!cancelled) setShowTour(!seen);
+      })
+      .catch(() => {
+        // A read failure shouldn't pop the tour unexpectedly; leave it hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadOnboardingSeen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,6 +152,7 @@ export function OptionsApp({
 
   return (
     <main data-testid="options-app" style={pageStyle}>
+      {showTour ? <OnboardingTour onComplete={() => setShowTour(false)} /> : null}
       <h1 style={{ fontSize: '18px' }}>BugCase settings</h1>
       <p style={mutedStyle}>
         These preferences stay on this device. Nothing is uploaded or synced to a server.
