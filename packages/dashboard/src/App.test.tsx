@@ -13,6 +13,7 @@ let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
+  window.location.hash = '';
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -23,6 +24,7 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+  window.location.hash = '';
 });
 
 function dropzone(): Element {
@@ -67,12 +69,13 @@ describe('App', () => {
       await readPromise;
     });
 
-    const section = container.querySelector('[data-testid="report"]');
+    // The default route is the overview pane, which shows the raw report tree (interim, S4-03).
+    const section = container.querySelector('[data-testid="pane-overview"]');
     expect(section).not.toBeNull();
     expect(section?.textContent).toContain('abc-123');
   });
 
-  it('routes a loaded report into the console and network tables', async () => {
+  it('routes a loaded report into the console and network panes', async () => {
     const report = {
       schemaVersion: 'v1',
       metadata: { id: 'abc-123' },
@@ -119,6 +122,8 @@ describe('App', () => {
     } as unknown as BugReportV1;
     const read = vi.fn((_input: Blob) => Promise.resolve<ReadReportResult>({ ok: true, report }));
 
+    // Start on the console pane.
+    window.location.hash = '#/console';
     act(() => {
       root.render(<App read={read} />);
     });
@@ -127,13 +132,24 @@ describe('App', () => {
       await Promise.resolve();
     });
 
+    // Only the active (console) pane renders; its data is present.
     expect(container.querySelector('[data-testid="console-table"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="network-table"]')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="console-row"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-testid="network-row"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="console-table"]')?.textContent).toContain(
       'heads up',
     );
+    expect(container.querySelector('[data-testid="network-table"]')).toBeNull();
+
+    // Switching the hash to the network pane routes the network data in, without re-reading the ZIP.
+    await act(async () => {
+      window.location.hash = '#/network';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="network-table"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="network-row"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="console-table"]')).toBeNull();
+    expect(read).toHaveBeenCalledTimes(1);
   });
 
   it('shows an error message when the ZIP is invalid, without throwing', async () => {

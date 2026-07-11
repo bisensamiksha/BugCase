@@ -1,0 +1,43 @@
+/*
+ * Dashboard theming tokens (S4-01). Design-token layer consumed by the shell via
+ * `var(--bc-*)` (Tailwind arbitrary values). Light values are the default on :root; dark values
+ * apply automatically under a dark OS and can be forced with a `data-theme` attribute on the
+ * root element. The interactive light/dark toggle is deferred to S4-12 / S4-33 — this ticket only
+ * establishes the token layer. Values mirror the existing slate/blue palette so the visual change
+ * is minimal.
+ */
+
+:root {
+  --bc-bg: #f8fafc; /* slate-50 */
+  --bc-surface: #ffffff;
+  --bc-border: #e2e8f0; /* slate-200 */
+  --bc-fg: #1e293b; /* slate-800 */
+  --bc-fg-muted: #64748b; /* slate-500 */
+  --bc-accent: #2563eb; /* blue-600 */
+  --bc-accent-fg: #ffffff;
+  --bc-radius: 0.5rem;
+}
+
+/* Dark OS default — unless the root explicitly forces the light theme. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bc-bg: #0f172a; /* slate-900 */
+    --bc-surface: #1e293b; /* slate-800 */
+    --bc-border: #334155; /* slate-700 */
+    --bc-fg: #e2e8f0; /* slate-200 */
+    --bc-fg-muted: #94a3b8; /* slate-400 */
+    --bc-accent: #3b82f6; /* blue-500 */
+    --bc-accent-fg: #ffffff;
+  }
+}
+
+/* Explicit override hook for a future toggle: force dark regardless of OS. */
+:root[data-theme='dark'] {
+  --bc-bg: #0f172a;
+  --bc-surface: #1e293b;
+  --bc-border: #334155;
+  --bc-fg: #e2e8f0;
+  --bc-fg-muted: #94a3b8;
+  --bc-accent: #3b82f6;
+  --bc-accent-fg: #ffffff;
+}
