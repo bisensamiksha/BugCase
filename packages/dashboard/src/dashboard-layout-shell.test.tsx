@@ -1,0 +1,144 @@
+// @vitest-environment jsdom
+import type { BugReportV1 } from '@bugcase/schema';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { App } from './App';
+import type { ReadReportResult } from './lib/read-report-zip';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+let container: HTMLElement;
+let root: ReturnType<typeof createRoot>;
+
+beforeEach(() => {
+  window.location.hash = '';
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+  window.location.hash = '';
+});
+
+function q(testId: string): Element | null {
+  return container.querySelector(`[data-testid="${testId}"]`);
+}
+
+function dropFile(node: Element, file: File): void {
+  const event = new Event('drop', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', { value: { files: [file] } });
+  node.dispatchEvent(event);
+}
+
+const zipFile = (): File =>
+  new File([new Uint8Array([1, 2, 3])], 'report.zip', { type: 'application/zip' });
+
+/** Render <App> and load a report synchronously via an injected reader. */
+async function renderLoaded(report: BugReportV1): Promise<void> {
+  const read = vi.fn((_input: Blob) => Promise.resolve<ReadReportResult>({ ok: true, report }));
+  act(() => {
+    root.render(<App read={read} />);
+  });
+  const dropzone = q('dropzone');
+  if (!dropzone) {
+    throw new Error('dropzone not found');
+  }
+  await act(async () => {
+    dropFile(dropzone, zipFile());
+    await Promise.resolve();
+  });
+}
+
+const reportWith = (extra: Partial<BugReportV1>): BugReportV1 =>
+  ({ schemaVersion: 'v1', metadata: { id: 'abc-123' }, ...extra }) as unknown as BugReportV1;
+
+describe('dashboard layout shell', () => {
+  it('renders the top bar, side nav for all seven panes, and the dropzone when empty', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    expect(q('app-topbar')).not.toBeNull();
+    expect(q('app-sidenav')).not.toBeNull();
+    for (const pane of [
+      'overview',
+      'screenshots',
+      'console',
+      'network',
+      'dom',
+      'storage',
+      'privacy',
+    ]) {
+      expect(q(`nav-${pane}`)).not.toBeNull();
+    }
+    // Persistent shell: the dropzone/empty state lives in the content area until a report loads.
+    expect(q('dropzone')).not.toBeNull();
+    expect(q('empty')).not.toBeNull();
+  });
+
+  it('marks the pane from the current hash as aria-current="page"', () => {
+    window.location.hash = '#/console';
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    expect(q('nav-console')?.getAttribute('aria-current')).toBe('page');
+    expect(q('nav-overview')?.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('falls back to the overview pane for an unknown hash', () => {
+    window.location.hash = '#/bogus';
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    expect(q('nav-overview')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('shows the raw report JSON in the overview pane once loaded', async () => {
+    window.location.hash = '#/overview';
+    await renderLoaded(reportWith({}));
+
+    const overview = q('pane-overview');
+    expect(overview).not.toBeNull();
+    expect(overview?.textContent).toContain('abc-123');
+  });
+
+  it('renders the console table in the console pane once loaded', async () => {
+    window.location.hash = '#/console';
+    await renderLoaded(reportWith({}));
+
+    expect(q('console-table')).not.toBeNull();
+    expect(q('pane-overview')).toBeNull();
+  });
+
+  it('renders a neutral placeholder for a not-yet-built pane', async () => {
+    window.location.hash = '#/screenshots';
+    await renderLoaded(reportWith({}));
+
+    expect(q('pane-placeholder')).not.toBeNull();
+    expect(q('console-table')).toBeNull();
+  });
+
+  it('switches panes reactively on hashchange without re-loading the report', async () => {
+    window.location.hash = '#/overview';
+    await renderLoaded(reportWith({}));
+    expect(q('pane-overview')).not.toBeNull();
+
+    await act(async () => {
+      window.location.hash = '#/network';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+
+    expect(q('network-table')).not.toBeNull();
+    expect(q('pane-overview')).toBeNull();
+  });
+});
