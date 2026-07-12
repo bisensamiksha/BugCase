@@ -7,6 +7,8 @@ export interface AppShellProps {
   readonly route: RouteState;
   /** Active pane content, owned by the caller. */
   readonly children: ReactNode;
+  /** Optional content for the top-bar slot — the multi-ZIP tab strip (S4-02). */
+  readonly tabs?: ReactNode;
 }
 
 /**
@@ -14,7 +16,7 @@ export interface AppShellProps {
  * panes, and a content region. Layout is Tailwind; color comes from the `--bc-*` theming tokens so
  * the shell follows light/dark automatically. It holds no report or routing state of its own.
  */
-export function AppShell({ route, children }: AppShellProps) {
+export function AppShell({ route, children, tabs }: AppShellProps) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bc-bg)] text-[var(--bc-fg)]">
       <header
@@ -25,8 +27,13 @@ export function AppShell({ route, children }: AppShellProps) {
         <p className="hidden text-xs text-[var(--bc-fg-muted)] sm:block">
           Everything runs in your browser — nothing is uploaded.
         </p>
-        {/* Reserved for multi-ZIP tabs (S4-02). */}
-        <div data-testid="app-topbar-slot" className="ml-auto" />
+        {/* Multi-ZIP tab strip (S4-02). */}
+        <div
+          data-testid="app-topbar-slot"
+          className="ml-4 flex min-w-0 flex-1 items-center overflow-x-auto"
+        >
+          {tabs}
+        </div>
       </header>
 
       <div className="flex flex-1">
