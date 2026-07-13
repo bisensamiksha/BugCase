@@ -1,6 +1,7 @@
 import type { BugReportV1 } from '@bugcase/schema';
 import { useRef, useState } from 'react';
 
+import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
@@ -58,6 +59,8 @@ export function App({ read = readReportZip }: AppProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const route = useHashRoute();
   const addInputRef = useRef<HTMLInputElement>(null);
+  // Remember the last batch so the error state's Retry can re-invoke the loader on it.
+  const lastFilesRef = useRef<File[]>([]);
 
   // Active report = the tab matching the URL's reportId, falling back to the first open tab.
   const activeReport = findTab(tabs, route.reportId) ?? tabs[0];
@@ -70,6 +73,7 @@ export function App({ read = readReportZip }: AppProps = {}) {
     if (files.length === 0) {
       return;
     }
+    lastFilesRef.current = files;
     setStatus('loading');
     setError(null);
 
@@ -116,6 +120,17 @@ export function App({ read = readReportZip }: AppProps = {}) {
       />
     ) : null;
 
+  // Full-region state: skeleton/error only pre-empt the content when no report is open yet; once a
+  // report is active it stays visible (a later failed drop shows a transient banner instead).
+  const region: AsyncStatus =
+    status === 'loading' && !activeReport
+      ? 'loading'
+      : status === 'error' && !activeReport
+        ? 'error'
+        : activeReport
+          ? 'ready'
+          : 'empty';
+
   return (
     <AppShell route={route} tabs={tabBar}>
       {/* Hidden picker for the tab-bar "+" button (multi-select). */}
@@ -131,44 +146,47 @@ export function App({ read = readReportZip }: AppProps = {}) {
         }}
       />
 
-      {status === 'error' && (
-        <p data-testid="error" role="alert" className="mb-3 text-red-600">
-          {error}
-        </p>
-      )}
-      {status === 'loading' && (
-        <p data-testid="status" className="mb-3 text-[var(--bc-fg-muted)]">
-          Reading report…
-        </p>
-      )}
-
-      {activeReport ? (
-        // Once a report is open, the whole content area accepts more dropped ZIPs (drop-to-add).
-        <div
-          data-testid="app-content-dropzone"
-          onDrop={(event) => {
-            event.preventDefault();
-            void handleFiles(zipFilesFrom(event.dataTransfer.files));
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-          }}
-          className="h-full"
-        >
-          <LoadedPane
-            pane={route.activePane}
-            report={activeReport.report}
-            reportId={activeReport.id}
-          />
-        </div>
-      ) : (
-        <>
-          <DropZone onFiles={(files) => void handleFiles(files)} />
-          <p data-testid="empty" className="mx-auto mt-4 max-w-3xl text-[var(--bc-fg-muted)]">
-            No report loaded yet.
+      <AsyncState
+        status={region}
+        loadingLabel="Reading report…"
+        errorMessage={error}
+        onRetry={() => void handleFiles(lastFilesRef.current)}
+        empty={
+          <>
+            <DropZone onFiles={(files) => void handleFiles(files)} />
+            <p data-testid="empty" className="mx-auto mt-4 max-w-3xl text-[var(--bc-fg-muted)]">
+              No report loaded yet.
+            </p>
+          </>
+        }
+      >
+        {/* A later failed drop while a report stays open surfaces as a transient banner. */}
+        {activeReport && status === 'error' && error ? (
+          <p data-testid="error" role="alert" className="mb-3 text-red-600">
+            {error}
           </p>
-        </>
-      )}
+        ) : null}
+        {activeReport ? (
+          // Once a report is open, the whole content area accepts more dropped ZIPs (drop-to-add).
+          <div
+            data-testid="app-content-dropzone"
+            onDrop={(event) => {
+              event.preventDefault();
+              void handleFiles(zipFilesFrom(event.dataTransfer.files));
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+            }}
+            className="h-full"
+          >
+            <LoadedPane
+              pane={route.activePane}
+              report={activeReport.report}
+              reportId={activeReport.id}
+            />
+          </div>
+        ) : null}
+      </AsyncState>
     </AppShell>
   );
 }

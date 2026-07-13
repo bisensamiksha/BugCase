@@ -1,6 +1,7 @@
 import type { BugReportV1, Severity } from '@bugcase/schema';
 import type { ReactNode } from 'react';
 
+import { AsyncState } from '../components/AsyncState';
 import { renderMarkdownToSafeHtml } from '../lib/markdown';
 import { formatHash } from '../router/hash-router';
 
@@ -108,6 +109,12 @@ export function OverviewPane({ report, reportId }: OverviewPaneProps) {
   const notesHtml = renderMarkdownToSafeHtml(userInput?.notes ?? '');
   const screenshotsHref = formatHash({ activePane: 'screenshots', reportId: reportId ?? null });
 
+  // The body is empty only for a degenerate/partial report; a real captured report always has a
+  // page + screenshots manifest, so per-section empty states below cover real-but-incomplete data.
+  const hasBody = Boolean(
+    page || viewport || browser || shots.hero || cc.total > 0 || nc.total > 0 || notesHtml,
+  );
+
   return (
     <section data-testid="overview-pane" className="h-full space-y-4 overflow-auto">
       {/* Header: title + severity + capture id */}
@@ -132,124 +139,134 @@ export function OverviewPane({ report, reportId }: OverviewPaneProps) {
         ) : null}
       </div>
 
-      {/* Hero screenshot summary (pixels render in the Screenshots pane — S4-06). */}
-      {shots.hero ? (
-        <a
-          data-testid="overview-hero-link"
-          href={screenshotsHref}
-          className="block rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-[var(--bc-surface)] p-4 hover:border-[var(--bc-accent)]"
-        >
-          <div className="text-sm font-medium text-[var(--bc-fg)]">
-            {capitalize(shots.hero.kind)} screenshot · {shots.hero.width}×{shots.hero.height} ·{' '}
-            {shots.hero.captureMethod}
-            {shots.hero.hasAnnotations ? ' · annotated' : ''}
-          </div>
-          {shots.elementCropCount > 0 ? (
-            <div className="mt-1 text-xs text-[var(--bc-fg-muted)]">
-              {shots.elementCropCount} element crop
-              {shots.elementCropCount === 1 ? '' : 's'}
-            </div>
-          ) : null}
-          <span className="mt-2 inline-block text-xs text-[var(--bc-accent)]">
-            View in Screenshots →
-          </span>
-        </a>
-      ) : (
-        <div
-          data-testid="overview-hero-empty"
-          className="rounded-[var(--bc-radius)] border border-dashed border-[var(--bc-border)] p-4"
-        >
-          <Empty>No screenshot captured.</Empty>
-        </div>
-      )}
-
-      {/* Metric tiles */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <MetricTile
-          testid="overview-metric-console-errors"
-          label="Console errors"
-          value={cc.errors}
-          emphasizeWhenPositive
-        />
-        <MetricTile
-          testid="overview-metric-console-warnings"
-          label="Console warnings"
-          value={cc.warnings}
-        />
-        <MetricTile
-          testid="overview-metric-network-total"
-          label="Network requests"
-          value={nc.total}
-        />
-        <MetricTile
-          testid="overview-metric-network-failed"
-          label="Network failures"
-          value={nc.failed}
-          emphasizeWhenPositive
-        />
-      </div>
-
-      {/* Metadata cards */}
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card testid="overview-card-page" title="Page">
-          {page ? (
-            <>
-              <Field label="Title" value={page.title || '—'} />
-              <Field label="URL" value={page.url} />
-              <Field label="Origin" value={page.origin} />
-              <Field label="Captured" value={page.capturedAt} />
-              <Field label="Referrer" value={page.referrer || '—'} />
-            </>
-          ) : (
-            <Empty>Page metadata not captured.</Empty>
-          )}
-        </Card>
-
-        <Card testid="overview-card-browser" title="Browser">
-          {browser ? (
-            <>
-              <Field label="Target" value={meta?.tool?.browserBuildTarget ?? 'unknown'} />
-              <Field label="Version" value={meta?.tool?.version ?? '—'} />
-              <Field label="Timezone" value={browser.timezone} />
-              <Field label="Languages" value={browser.languages.join(', ') || '—'} />
-            </>
-          ) : (
-            <Empty>Browser info not captured.</Empty>
-          )}
-        </Card>
-
-        <Card testid="overview-card-viewport" title="Viewport">
-          {viewport ? (
-            <>
-              <Field label="Size" value={`${viewport.innerWidth}×${viewport.innerHeight}`} />
-              <Field label="DPR" value={viewport.devicePixelRatio} />
-              <Field label="Zoom" value={`${Math.round(viewport.zoomEstimate * 100)}%`} />
-              <Field label="Screen" value={`${viewport.screenWidth}×${viewport.screenHeight}`} />
-            </>
-          ) : (
-            <Empty>Viewport info not captured.</Empty>
-          )}
-        </Card>
-      </div>
-
-      {/* Sanitized Markdown notes */}
-      <section aria-label="Notes">
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--bc-fg-muted)]">
-          Notes
-        </h3>
-        {notesHtml ? (
-          <div
-            data-testid="overview-notes"
-            className="space-y-2 text-sm leading-relaxed text-[var(--bc-fg)] [&_a]:text-[var(--bc-accent)] [&_a]:underline [&_code]:font-mono [&_li]:ml-4 [&_li]:list-disc"
-            // Sanitized by renderMarkdownToSafeHtml (marked + DOMPurify strict allowlist).
-            dangerouslySetInnerHTML={{ __html: notesHtml }}
-          />
-        ) : (
-          <p data-testid="overview-notes-empty" className="text-sm text-[var(--bc-fg-muted)]">
-            No notes.
+      <AsyncState
+        status={hasBody ? 'ready' : 'empty'}
+        className="space-y-4"
+        empty={
+          <p data-testid="overview-empty" className="text-sm text-[var(--bc-fg-muted)]">
+            No additional data was captured for this report.
           </p>
+        }
+      >
+        {/* Hero screenshot summary (pixels render in the Screenshots pane — S4-06). */}
+        {shots.hero ? (
+          <a
+            data-testid="overview-hero-link"
+            href={screenshotsHref}
+            className="block rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-[var(--bc-surface)] p-4 hover:border-[var(--bc-accent)]"
+          >
+            <div className="text-sm font-medium text-[var(--bc-fg)]">
+              {capitalize(shots.hero.kind)} screenshot · {shots.hero.width}×{shots.hero.height} ·{' '}
+              {shots.hero.captureMethod}
+              {shots.hero.hasAnnotations ? ' · annotated' : ''}
+            </div>
+            {shots.elementCropCount > 0 ? (
+              <div className="mt-1 text-xs text-[var(--bc-fg-muted)]">
+                {shots.elementCropCount} element crop
+                {shots.elementCropCount === 1 ? '' : 's'}
+              </div>
+            ) : null}
+            <span className="mt-2 inline-block text-xs text-[var(--bc-accent)]">
+              View in Screenshots →
+            </span>
+          </a>
+        ) : (
+          <div
+            data-testid="overview-hero-empty"
+            className="rounded-[var(--bc-radius)] border border-dashed border-[var(--bc-border)] p-4"
+          >
+            <Empty>No screenshot captured.</Empty>
+          </div>
         )}
-      </section>
+
+        {/* Metric tiles */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <MetricTile
+            testid="overview-metric-console-errors"
+            label="Console errors"
+            value={cc.errors}
+            emphasizeWhenPositive
+          />
+          <MetricTile
+            testid="overview-metric-console-warnings"
+            label="Console warnings"
+            value={cc.warnings}
+          />
+          <MetricTile
+            testid="overview-metric-network-total"
+            label="Network requests"
+            value={nc.total}
+          />
+          <MetricTile
+            testid="overview-metric-network-failed"
+            label="Network failures"
+            value={nc.failed}
+            emphasizeWhenPositive
+          />
+        </div>
+
+        {/* Metadata cards */}
+        <div className="grid gap-3 md:grid-cols-3">
+          <Card testid="overview-card-page" title="Page">
+            {page ? (
+              <>
+                <Field label="Title" value={page.title || '—'} />
+                <Field label="URL" value={page.url} />
+                <Field label="Origin" value={page.origin} />
+                <Field label="Captured" value={page.capturedAt} />
+                <Field label="Referrer" value={page.referrer || '—'} />
+              </>
+            ) : (
+              <Empty>Page metadata not captured.</Empty>
+            )}
+          </Card>
+
+          <Card testid="overview-card-browser" title="Browser">
+            {browser ? (
+              <>
+                <Field label="Target" value={meta?.tool?.browserBuildTarget ?? 'unknown'} />
+                <Field label="Version" value={meta?.tool?.version ?? '—'} />
+                <Field label="Timezone" value={browser.timezone} />
+                <Field label="Languages" value={browser.languages.join(', ') || '—'} />
+              </>
+            ) : (
+              <Empty>Browser info not captured.</Empty>
+            )}
+          </Card>
+
+          <Card testid="overview-card-viewport" title="Viewport">
+            {viewport ? (
+              <>
+                <Field label="Size" value={`${viewport.innerWidth}×${viewport.innerHeight}`} />
+                <Field label="DPR" value={viewport.devicePixelRatio} />
+                <Field label="Zoom" value={`${Math.round(viewport.zoomEstimate * 100)}%`} />
+                <Field label="Screen" value={`${viewport.screenWidth}×${viewport.screenHeight}`} />
+              </>
+            ) : (
+              <Empty>Viewport info not captured.</Empty>
+            )}
+          </Card>
+        </div>
+
+        {/* Sanitized Markdown notes */}
+        <section aria-label="Notes">
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--bc-fg-muted)]">
+            Notes
+          </h3>
+          {notesHtml ? (
+            <div
+              data-testid="overview-notes"
+              className="space-y-2 text-sm leading-relaxed text-[var(--bc-fg)] [&_a]:text-[var(--bc-accent)] [&_a]:underline [&_code]:font-mono [&_li]:ml-4 [&_li]:list-disc"
+              // Sanitized by renderMarkdownToSafeHtml (marked + DOMPurify strict allowlist).
+              dangerouslySetInnerHTML={{ __html: notesHtml }}
+            />
+          ) : (
+            <p data-testid="overview-notes-empty" className="text-sm text-[var(--bc-fg-muted)]">
+              No notes.
+            </p>
+          )}
+        </section>
+      </AsyncState>
     </section>
   );
 }

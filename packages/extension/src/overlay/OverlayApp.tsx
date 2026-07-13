@@ -38,6 +38,7 @@ import { createVerifierToken, isRecorderStep } from '../shared/bridge-protocol';
 import { normalizeOrigin } from '../storage/origin-allowlist';
 import type { RecordedStep, RecordingSession } from '../storage/recording-session';
 import { getSettings } from '../storage/settings';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 
 import { CaptureButton } from './CaptureButton';
 import { CaptureOptions } from './CaptureOptions';
@@ -574,21 +575,53 @@ export function OverlayApp({
     : panelStyle;
 
   if (phase === 'preview' && preview) {
+    const backToForm = (): void => {
+      setPhase('form');
+      setPreview(null);
+    };
     return (
-      <PreviewApp
-        reportId={preview.reportId}
-        report={preview.report}
-        {...(preview.assetSizes ? { assetSizes: preview.assetSizes } : {})}
-        onCancel={() => {
-          setPhase('form');
-          setPreview(null);
-        }}
-        onComplete={() => {
-          // The recording has been folded into the downloaded report; drop the durable session.
-          void recordingClient.clear();
-          onClose();
-        }}
-      />
+      // A render crash in the preview must not break the overlay; offer a way back to the form.
+      <ErrorBoundary
+        fallback={(reset) => (
+          <div
+            role="alert"
+            data-testid="preview-error-fallback"
+            style={{ padding: 16, fontSize: 13, color: '#b91c1c' }}
+          >
+            <p style={{ margin: 0, fontWeight: 600 }}>The preview couldn’t be displayed.</p>
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                backToForm();
+              }}
+              style={{
+                marginTop: 8,
+                border: '1px solid #fca5a5',
+                background: 'transparent',
+                color: '#b91c1c',
+                borderRadius: 6,
+                padding: '4px 10px',
+                cursor: 'pointer',
+              }}
+            >
+              Back to report
+            </button>
+          </div>
+        )}
+      >
+        <PreviewApp
+          reportId={preview.reportId}
+          report={preview.report}
+          {...(preview.assetSizes ? { assetSizes: preview.assetSizes } : {})}
+          onCancel={backToForm}
+          onComplete={() => {
+            // The recording has been folded into the downloaded report; drop the durable session.
+            void recordingClient.clear();
+            onClose();
+          }}
+        />
+      </ErrorBoundary>
     );
   }
 
