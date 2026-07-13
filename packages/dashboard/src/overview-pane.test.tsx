@@ -150,11 +150,13 @@ describe('OverviewPane', () => {
     expect(q('overview-hero-link')?.getAttribute('href')).toBe('#/screenshots/cap-42');
   });
 
-  it('renders a minimal/partial report without throwing and still shows the capture id', () => {
+  it('renders a minimal/partial report without throwing, showing the id and a shared empty state', () => {
     const partial = { schemaVersion: 'v1', metadata: { id: 'abc-123' } } as unknown as BugReportV1;
     expect(() => render(partial, 'abc-123')).not.toThrow();
-    expect(q('overview-pane')?.textContent).toContain('abc-123');
-    expect(q('overview-hero-empty')).not.toBeNull();
-    expect(q('overview-notes-empty')).not.toBeNull();
+    // Header (capture id) stays visible; the empty body collapses to the shared AsyncState empty.
+    expect(q('overview-capture-id')?.textContent).toContain('abc-123');
+    expect(q('async-empty')).not.toBeNull();
+    expect(q('overview-empty')).not.toBeNull();
+    expect(q('overview-hero-link')).toBeNull();
   });
 });

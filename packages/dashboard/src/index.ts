@@ -4,6 +4,8 @@ export { DropZone, zipFilesFrom, type DropZoneProps } from './components/DropZon
 export { JsonTree, type JsonTreeProps } from './components/JsonTree';
 export { ReportTabBar, type ReportTabBarProps } from './components/ReportTabBar';
 export { PanePlaceholder, type PanePlaceholderProps } from './panes/PanePlaceholder';
+export { AsyncState, type AsyncStateProps, type AsyncStatus } from './components/AsyncState';
+export { ErrorBoundary, type ErrorBoundaryProps } from './components/ErrorBoundary';
 export { OverviewPane, type OverviewPaneProps } from './panes/OverviewPane';
 export {
   consoleCounts,

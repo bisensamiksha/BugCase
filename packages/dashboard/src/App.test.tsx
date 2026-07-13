@@ -61,7 +61,7 @@ describe('App', () => {
       dropFile(dropzone(), zipFile());
     });
     expect(read).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[data-testid="status"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="async-loading"]')).not.toBeNull();
 
     const report = { schemaVersion: 'v1', metadata: { id: 'abc-123' } } as unknown as BugReportV1;
     await act(async () => {
@@ -152,23 +152,30 @@ describe('App', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('shows an error message when the ZIP is invalid, without throwing', async () => {
-    const readPromise = Promise.resolve<ReadReportResult>({
-      ok: false,
-      error: 'File is not a valid ZIP archive',
-    });
-    const read = vi.fn((_input: Blob) => readPromise);
+  it('shows an error message with a working Retry when the ZIP is invalid, without throwing', async () => {
+    const read = vi.fn((_input: Blob) =>
+      Promise.resolve<ReadReportResult>({ ok: false, error: 'File is not a valid ZIP archive' }),
+    );
 
     act(() => {
       root.render(<App read={read} />);
     });
     await act(async () => {
       dropFile(dropzone(), zipFile());
-      await readPromise;
+      await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="error"]')?.textContent).toContain(
-      'not a valid ZIP',
-    );
+    const error = container.querySelector('[data-testid="async-error"]');
+    expect(error?.textContent).toContain('not a valid ZIP');
+    expect(read).toHaveBeenCalledTimes(1);
+
+    // Retry re-invokes the loader on the same (failed) file.
+    const retry = container.querySelector('[data-testid="async-retry"]') as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+    await act(async () => {
+      retry.click();
+      await Promise.resolve();
+    });
+    expect(read).toHaveBeenCalledTimes(2);
   });
 });

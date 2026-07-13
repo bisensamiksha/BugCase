@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { DASHBOARD_PANES, PANE_LABELS, formatHash, type RouteState } from '../router/hash-router';
 
 export interface AppShellProps {
@@ -66,7 +67,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
         </nav>
 
         <main data-testid="app-content" className="min-w-0 flex-1 p-4">
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
     </div>
