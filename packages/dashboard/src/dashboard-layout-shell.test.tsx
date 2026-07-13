@@ -102,7 +102,7 @@ describe('dashboard layout shell', () => {
     expect(q('nav-overview')?.getAttribute('aria-current')).toBe('page');
   });
 
-  it('shows the raw report JSON in the overview pane once loaded', async () => {
+  it('renders the overview pane with the report capture id once loaded', async () => {
     window.location.hash = '#/overview';
     await renderLoaded(reportWith({}));
 

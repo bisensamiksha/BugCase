@@ -69,7 +69,7 @@ describe('App', () => {
       await readPromise;
     });
 
-    // The default route is the overview pane, which shows the raw report tree (interim, S4-03).
+    // The default route is the overview pane (S4-03); it surfaces the report's capture id.
     const section = container.querySelector('[data-testid="pane-overview"]');
     expect(section).not.toBeNull();
     expect(section?.textContent).toContain('abc-123');

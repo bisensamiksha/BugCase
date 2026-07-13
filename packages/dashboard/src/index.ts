@@ -4,6 +4,18 @@ export { DropZone, zipFilesFrom, type DropZoneProps } from './components/DropZon
 export { JsonTree, type JsonTreeProps } from './components/JsonTree';
 export { ReportTabBar, type ReportTabBarProps } from './components/ReportTabBar';
 export { PanePlaceholder, type PanePlaceholderProps } from './panes/PanePlaceholder';
+export { OverviewPane, type OverviewPaneProps } from './panes/OverviewPane';
+export {
+  consoleCounts,
+  networkCounts,
+  screenshotSummary,
+  type ConsoleCounts,
+  type NetworkCounts,
+  type ScreenshotKind,
+  type ScreenshotSummary,
+  type ScreenshotSummaryItem,
+} from './panes/overview-metrics';
+export { renderMarkdownToSafeHtml } from './lib/markdown';
 export { readReportZip, type ReadReportResult } from './lib/read-report-zip';
 export {
   addReportTab,
