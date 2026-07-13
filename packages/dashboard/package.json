@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@bugcase/schema": "workspace:*",
+    "dompurify": "^3.4.12",
     "jszip": "^3.10.1",
+    "marked": "^18.0.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

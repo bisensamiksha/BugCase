@@ -2,12 +2,12 @@ import type { BugReportV1 } from '@bugcase/schema';
 import { useRef, useState } from 'react';
 
 import { DropZone, zipFilesFrom } from './components/DropZone';
-import { JsonTree } from './components/JsonTree';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
 import { ConsoleTable } from './panes/ConsoleTable';
 import { NetworkTable } from './panes/NetworkTable';
+import { OverviewPane } from './panes/OverviewPane';
 import { PanePlaceholder } from './panes/PanePlaceholder';
 import { formatHash, type DashboardPane } from './router/hash-router';
 import { useHashRoute } from './router/use-hash-route';
@@ -30,9 +30,11 @@ export interface AppProps {
 function LoadedPane({
   pane,
   report,
+  reportId,
 }: {
   readonly pane: DashboardPane;
   readonly report: BugReportV1;
+  readonly reportId: string;
 }) {
   switch (pane) {
     case 'console':
@@ -40,10 +42,9 @@ function LoadedPane({
     case 'network':
       return <NetworkTable log={report.network} />;
     case 'overview':
-      // Interim: the raw report tree until the real Overview pane lands (S4-03).
       return (
-        <div data-testid="pane-overview" className="overflow-auto">
-          <JsonTree name="report" data={report} />
+        <div data-testid="pane-overview" className="h-full">
+          <OverviewPane report={report} reportId={reportId} />
         </div>
       );
     default:
@@ -154,7 +155,11 @@ export function App({ read = readReportZip }: AppProps = {}) {
           }}
           className="h-full"
         >
-          <LoadedPane pane={route.activePane} report={activeReport.report} />
+          <LoadedPane
+            pane={route.activePane}
+            report={activeReport.report}
+            reportId={activeReport.id}
+          />
         </div>
       ) : (
         <>
