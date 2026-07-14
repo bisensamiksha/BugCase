@@ -8,6 +8,17 @@ export { AsyncState, type AsyncStateProps, type AsyncStatus } from './components
 export { ErrorBoundary, type ErrorBoundaryProps } from './components/ErrorBoundary';
 export { OverviewPane, type OverviewPaneProps } from './panes/OverviewPane';
 export {
+  ScreenshotsPane,
+  screenshotEntries,
+  type ScreenshotsPaneProps,
+} from './panes/ScreenshotsPane';
+export {
+  summarizeKonva,
+  annotationSummaryFor,
+  formatAnnotationSummary,
+  type KonvaShapeSummary,
+} from './panes/annotation-metadata';
+export {
   consoleCounts,
   networkCounts,
   screenshotSummary,

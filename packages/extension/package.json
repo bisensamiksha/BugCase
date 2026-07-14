@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@bugcase/schema": "workspace:*",
+    "@bugcase/shared-ui": "workspace:*",
     "konva": "^9.3.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

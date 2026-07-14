@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@bugcase/schema": "workspace:*",
+    "@bugcase/shared-ui": "workspace:*",
     "dompurify": "^3.4.12",
     "jszip": "^3.10.1",
     "marked": "^18.0.6",
@@ -28,6 +29,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "axe-core": "^4.10.2",
     "jsdom": "^29.1.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",

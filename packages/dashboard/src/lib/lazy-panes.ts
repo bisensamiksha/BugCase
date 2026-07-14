@@ -19,6 +19,10 @@ export const LazyNetworkTable = lazy(() =>
   import('../panes/NetworkTable').then((m) => ({ default: m.NetworkTable })),
 );
 
+export const LazyScreenshotsPane = lazy(() =>
+  import('../panes/ScreenshotsPane').then((m) => ({ default: m.ScreenshotsPane })),
+);
+
 export const LazyPanePlaceholder = lazy(() =>
   import('../panes/PanePlaceholder').then((m) => ({ default: m.PanePlaceholder })),
 );

@@ -10,6 +10,7 @@ import {
   LazyNetworkTable,
   LazyOverviewPane,
   LazyPanePlaceholder,
+  LazyScreenshotsPane,
 } from './lib/lazy-panes';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
 import type { ReportSource } from './lib/report-source';
@@ -31,12 +32,25 @@ export interface AppProps {
 }
 
 /** The active pane's element, chosen by route. Each pane is a lazy chunk (see `lazy-panes.ts`). */
-function paneElement(pane: DashboardPane, report: BugReportV1, reportId: string) {
+function paneElement(
+  pane: DashboardPane,
+  report: BugReportV1,
+  reportId: string,
+  source: ReportSource | undefined,
+) {
   switch (pane) {
     case 'console':
       return <LazyConsoleTable log={report.console} />;
     case 'network':
       return <LazyNetworkTable log={report.network} />;
+    case 'screenshots':
+      // The pane reads image bytes lazily via the report's ReportSource; without one (should not
+      // happen for an open tab) fall back to the neutral placeholder rather than throwing.
+      return source ? (
+        <LazyScreenshotsPane report={report} reportId={reportId} source={source} />
+      ) : (
+        <LazyPanePlaceholder pane={pane} />
+      );
     case 'overview':
       return (
         <div data-testid="pane-overview" className="h-full">
@@ -53,14 +67,16 @@ function LoadedPane({
   pane,
   report,
   reportId,
+  source,
 }: {
   readonly pane: DashboardPane;
   readonly report: BugReportV1;
   readonly reportId: string;
+  readonly source: ReportSource | undefined;
 }) {
   return (
     <Suspense fallback={<AsyncState status="loading" loadingLabel="Loading view…" />}>
-      {paneElement(pane, report, reportId)}
+      {paneElement(pane, report, reportId, source)}
     </Suspense>
   );
 }
@@ -219,6 +235,7 @@ export function App({ read = readReportZip }: AppProps = {}) {
               pane={route.activePane}
               report={activeReport.report}
               reportId={activeReport.id}
+              source={sourcesRef.current.get(activeReport.id)}
             />
           </div>
         ) : null}
