@@ -35,7 +35,10 @@ async function render(props: Partial<LightboxScreenshotViewerProps> = {}) {
         peekAsset={peekAsset}
       />,
     );
-    await Promise.resolve(); // flush the peekAsset promise so status settles
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
@@ -57,7 +60,7 @@ afterEach(() => {
   container.remove();
 });
 
-describe('LightboxScreenshotViewer', () => {
+describe('LightboxScreenshotViewer (adapter)', () => {
   it('loads and shows the screenshot from peekAsset', async () => {
     await render();
     expect((q('lightbox-image') as HTMLImageElement).src).toContain('data:image/png;base64,AAAA');
@@ -74,37 +77,28 @@ describe('LightboxScreenshotViewer', () => {
     expect(q('lightbox-error')).not.toBeNull();
   });
 
-  it('closes on Escape', async () => {
+  it('shows an error state when there is no reportId', async () => {
+    // Render without `reportId` (omitted, not `undefined`) — the adapter's load returns null.
+    await act(async () => {
+      root.render(
+        <LightboxScreenshotViewer
+          screenshot={screenshot}
+          peekAsset={() => Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' })}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(q('lightbox-error')).not.toBeNull();
+  });
+
+  it('closes on Escape via the wired onCancel', async () => {
     const onCancel = vi.fn();
     await render({ onCancel });
     press('Escape');
     expect(onCancel).toHaveBeenCalledTimes(1);
-  });
-
-  it('closes from the × button', async () => {
-    const onCancel = vi.fn();
-    await render({ onCancel });
-    act(() => {
-      q('lightbox-close')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(onCancel).toHaveBeenCalledTimes(1);
-  });
-
-  it('closes on a backdrop click', async () => {
-    const onCancel = vi.fn();
-    await render({ onCancel });
-    act(() => {
-      q('lightbox-backdrop')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(onCancel).toHaveBeenCalledTimes(1);
-  });
-
-  it('zooms with + / 0 keys (transform on the image)', async () => {
-    await render();
-    press('+');
-    expect((q('lightbox-image') as HTMLElement).style.transform).toContain('scale(1.25)');
-    press('0');
-    expect((q('lightbox-image') as HTMLElement).style.transform).toContain('scale(1)');
   });
 
   it('marks aria-busy and ignores keys when disabled', async () => {

@@ -16,6 +16,7 @@ beforeAll(async () => {
     import('./panes/OverviewPane'),
     import('./panes/ConsoleTable'),
     import('./panes/NetworkTable'),
+    import('./panes/ScreenshotsPane'),
     import('./panes/PanePlaceholder'),
   ]);
 });
@@ -137,11 +138,19 @@ describe('dashboard layout shell', () => {
   });
 
   it('renders a neutral placeholder for a not-yet-built pane', async () => {
-    window.location.hash = '#/screenshots';
+    window.location.hash = '#/dom';
     await renderLoaded(reportWith({}));
 
     expect(q('pane-placeholder')).not.toBeNull();
     expect(q('console-table')).toBeNull();
+  });
+
+  it('renders the screenshots pane once loaded', async () => {
+    window.location.hash = '#/screenshots';
+    await renderLoaded(reportWith({}));
+
+    expect(q('screenshots-pane')).not.toBeNull();
+    expect(q('pane-placeholder')).toBeNull();
   });
 
   it('switches panes reactively on hashchange without re-loading the report', async () => {
