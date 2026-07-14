@@ -16,6 +16,7 @@
     "zip:chrome": "node scripts/zip-extension.mjs packages/extension/dist-chrome dist/bugcase-chrome.zip",
     "zip:firefox": "node scripts/zip-extension.mjs packages/extension/dist-firefox dist/bugcase-firefox.zip",
     "test": "pnpm -r run test",
+    "test:perf": "pnpm --filter @bugcase/dashboard run test:perf",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:firefox": "playwright test --project=firefox",

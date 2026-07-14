@@ -68,13 +68,18 @@ async function zipWith(path: string, content: string): Promise<Blob> {
 }
 
 describe('readReportZip', () => {
-  it('parses and validates a real BugReport ZIP', async () => {
+  it('parses and validates a real BugReport ZIP into a lazy ReportSource', async () => {
     const blob = await writeBugReportZip(validReport);
     const result = await readReportZip(blob);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.report.metadata.id).toBe(validReport.metadata.id);
-      expect(result.report.metadata.page.origin).toBe('https://example.com');
+      expect(result.source.report.metadata.id).toBe(validReport.metadata.id);
+      expect(result.source.report.metadata.page.origin).toBe('https://example.com');
+      // The seam keeps the ZIP handle: entries are still readable on demand.
+      expect(await result.source.readText(BUG_REPORT_ZIP_LAYOUT.report)).toContain(
+        '"schemaVersion"',
+      );
+      result.source.dispose();
     }
   });
 

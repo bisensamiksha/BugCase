@@ -2,12 +2,23 @@
 import type { BugReportV1 } from '@bugcase/schema';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import type { ReadReportResult } from './lib/read-report-zip';
+import { fakeReportSource } from './test-utils/fake-report-source';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// Panes are lazy chunks (S4-05); preload them so React.lazy resolves within one Suspense flush.
+beforeAll(async () => {
+  await Promise.all([
+    import('./panes/OverviewPane'),
+    import('./panes/ConsoleTable'),
+    import('./panes/NetworkTable'),
+    import('./panes/PanePlaceholder'),
+  ]);
+});
 
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
@@ -65,8 +76,12 @@ describe('App', () => {
 
     const report = { schemaVersion: 'v1', metadata: { id: 'abc-123' } } as unknown as BugReportV1;
     await act(async () => {
-      resolveRead({ ok: true, report });
+      resolveRead({ ok: true, source: fakeReportSource(report) });
       await readPromise;
+    });
+    // The overview is a lazy chunk (S4-05); flush the dynamic import + Suspense re-render.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     // The default route is the overview pane (S4-03); it surfaces the report's capture id.
@@ -120,7 +135,9 @@ describe('App', () => {
         ],
       },
     } as unknown as BugReportV1;
-    const read = vi.fn((_input: Blob) => Promise.resolve<ReadReportResult>({ ok: true, report }));
+    const read = vi.fn((_input: Blob) =>
+      Promise.resolve<ReadReportResult>({ ok: true, source: fakeReportSource(report) }),
+    );
 
     // Start on the console pane.
     window.location.hash = '#/console';
