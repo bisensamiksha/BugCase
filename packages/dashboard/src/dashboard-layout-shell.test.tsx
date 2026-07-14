@@ -2,12 +2,23 @@
 import type { BugReportV1 } from '@bugcase/schema';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import type { ReadReportResult } from './lib/read-report-zip';
+import { fakeReportSource } from './test-utils/fake-report-source';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// Panes are lazy chunks (S4-05); preload them so React.lazy resolves within one Suspense flush.
+beforeAll(async () => {
+  await Promise.all([
+    import('./panes/OverviewPane'),
+    import('./panes/ConsoleTable'),
+    import('./panes/NetworkTable'),
+    import('./panes/PanePlaceholder'),
+  ]);
+});
 
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
@@ -42,7 +53,9 @@ const zipFile = (): File =>
 
 /** Render <App> and load a report synchronously via an injected reader. */
 async function renderLoaded(report: BugReportV1): Promise<void> {
-  const read = vi.fn((_input: Blob) => Promise.resolve<ReadReportResult>({ ok: true, report }));
+  const read = vi.fn((_input: Blob) =>
+    Promise.resolve<ReadReportResult>({ ok: true, source: fakeReportSource(report) }),
+  );
   act(() => {
     root.render(<App read={read} />);
   });
@@ -53,6 +66,10 @@ async function renderLoaded(report: BugReportV1): Promise<void> {
   await act(async () => {
     dropFile(dropzone, zipFile());
     await Promise.resolve();
+  });
+  // Panes are lazy chunks (S4-05); flush the dynamic import + its Suspense re-render.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 

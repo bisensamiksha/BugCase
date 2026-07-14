@@ -1,15 +1,18 @@
 import type { BugReportV1 } from '@bugcase/schema';
-import { useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
+import {
+  LazyConsoleTable,
+  LazyNetworkTable,
+  LazyOverviewPane,
+  LazyPanePlaceholder,
+} from './lib/lazy-panes';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
-import { ConsoleTable } from './panes/ConsoleTable';
-import { NetworkTable } from './panes/NetworkTable';
-import { OverviewPane } from './panes/OverviewPane';
-import { PanePlaceholder } from './panes/PanePlaceholder';
+import type { ReportSource } from './lib/report-source';
 import { formatHash, type DashboardPane } from './router/hash-router';
 import { useHashRoute } from './router/use-hash-route';
 import {
@@ -27,7 +30,25 @@ export interface AppProps {
   readonly read?: (input: Blob) => Promise<ReadReportResult>;
 }
 
-/** Render the active pane for a loaded report. Panes without a viewer yet show a placeholder. */
+/** The active pane's element, chosen by route. Each pane is a lazy chunk (see `lazy-panes.ts`). */
+function paneElement(pane: DashboardPane, report: BugReportV1, reportId: string) {
+  switch (pane) {
+    case 'console':
+      return <LazyConsoleTable log={report.console} />;
+    case 'network':
+      return <LazyNetworkTable log={report.network} />;
+    case 'overview':
+      return (
+        <div data-testid="pane-overview" className="h-full">
+          <LazyOverviewPane report={report} reportId={reportId} />
+        </div>
+      );
+    default:
+      return <LazyPanePlaceholder pane={pane} />;
+  }
+}
+
+/** Render the active pane behind a Suspense boundary so its lazy chunk loads with a skeleton. */
 function LoadedPane({
   pane,
   report,
@@ -37,20 +58,11 @@ function LoadedPane({
   readonly report: BugReportV1;
   readonly reportId: string;
 }) {
-  switch (pane) {
-    case 'console':
-      return <ConsoleTable log={report.console} />;
-    case 'network':
-      return <NetworkTable log={report.network} />;
-    case 'overview':
-      return (
-        <div data-testid="pane-overview" className="h-full">
-          <OverviewPane report={report} reportId={reportId} />
-        </div>
-      );
-    default:
-      return <PanePlaceholder pane={pane} />;
-  }
+  return (
+    <Suspense fallback={<AsyncState status="loading" loadingLabel="Loading view…" />}>
+      {paneElement(pane, report, reportId)}
+    </Suspense>
+  );
 }
 
 export function App({ read = readReportZip }: AppProps = {}) {
@@ -61,6 +73,20 @@ export function App({ read = readReportZip }: AppProps = {}) {
   const addInputRef = useRef<HTMLInputElement>(null);
   // Remember the last batch so the error state's Retry can re-invoke the loader on it.
   const lastFilesRef = useRef<File[]>([]);
+  // Lazy ZIP data-access, one ReportSource per open tab (keyed by report id). Kept out of the pure
+  // tab state; the App owns their object-URL lifecycle and disposes them on close/unmount (S4-05).
+  const sourcesRef = useRef<Map<string, ReportSource>>(new Map());
+
+  // Dispose every open source when the dashboard unmounts so no object URLs leak.
+  useEffect(() => {
+    const sources = sourcesRef.current;
+    return () => {
+      for (const source of sources.values()) {
+        source.dispose();
+      }
+      sources.clear();
+    };
+  }, []);
 
   // Active report = the tab matching the URL's reportId, falling back to the first open tab.
   const activeReport = findTab(tabs, route.reportId) ?? tabs[0];
@@ -82,7 +108,14 @@ export function App({ read = readReportZip }: AppProps = {}) {
     for (const file of files) {
       const result = await read(file);
       if (result.ok) {
-        opened.push(makeReportTab(result.report, file.name));
+        const tab = makeReportTab(result.source.report, file.name);
+        if (sourcesRef.current.has(tab.id)) {
+          // Re-dropped duplicate: the existing tab/source wins — dispose the new source, don't leak.
+          result.source.dispose();
+        } else {
+          sourcesRef.current.set(tab.id, result.source);
+        }
+        opened.push(tab);
       } else if (firstError === null) {
         firstError = result.error;
       }
@@ -101,6 +134,9 @@ export function App({ read = readReportZip }: AppProps = {}) {
     if (activeReport?.id === id) {
       navigateTo(neighborTabId(tabs, id));
     }
+    // Revoke the closed report's object URLs before dropping the tab.
+    sourcesRef.current.get(id)?.dispose();
+    sourcesRef.current.delete(id);
     setTabs((prev) => closeReportTab(prev, id));
   }
 

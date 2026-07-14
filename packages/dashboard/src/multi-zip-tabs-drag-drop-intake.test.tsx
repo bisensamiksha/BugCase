@@ -2,12 +2,23 @@
 import type { BugReportV1 } from '@bugcase/schema';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import type { ReadReportResult } from './lib/read-report-zip';
+import { fakeReportSource } from './test-utils/fake-report-source';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// Panes are lazy chunks (S4-05); preload them so React.lazy resolves within one Suspense flush.
+beforeAll(async () => {
+  await Promise.all([
+    import('./panes/OverviewPane'),
+    import('./panes/ConsoleTable'),
+    import('./panes/NetworkTable'),
+    import('./panes/PanePlaceholder'),
+  ]);
+});
 
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
@@ -55,7 +66,7 @@ const read = vi.fn((input: Blob): Promise<ReadReportResult> => {
     'c.zip': ['report-c', 'Charlie'],
   };
   const [id, title] = map[name] ?? [name, name];
-  return Promise.resolve({ ok: true, report: report(id, title) });
+  return Promise.resolve({ ok: true, source: fakeReportSource(report(id, title)) });
 });
 
 function dropOn(testId: string, files: File[]): void {
@@ -73,12 +84,20 @@ function renderApp(): void {
   });
 }
 
+async function flushLazyPane(): Promise<void> {
+  // Panes are lazy chunks (S4-05); drain the dynamic import + its Suspense re-render.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
 async function drop(testId: string, files: File[]): Promise<void> {
   await act(async () => {
     dropOn(testId, files);
     await Promise.resolve();
     await Promise.resolve();
   });
+  await flushLazyPane();
 }
 
 /** Set the hash + fire hashchange, mirroring what an anchor-click navigation does. */
@@ -88,6 +107,7 @@ async function navigate(hash: string): Promise<void> {
     window.dispatchEvent(new Event('hashchange'));
     await Promise.resolve();
   });
+  await flushLazyPane();
 }
 
 describe('multi-ZIP tabs + drag-drop intake', () => {

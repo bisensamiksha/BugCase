@@ -1,8 +1,10 @@
 import { BUG_REPORT_ZIP_LAYOUT, BugReportV1Schema, type BugReportV1 } from '@bugcase/schema';
 import JSZip from 'jszip';
 
+import { createReportSource, type ReportSource } from './report-source';
+
 export type ReadReportResult =
-  | { readonly ok: true; readonly report: BugReportV1 }
+  | { readonly ok: true; readonly source: ReportSource }
   | { readonly ok: false; readonly error: string };
 
 /**
@@ -47,6 +49,7 @@ export async function readReportZip(
   }
 
   // The Zod-inferred type widens optional fields to `| undefined`; the validated data conforms to
-  // the hand-written BugReportV1 interface (S1-06 keeps them in sync), so narrow it back.
-  return { ok: true, report: parsed.data as BugReportV1 };
+  // the hand-written BugReportV1 interface (S1-06 keeps them in sync), so narrow it back. The JSZip
+  // handle is retained by the ReportSource so panes can read binary entries lazily (S4-05).
+  return { ok: true, source: createReportSource(zip, parsed.data as BugReportV1) };
 }

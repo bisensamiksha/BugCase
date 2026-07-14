@@ -19,6 +19,7 @@ export {
 } from './panes/overview-metrics';
 export { renderMarkdownToSafeHtml } from './lib/markdown';
 export { readReportZip, type ReadReportResult } from './lib/read-report-zip';
+export { createReportSource, type ReportSource } from './lib/report-source';
 export {
   addReportTab,
   closeReportTab,
