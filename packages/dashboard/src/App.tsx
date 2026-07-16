@@ -7,7 +7,7 @@ import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
 import {
   LazyConsolePane,
-  LazyNetworkTable,
+  LazyNetworkPane,
   LazyOverviewPane,
   LazyPanePlaceholder,
   LazyScreenshotsPane,
@@ -42,7 +42,7 @@ function paneElement(
     case 'console':
       return <LazyConsolePane log={report.console} />;
     case 'network':
-      return <LazyNetworkTable log={report.network} />;
+      return <LazyNetworkPane log={report.network} />;
     case 'screenshots':
       // The pane reads image bytes lazily via the report's ReportSource; without one (should not
       // happen for an open tab) fall back to the neutral placeholder rather than throwing.

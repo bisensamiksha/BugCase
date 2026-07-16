@@ -15,7 +15,7 @@ beforeAll(async () => {
   await Promise.all([
     import('./panes/OverviewPane'),
     import('./panes/ConsolePane'),
-    import('./panes/NetworkTable'),
+    import('./panes/NetworkPane'),
     import('./panes/PanePlaceholder'),
   ]);
 });
@@ -155,7 +155,7 @@ describe('App', () => {
     expect(container.querySelector('[data-testid="console-pane"]')?.textContent).toContain(
       'heads up',
     );
-    expect(container.querySelector('[data-testid="network-table"]')).toBeNull();
+    expect(container.querySelector('[data-testid="network-pane"]')).toBeNull();
 
     // Switching the hash to the network pane routes the network data in, without re-reading the ZIP.
     await act(async () => {
@@ -163,7 +163,7 @@ describe('App', () => {
       window.dispatchEvent(new Event('hashchange'));
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="network-table"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="network-pane"]')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="network-row"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="console-pane"]')).toBeNull();
     expect(read).toHaveBeenCalledTimes(1);

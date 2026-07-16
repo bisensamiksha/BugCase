@@ -15,7 +15,7 @@ beforeAll(async () => {
   await Promise.all([
     import('./panes/OverviewPane'),
     import('./panes/ConsolePane'),
-    import('./panes/NetworkTable'),
+    import('./panes/NetworkPane'),
     import('./panes/PanePlaceholder'),
   ]);
 });
