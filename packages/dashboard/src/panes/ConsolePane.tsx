@@ -1,0 +1,279 @@
+import type { ConsoleArg, ConsoleEntry, ConsoleLevel, ConsoleLog } from '@bugcase/schema';
+import { compileSearch } from '@bugcase/shared-ui';
+import { useMemo, useState } from 'react';
+
+import { AsyncState } from '../components/AsyncState';
+import { JsonTree } from '../components/JsonTree';
+import { useVirtualWindow } from '../lib/virtual-window';
+
+import { CONSOLE_LEVELS, consoleTimeRange, filterConsole, levelCounts } from './console-filters';
+
+export interface ConsolePaneProps {
+  /** Parsed `report.console`; null when no console log was captured. */
+  readonly log: ConsoleLog | null;
+}
+
+/** Fixed row height (px) — keeps virtualization to simple windowing (no dynamic measurement). */
+const ROW_H = 28;
+
+const LEVEL_CLASS: Partial<Record<ConsoleLevel, string>> = {
+  error: 'text-red-600',
+  warn: 'text-amber-600',
+};
+
+function messageOf(entry: ConsoleEntry): string {
+  return entry.args.map((arg) => arg.preview).join(' ');
+}
+
+/** HH:MM:SS from an ISO timestamp; falls back to the raw string. */
+function timeOf(iso: string): string {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? iso : new Date(ms).toISOString().slice(11, 19);
+}
+
+function ArgValue({ arg }: { readonly arg: ConsoleArg }) {
+  const expandable =
+    (arg.type === 'object' || arg.type === 'array' || arg.type === 'error') &&
+    arg.full !== undefined;
+  return expandable ? (
+    <JsonTree data={arg.full} defaultOpen />
+  ) : (
+    <span className="font-mono text-[var(--bc-fg)]">{arg.preview}</span>
+  );
+}
+
+/**
+ * Console pane (S4-07). Replaces the interim `ConsoleTable`: per-level filter chips, full-text +
+ * regex search, a single-thumb time-cutoff scrubber, a fixed-height virtualized list, and a
+ * master–detail panel that renders object args through the shared `JsonTree`. All ZIP-derived text
+ * renders as text nodes / JsonTree — never as HTML.
+ */
+export function ConsolePane({ log }: ConsolePaneProps) {
+  const entries = useMemo(() => log?.entries ?? [], [log]);
+
+  const [activeLevels, setActiveLevels] = useState<ReadonlySet<ConsoleLevel>>(
+    () => new Set(CONSOLE_LEVELS),
+  );
+  const [query, setQuery] = useState('');
+  const [useRegex, setUseRegex] = useState(false);
+  const [cutoffMs, setCutoffMs] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const range = useMemo(() => consoleTimeRange(entries), [entries]);
+  const counts = useMemo(() => levelCounts(entries), [entries]);
+  const compiled = useMemo(
+    () => (query ? compileSearch(query, useRegex) : null),
+    [query, useRegex],
+  );
+  const invalidRegex = compiled !== null && !compiled.valid;
+
+  const visible = useMemo(() => {
+    const matcher = compiled === null ? null : compiled.valid ? compiled.match : () => false;
+    return filterConsole(entries, { levels: activeLevels, matcher, cutoffMs });
+  }, [entries, activeLevels, compiled, cutoffMs]);
+
+  const { window: vwin, containerRef, onScroll } = useVirtualWindow(visible.length, ROW_H);
+  const selected = entries.find((entry) => entry.id === selectedId) ?? null;
+  const showScrubber = range !== null && range.maxMs > range.minMs;
+
+  function toggleLevel(level: ConsoleLevel): void {
+    setActiveLevels((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) {
+        next.delete(level);
+      } else {
+        next.add(level);
+      }
+      return next;
+    });
+  }
+
+  if (entries.length === 0) {
+    return (
+      <section data-testid="console-pane" aria-label="Console" className="flex h-full flex-col p-4">
+        <AsyncState
+          status="empty"
+          empty={
+            <p data-testid="console-empty" className="text-[var(--bc-fg-muted)]">
+              No console entries captured.
+            </p>
+          }
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section data-testid="console-pane" aria-label="Console" className="flex h-full flex-col p-4">
+      <div
+        role="group"
+        aria-label="Console filters"
+        className="mb-3 flex flex-wrap items-center gap-3"
+      >
+        <div role="group" aria-label="Levels" className="flex gap-1">
+          {CONSOLE_LEVELS.map((level) => {
+            const on = activeLevels.has(level);
+            return (
+              <button
+                key={level}
+                type="button"
+                data-testid={`console-level-${level}`}
+                aria-pressed={on}
+                aria-label={`${level} (${counts[level]})`}
+                onClick={() => toggleLevel(level)}
+                className={`rounded px-2 py-0.5 font-mono text-xs ${
+                  on
+                    ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
+                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                }`}
+              >
+                {level} {counts[level]}
+              </button>
+            );
+          })}
+        </div>
+
+        <input
+          type="search"
+          data-testid="console-search"
+          aria-label="Search console"
+          placeholder="Search…"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+        />
+        <label className="flex items-center gap-1 text-sm text-[var(--bc-fg)]">
+          <input
+            type="checkbox"
+            data-testid="console-regex"
+            checked={useRegex}
+            onChange={(event) => setUseRegex(event.target.checked)}
+          />
+          Regex
+        </label>
+
+        {showScrubber ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              data-testid="console-time"
+              aria-label="Show entries up to"
+              aria-valuetext={
+                cutoffMs === null ? 'all entries' : timeOf(new Date(cutoffMs).toISOString())
+              }
+              min={range.minMs}
+              max={range.maxMs}
+              step={1}
+              value={cutoffMs ?? range.maxMs}
+              onChange={(event) => setCutoffMs(Number(event.target.value))}
+            />
+            <button
+              type="button"
+              data-testid="console-time-reset"
+              onClick={() => setCutoffMs(null)}
+              className="text-xs text-[var(--bc-fg-muted)] underline"
+            >
+              Show all
+            </button>
+          </div>
+        ) : null}
+
+        <span data-testid="console-count" className="text-xs text-[var(--bc-fg-muted)]">
+          {visible.length} of {entries.length}
+        </span>
+      </div>
+
+      {invalidRegex ? (
+        <p data-testid="console-invalid-regex" role="alert" className="mb-2 text-sm text-red-600">
+          Invalid regular expression.
+        </p>
+      ) : null}
+
+      <div
+        ref={containerRef}
+        onScroll={onScroll}
+        data-testid="console-list"
+        aria-label="Console entries"
+        className="flex-1 overflow-auto rounded border border-[var(--bc-border)]"
+      >
+        {visible.length === 0 ? (
+          <p data-testid="console-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
+            No entries match the current filters.
+          </p>
+        ) : (
+          <div style={{ paddingTop: vwin.padTop, paddingBottom: vwin.padBottom }}>
+            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry) => {
+              const current = entry.id === selectedId;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  data-testid="console-row"
+                  aria-current={current}
+                  aria-label={`${entry.level} ${timeOf(entry.timestamp)} ${messageOf(entry)}`}
+                  onClick={() => setSelectedId(entry.id)}
+                  style={{ height: ROW_H }}
+                  className={`flex w-full items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
+                    current
+                      ? 'border-[var(--bc-accent)] bg-[var(--bc-surface)]'
+                      : 'border-transparent'
+                  }`}
+                >
+                  <span
+                    className={`w-12 shrink-0 ${LEVEL_CLASS[entry.level] ?? 'text-[var(--bc-fg-muted)]'}`}
+                  >
+                    {entry.level}
+                  </span>
+                  <span className="w-20 shrink-0 text-[var(--bc-fg-muted)]">
+                    {timeOf(entry.timestamp)}
+                  </span>
+                  <span className="truncate text-[var(--bc-fg)]">{messageOf(entry)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div
+        data-testid="console-detail"
+        className="mt-3 max-h-64 overflow-auto rounded border border-[var(--bc-border)] p-3"
+      >
+        {selected ? (
+          <div>
+            <p className="font-mono text-sm text-[var(--bc-fg)]">
+              <span className={LEVEL_CLASS[selected.level] ?? ''}>{selected.level}</span>
+              {` · ${timeOf(selected.timestamp)}`}
+              {selected.source
+                ? ` · ${selected.source.file}:${selected.source.line}:${selected.source.column}`
+                : ''}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-[var(--bc-fg-muted)]">args</p>
+            <ol className="mt-1 space-y-1">
+              {selected.args.map((arg, index) => (
+                <li key={`${selected.id}-${index}`} data-testid="console-arg" className="text-sm">
+                  <span className="mr-1 text-[var(--bc-fg-muted)]">{index}:</span>
+                  <ArgValue arg={arg} />
+                </li>
+              ))}
+            </ol>
+            {selected.stack ? (
+              <details data-testid="console-stack" className="mt-2">
+                <summary className="cursor-pointer text-xs text-[var(--bc-fg-muted)]">
+                  Stack
+                </summary>
+                <pre className="mt-1 overflow-auto whitespace-pre-wrap text-xs text-[var(--bc-fg)]">
+                  {selected.stack}
+                </pre>
+              </details>
+            ) : null}
+          </div>
+        ) : (
+          <p data-testid="console-detail-empty" className="text-sm text-[var(--bc-fg-muted)]">
+            Select an entry to see its details.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}

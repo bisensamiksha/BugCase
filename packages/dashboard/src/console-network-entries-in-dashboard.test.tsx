@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
-import type { ConsoleLog, NetworkEntry, NetworkLog } from '@bugcase/schema';
+import type { NetworkEntry, NetworkLog } from '@bugcase/schema';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ConsoleTable } from './panes/ConsoleTable';
 import { NetworkTable } from './panes/NetworkTable';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -28,31 +27,6 @@ afterEach(() => {
 function rows(testId: string): NodeListOf<HTMLElement> {
   return container.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`);
 }
-
-const consoleLog: ConsoleLog = {
-  schemaVersion: 'v1',
-  capturedFromRingBuffer: true,
-  capturedFromDebugger: false,
-  bufferSize: 100,
-  truncated: false,
-  entries: [
-    {
-      id: 'c1',
-      timestamp: '2026-06-27T12:00:00.000Z',
-      level: 'log',
-      args: [{ type: 'string', preview: 'hello world' }],
-    },
-    {
-      id: 'c2',
-      timestamp: '2026-06-27T12:00:01.000Z',
-      level: 'error',
-      args: [
-        { type: 'string', preview: 'boom:' },
-        { type: 'number', preview: '42' },
-      ],
-    },
-  ],
-};
 
 const networkEntry = (overrides: Partial<NetworkEntry>): NetworkEntry => ({
   id: 'n1',
@@ -93,38 +67,6 @@ const networkLog: NetworkLog = {
     }),
   ],
 };
-
-describe('ConsoleTable', () => {
-  it('renders one row per entry with level and message preview', () => {
-    act(() => {
-      root.render(<ConsoleTable log={consoleLog} />);
-    });
-    const consoleRows = rows('console-row');
-    expect(consoleRows).toHaveLength(2);
-    expect(consoleRows[0]?.textContent).toContain('log');
-    expect(consoleRows[0]?.textContent).toContain('hello world');
-    // Multiple args are joined into a single message preview.
-    expect(consoleRows[1]?.textContent).toContain('error');
-    expect(consoleRows[1]?.textContent).toContain('boom:');
-    expect(consoleRows[1]?.textContent).toContain('42');
-  });
-
-  it('shows an empty state when the console log is null', () => {
-    act(() => {
-      root.render(<ConsoleTable log={null} />);
-    });
-    expect(container.querySelector('[data-testid="console-empty"]')).not.toBeNull();
-    expect(rows('console-row')).toHaveLength(0);
-  });
-
-  it('shows an empty state when there are no entries', () => {
-    act(() => {
-      root.render(<ConsoleTable log={{ ...consoleLog, entries: [] }} />);
-    });
-    expect(container.querySelector('[data-testid="console-empty"]')).not.toBeNull();
-    expect(rows('console-row')).toHaveLength(0);
-  });
-});
 
 describe('NetworkTable', () => {
   it('renders one row per entry with method, url and status', () => {

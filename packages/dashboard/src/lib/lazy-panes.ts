@@ -11,8 +11,8 @@ export const LazyOverviewPane = lazy(() =>
   import('../panes/OverviewPane').then((m) => ({ default: m.OverviewPane })),
 );
 
-export const LazyConsoleTable = lazy(() =>
-  import('../panes/ConsoleTable').then((m) => ({ default: m.ConsoleTable })),
+export const LazyConsolePane = lazy(() =>
+  import('../panes/ConsolePane').then((m) => ({ default: m.ConsolePane })),
 );
 
 export const LazyNetworkTable = lazy(() =>

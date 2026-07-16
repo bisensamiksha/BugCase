@@ -6,7 +6,7 @@ import { DropZone, zipFilesFrom } from './components/DropZone';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
 import {
-  LazyConsoleTable,
+  LazyConsolePane,
   LazyNetworkTable,
   LazyOverviewPane,
   LazyPanePlaceholder,
@@ -40,7 +40,7 @@ function paneElement(
 ) {
   switch (pane) {
     case 'console':
-      return <LazyConsoleTable log={report.console} />;
+      return <LazyConsolePane log={report.console} />;
     case 'network':
       return <LazyNetworkTable log={report.network} />;
     case 'screenshots':
