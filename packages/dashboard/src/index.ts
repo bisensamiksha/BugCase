@@ -27,6 +27,31 @@ export {
   filterConsole,
   type ConsoleFilter,
 } from './panes/console-filters';
+export { NetworkPane, type NetworkPaneProps } from './panes/NetworkPane';
+export {
+  NETWORK_INITIATORS,
+  FAILED_CLASS,
+  statusClass,
+  networkTimeRange,
+  entryText as networkEntryText,
+  presentStatusClasses,
+  distinctMethods,
+  presentInitiators,
+  statusClassCounts,
+  methodCounts,
+  initiatorCounts,
+  filterNetwork,
+  type NetworkFilter,
+} from './panes/network-filters';
+export {
+  Waterfall,
+  barGeometry,
+  statusClassColor,
+  STATUS_CLASS_COLOR,
+  type WaterfallProps,
+  type BarGeometry,
+} from './panes/Waterfall';
+export { toCurl } from './lib/curl';
 export { computeWindow, useVirtualWindow, type VirtualWindow } from './lib/virtual-window';
 export {
   consoleCounts,

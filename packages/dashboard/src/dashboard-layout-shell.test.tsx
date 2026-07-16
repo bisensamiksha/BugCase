@@ -15,7 +15,7 @@ beforeAll(async () => {
   await Promise.all([
     import('./panes/OverviewPane'),
     import('./panes/ConsolePane'),
-    import('./panes/NetworkTable'),
+    import('./panes/NetworkPane'),
     import('./panes/ScreenshotsPane'),
     import('./panes/PanePlaceholder'),
   ]);
@@ -164,7 +164,7 @@ describe('dashboard layout shell', () => {
       await Promise.resolve();
     });
 
-    expect(q('network-table')).not.toBeNull();
+    expect(q('network-pane')).not.toBeNull();
     expect(q('pane-overview')).toBeNull();
   });
 });
