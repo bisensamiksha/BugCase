@@ -18,6 +18,16 @@ export {
   formatAnnotationSummary,
   type KonvaShapeSummary,
 } from './panes/annotation-metadata';
+export { ConsolePane, type ConsolePaneProps } from './panes/ConsolePane';
+export {
+  CONSOLE_LEVELS,
+  consoleTimeRange,
+  entryText,
+  levelCounts,
+  filterConsole,
+  type ConsoleFilter,
+} from './panes/console-filters';
+export { computeWindow, useVirtualWindow, type VirtualWindow } from './lib/virtual-window';
 export {
   consoleCounts,
   networkCounts,

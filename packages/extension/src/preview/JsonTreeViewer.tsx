@@ -1,6 +1,5 @@
+import { compileSearch, filterJson, primitiveText } from '@bugcase/shared-ui';
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-
-import { compileSearch, filterJson, primitiveText } from './json-search';
 
 export interface JsonTreeViewerProps {
   readonly title: string;

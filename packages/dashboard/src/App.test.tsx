@@ -14,7 +14,7 @@ import { fakeReportSource } from './test-utils/fake-report-source';
 beforeAll(async () => {
   await Promise.all([
     import('./panes/OverviewPane'),
-    import('./panes/ConsoleTable'),
+    import('./panes/ConsolePane'),
     import('./panes/NetworkTable'),
     import('./panes/PanePlaceholder'),
   ]);
@@ -150,9 +150,9 @@ describe('App', () => {
     });
 
     // Only the active (console) pane renders; its data is present.
-    expect(container.querySelector('[data-testid="console-table"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="console-pane"]')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="console-row"]')).toHaveLength(1);
-    expect(container.querySelector('[data-testid="console-table"]')?.textContent).toContain(
+    expect(container.querySelector('[data-testid="console-pane"]')?.textContent).toContain(
       'heads up',
     );
     expect(container.querySelector('[data-testid="network-table"]')).toBeNull();
@@ -165,7 +165,7 @@ describe('App', () => {
     });
     expect(container.querySelector('[data-testid="network-table"]')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="network-row"]')).toHaveLength(1);
-    expect(container.querySelector('[data-testid="console-table"]')).toBeNull();
+    expect(container.querySelector('[data-testid="console-pane"]')).toBeNull();
     expect(read).toHaveBeenCalledTimes(1);
   });
 

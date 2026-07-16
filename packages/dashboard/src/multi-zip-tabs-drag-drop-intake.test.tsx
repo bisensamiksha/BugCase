@@ -14,7 +14,7 @@ import { fakeReportSource } from './test-utils/fake-report-source';
 beforeAll(async () => {
   await Promise.all([
     import('./panes/OverviewPane'),
-    import('./panes/ConsoleTable'),
+    import('./panes/ConsolePane'),
     import('./panes/NetworkTable'),
     import('./panes/PanePlaceholder'),
   ]);
@@ -142,7 +142,7 @@ describe('multi-ZIP tabs + drag-drop intake', () => {
     expect(q('report-tab-report-b')?.getAttribute('href')).toBe('#/overview/report-b');
 
     await navigate('#/console/report-b');
-    expect(q('console-table')).not.toBeNull();
+    expect(q('console-pane')).not.toBeNull();
     expect(q('report-tab-report-b')?.getAttribute('aria-current')).toBe('page');
   });
 

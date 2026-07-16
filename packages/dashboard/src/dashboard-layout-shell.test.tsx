@@ -14,7 +14,7 @@ import { fakeReportSource } from './test-utils/fake-report-source';
 beforeAll(async () => {
   await Promise.all([
     import('./panes/OverviewPane'),
-    import('./panes/ConsoleTable'),
+    import('./panes/ConsolePane'),
     import('./panes/NetworkTable'),
     import('./panes/ScreenshotsPane'),
     import('./panes/PanePlaceholder'),
@@ -133,7 +133,7 @@ describe('dashboard layout shell', () => {
     window.location.hash = '#/console';
     await renderLoaded(reportWith({}));
 
-    expect(q('console-table')).not.toBeNull();
+    expect(q('console-pane')).not.toBeNull();
     expect(q('pane-overview')).toBeNull();
   });
 
@@ -142,7 +142,7 @@ describe('dashboard layout shell', () => {
     await renderLoaded(reportWith({}));
 
     expect(q('pane-placeholder')).not.toBeNull();
-    expect(q('console-table')).toBeNull();
+    expect(q('console-pane')).toBeNull();
   });
 
   it('renders the screenshots pane once loaded', async () => {
