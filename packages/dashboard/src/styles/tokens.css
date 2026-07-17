@@ -31,6 +31,25 @@
   }
 }
 
+/*
+ * Shiki dual-theme flip (S4-09 DOM pane source view). Shiki inlines light colors plus
+ * `--shiki-dark*` variables per token; under the same dark conditions as the tokens above we swap
+ * to the dark values (!important outweighs the inline light style).
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .shiki,
+  :root:not([data-theme='light']) .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+
+:root[data-theme='dark'] .shiki,
+:root[data-theme='dark'] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+
 /* Explicit override hook for a future toggle: force dark regardless of OS. */
 :root[data-theme='dark'] {
   --bc-bg: #0f172a;

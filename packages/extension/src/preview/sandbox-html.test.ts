@@ -1,3 +1,4 @@
+import * as sharedUi from '@bugcase/shared-ui';
 import { describe, expect, it } from 'vitest';
 
 import { DOM_SANDBOX, buildSandboxSrcDoc, decodeDataUrlText } from './sandbox-html';
@@ -12,11 +13,10 @@ function base64DataUrl(text: string): string {
   return `data:text/plain;base64,${btoa(binary)}`;
 }
 
-describe('DOM_SANDBOX', () => {
-  it('grants neither scripts nor same-origin (maximally restrictive)', () => {
-    expect(DOM_SANDBOX).toBe('');
-    expect(DOM_SANDBOX).not.toContain('allow-scripts');
-    expect(DOM_SANDBOX).not.toContain('allow-same-origin');
+describe('sandbox re-export', () => {
+  it('exposes the shared-ui sandbox logic — the single security-critical copy (S4-09)', () => {
+    expect(DOM_SANDBOX).toBe(sharedUi.DOM_SANDBOX);
+    expect(buildSandboxSrcDoc).toBe(sharedUi.buildSandboxSrcDoc);
   });
 });
 
@@ -33,22 +33,5 @@ describe('decodeDataUrlText', () => {
 
   it('throws on a value that is not a data URL', () => {
     expect(() => decodeDataUrlText('https://example.com/x.html')).toThrow();
-  });
-});
-
-describe('buildSandboxSrcDoc', () => {
-  it('injects a network-blocking CSP into an existing <head>', () => {
-    const out = buildSandboxSrcDoc('<html><head><title>t</title></head><body>x</body></html>');
-    expect(out).toContain('Content-Security-Policy');
-    expect(out).toContain("default-src 'none'");
-    // The CSP lands inside <head>, before the title it should govern.
-    expect(out.indexOf('Content-Security-Policy')).toBeGreaterThan(out.indexOf('<head'));
-    expect(out.indexOf('Content-Security-Policy')).toBeLessThan(out.indexOf('<title'));
-  });
-
-  it('prepends the CSP when there is no <head>', () => {
-    const out = buildSandboxSrcDoc('<div>x</div>');
-    expect(out).toContain("default-src 'none'");
-    expect(out.indexOf('Content-Security-Policy')).toBeLessThan(out.indexOf('<div'));
   });
 });
