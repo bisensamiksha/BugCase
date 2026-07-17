@@ -17,6 +17,7 @@ beforeAll(async () => {
     import('./panes/ConsolePane'),
     import('./panes/NetworkPane'),
     import('./panes/ScreenshotsPane'),
+    import('./panes/DomPane'),
     import('./panes/PanePlaceholder'),
   ]);
 });
@@ -138,11 +139,58 @@ describe('dashboard layout shell', () => {
   });
 
   it('renders a neutral placeholder for a not-yet-built pane', async () => {
-    window.location.hash = '#/dom';
+    window.location.hash = '#/storage';
     await renderLoaded(reportWith({}));
 
     expect(q('pane-placeholder')).not.toBeNull();
     expect(q('console-pane')).toBeNull();
+  });
+
+  it('renders the DOM snapshot pane (empty state) once loaded', async () => {
+    window.location.hash = '#/dom';
+    await renderLoaded(reportWith({ dom: null }));
+
+    expect(q('dom-snapshot-pane')).not.toBeNull();
+    expect(q('dom-empty')).not.toBeNull();
+    expect(q('pane-placeholder')).toBeNull();
+  });
+
+  it('threads the ?el= deep-link into the DOM pane (S4-11 seam)', async () => {
+    window.location.hash = '#/dom';
+    const report = reportWith({
+      dom: {
+        schemaVersion: 'v1',
+        contentPath: 'raw/dom-snapshot.html',
+        byteSize: 24,
+        scrubbed: false,
+        scrubberHits: 0,
+      },
+    });
+    const source = {
+      ...fakeReportSource(report),
+      readText: () => Promise.resolve('<main id="root">x</main>'),
+    };
+    const read = vi.fn((_input: Blob) => Promise.resolve<ReadReportResult>({ ok: true, source }));
+    act(() => {
+      root.render(<App read={read} />);
+    });
+    await act(async () => {
+      dropFile(q('dropzone')!, zipFile());
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Deep-link fires while the report is open — exactly how S4-11 will link to an element.
+    await act(async () => {
+      window.location.hash = '#/dom/abc-123?el=%23root';
+      window.dispatchEvent(new Event('hashchange'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect((q('dom-search-input') as HTMLInputElement).value).toBe('#root');
+    expect(q('dom-match-count')?.textContent).toContain('1 of 1');
   });
 
   it('renders the screenshots pane once loaded', async () => {

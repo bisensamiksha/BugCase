@@ -23,6 +23,10 @@ export const LazyScreenshotsPane = lazy(() =>
   import('../panes/ScreenshotsPane').then((m) => ({ default: m.ScreenshotsPane })),
 );
 
+export const LazyDomPane = lazy(() =>
+  import('../panes/DomPane').then((m) => ({ default: m.DomPane })),
+);
+
 export const LazyPanePlaceholder = lazy(() =>
   import('../panes/PanePlaceholder').then((m) => ({ default: m.PanePlaceholder })),
 );

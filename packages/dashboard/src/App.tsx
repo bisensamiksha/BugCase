@@ -7,6 +7,7 @@ import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
 import {
   LazyConsolePane,
+  LazyDomPane,
   LazyNetworkPane,
   LazyOverviewPane,
   LazyPanePlaceholder,
@@ -37,6 +38,7 @@ function paneElement(
   report: BugReportV1,
   reportId: string,
   source: ReportSource | undefined,
+  elementQuery: string | null,
 ) {
   switch (pane) {
     case 'console':
@@ -48,6 +50,19 @@ function paneElement(
       // happen for an open tab) fall back to the neutral placeholder rather than throwing.
       return source ? (
         <LazyScreenshotsPane report={report} reportId={reportId} source={source} />
+      ) : (
+        <LazyPanePlaceholder pane={pane} />
+      );
+    case 'dom':
+      // Snapshot text is read lazily via the ReportSource; the `?el=` hash param deep-links to an
+      // element (S4-11 seam).
+      return source ? (
+        <LazyDomPane
+          dom={report.dom}
+          reportId={reportId}
+          source={source}
+          initialElementQuery={elementQuery}
+        />
       ) : (
         <LazyPanePlaceholder pane={pane} />
       );
@@ -68,15 +83,17 @@ function LoadedPane({
   report,
   reportId,
   source,
+  elementQuery,
 }: {
   readonly pane: DashboardPane;
   readonly report: BugReportV1;
   readonly reportId: string;
   readonly source: ReportSource | undefined;
+  readonly elementQuery: string | null;
 }) {
   return (
     <Suspense fallback={<AsyncState status="loading" loadingLabel="Loading view…" />}>
-      {paneElement(pane, report, reportId, source)}
+      {paneElement(pane, report, reportId, source, elementQuery)}
     </Suspense>
   );
 }
@@ -236,6 +253,7 @@ export function App({ read = readReportZip }: AppProps = {}) {
               report={activeReport.report}
               reportId={activeReport.id}
               source={sourcesRef.current.get(activeReport.id)}
+              elementQuery={route.params?.el ?? null}
             />
           </div>
         ) : null}

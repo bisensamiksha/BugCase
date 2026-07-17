@@ -52,6 +52,18 @@ export {
   type BarGeometry,
 } from './panes/Waterfall';
 export { toCurl } from './lib/curl';
+export { DomPane, type DomPaneProps } from './panes/DomPane';
+export { SandboxFrame, type SandboxFrameProps } from './components/SandboxFrame';
+export {
+  ACTIVE_MATCH_ATTR,
+  parseHtmlDocument,
+  searchElements,
+  elementBreadcrumb,
+  elementSnippet,
+  markedSnapshotHtml,
+  type ElementSearchResult,
+} from './panes/dom-search';
+export { highlightHtml, HIGHLIGHT_MAX_CHARS, type HighlightResult } from './lib/shiki';
 export { computeWindow, useVirtualWindow, type VirtualWindow } from './lib/virtual-window';
 export {
   consoleCounts,

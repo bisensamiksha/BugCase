@@ -79,6 +79,50 @@ describe('formatHash', () => {
   });
 });
 
+describe('query params (S4-09 open-at-element deep-link seam)', () => {
+  it('parses a ?el= query into params, after the report id', () => {
+    expect(parseHash('#/dom/rep-1?el=%23login')).toEqual({
+      activePane: 'dom',
+      reportId: 'rep-1',
+      params: { el: '#login' },
+    });
+  });
+
+  it('parses a query on a pane with no report id', () => {
+    expect(parseHash('#/dom?el=.btn')).toEqual({
+      activePane: 'dom',
+      reportId: null,
+      params: { el: '.btn' },
+    });
+  });
+
+  it('omits params entirely when the hash has no query (existing URLs unaffected)', () => {
+    expect(parseHash('#/console/rep-1').params).toBeUndefined();
+    expect(parseHash('#/dom?').params).toBeUndefined();
+  });
+
+  it('never throws on a malformed query', () => {
+    expect(() => parseHash('#/dom/r?el=%E0%A4%A')).not.toThrow();
+    expect(parseHash('#/dom/r?el=%E0%A4%A').activePane).toBe('dom');
+  });
+
+  it('formatHash appends an encoded query only when params are non-empty', () => {
+    expect(formatHash({ activePane: 'dom', reportId: 'rep-1', params: { el: '#login' } })).toBe(
+      '#/dom/rep-1?el=%23login',
+    );
+    expect(formatHash({ activePane: 'dom', reportId: 'rep-1', params: {} })).toBe('#/dom/rep-1');
+  });
+
+  it('round-trips a selector with reserved characters through the el param', () => {
+    const state = {
+      activePane: 'dom',
+      reportId: 'id with/slash',
+      params: { el: 'main > .card[data-x="1"] #login' },
+    } as const;
+    expect(parseHash(formatHash(state))).toEqual(state);
+  });
+});
+
 describe('parseHash / formatHash round-trip', () => {
   it('round-trips every pane with no report id', () => {
     for (const pane of DASHBOARD_PANES) {

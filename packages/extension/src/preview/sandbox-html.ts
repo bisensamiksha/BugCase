@@ -1,25 +1,13 @@
 /**
- * Safe iframe source helper for the DOM-snapshot viewer (S3-04).
+ * DOM-snapshot iframe safety for the preview viewer (S3-04).
  *
- * The held DOM snapshot is scrubbed `outerHTML` stored as text and surfaced by the SW peek bridge
- * as a `data:text/plain;base64,…` URL. To render it faithfully but safely we (1) decode it back to
- * the raw HTML string, (2) render it in an iframe whose `sandbox` grants nothing (no scripts, no
- * same-origin), and (3) wrap it in a `default-src 'none'` CSP so previewing a captured page cannot
- * fetch remote subresources or beacon out — privacy-first, no data leaves the browser.
+ * The security-critical sandbox/CSP logic lives in `@bugcase/shared-ui` (`sandbox-html.ts`) as the
+ * single copy shared with the dashboard DOM pane (S4-09) — never fork it back here. This module
+ * re-exports it for the viewer and keeps only the SW peek-bridge transport decoding, which is
+ * extension-specific (the held snapshot arrives as a `data:text/plain;base64,…` URL).
  */
 
-/**
- * Empty `sandbox` token list. An empty attribute applies every restriction: the iframe gets a
- * unique opaque origin and scripts are disabled. Adding any `allow-*` token would loosen it, so we
- * deliberately grant nothing here.
- */
-export const DOM_SANDBOX = '';
-
-/** Network-blocking policy for the snapshot iframe; inline styles + data: assets still render. */
-const SNAPSHOT_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:;";
-
-const CSP_META = `<meta http-equiv="Content-Security-Policy" content="${SNAPSHOT_CSP}">`;
+export { DOM_SANDBOX, buildSandboxSrcDoc } from '@bugcase/shared-ui';
 
 /**
  * Decode a `data:` URL (as returned by the SW peek bridge) back into its text payload. Handles the
@@ -41,15 +29,4 @@ export function decodeDataUrlText(dataUrl: string): string {
     return new TextDecoder().decode(bytes);
   }
   return decodeURIComponent(payload);
-}
-
-/**
- * Wrap captured HTML for an iframe `srcDoc`: inject the network-blocking CSP into `<head>` (or
- * prepend it when there is no head) so no remote subresource loads while previewing.
- */
-export function buildSandboxSrcDoc(html: string): string {
-  if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head([^>]*)>/i, `<head$1>${CSP_META}`);
-  }
-  return `${CSP_META}${html}`;
 }

@@ -7,3 +7,4 @@ export {
   type SearchMatcher,
   type CompiledSearch,
 } from './json-search';
+export { DOM_SANDBOX, SNAPSHOT_CSP, buildSandboxSrcDoc } from './sandbox-html';
