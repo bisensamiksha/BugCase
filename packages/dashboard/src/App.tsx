@@ -11,6 +11,7 @@ import {
   LazyNetworkPane,
   LazyOverviewPane,
   LazyPanePlaceholder,
+  LazyReproductionPane,
   LazyScreenshotsPane,
 } from './lib/lazy-panes';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
@@ -66,6 +67,8 @@ function paneElement(
       ) : (
         <LazyPanePlaceholder pane={pane} />
       );
+    case 'reproduction':
+      return <LazyReproductionPane reproduction={report.reproduction} reportId={reportId} />;
     case 'overview':
       return (
         <div data-testid="pane-overview" className="h-full">

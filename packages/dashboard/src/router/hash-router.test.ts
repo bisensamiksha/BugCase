@@ -9,16 +9,28 @@ import {
 } from './hash-router';
 
 describe('DASHBOARD_PANES / PANE_LABELS', () => {
-  it('lists all seven panes with overview first', () => {
+  it('lists all eight panes with overview first', () => {
     expect(DASHBOARD_PANES).toEqual([
       'overview',
       'screenshots',
       'console',
       'network',
       'dom',
+      'reproduction',
       'storage',
       'privacy',
     ]);
+  });
+
+  it('parses and formats the reproduction pane route (S4-10)', () => {
+    expect(parseHash('#/reproduction/abc-123')).toEqual({
+      activePane: 'reproduction',
+      reportId: 'abc-123',
+    });
+    expect(formatHash({ activePane: 'reproduction', reportId: 'abc-123' })).toBe(
+      '#/reproduction/abc-123',
+    );
+    expect(PANE_LABELS.reproduction).toBe('Reproduction');
   });
 
   it('has a non-empty label for every pane', () => {

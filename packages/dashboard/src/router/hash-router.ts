@@ -14,6 +14,7 @@ export type DashboardPane =
   | 'console'
   | 'network'
   | 'dom'
+  | 'reproduction'
   | 'storage'
   | 'privacy';
 
@@ -31,6 +32,7 @@ export const DASHBOARD_PANES: readonly DashboardPane[] = [
   'console',
   'network',
   'dom',
+  'reproduction',
   'storage',
   'privacy',
 ];
@@ -42,6 +44,7 @@ export const PANE_LABELS: Record<DashboardPane, string> = {
   console: 'Console',
   network: 'Network',
   dom: 'DOM',
+  reproduction: 'Reproduction',
   storage: 'Storage',
   privacy: 'Privacy',
 };
