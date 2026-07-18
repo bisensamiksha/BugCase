@@ -9,17 +9,29 @@ import {
 } from './hash-router';
 
 describe('DASHBOARD_PANES / PANE_LABELS', () => {
-  it('lists all eight panes with overview first', () => {
+  it('lists all nine panes with overview first', () => {
     expect(DASHBOARD_PANES).toEqual([
       'overview',
       'screenshots',
       'console',
       'network',
       'dom',
+      'inspections',
       'reproduction',
       'storage',
       'privacy',
     ]);
+  });
+
+  it('parses and formats the inspections pane route (S4-11)', () => {
+    expect(parseHash('#/inspections/abc-123')).toEqual({
+      activePane: 'inspections',
+      reportId: 'abc-123',
+    });
+    expect(formatHash({ activePane: 'inspections', reportId: 'abc-123' })).toBe(
+      '#/inspections/abc-123',
+    );
+    expect(PANE_LABELS.inspections).toBe('Inspections');
   });
 
   it('parses and formats the reproduction pane route (S4-10)', () => {

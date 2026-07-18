@@ -8,6 +8,7 @@ import { AppShell } from './layout/AppShell';
 import {
   LazyConsolePane,
   LazyDomPane,
+  LazyElementInspectionsPane,
   LazyNetworkPane,
   LazyOverviewPane,
   LazyPanePlaceholder,
@@ -63,6 +64,17 @@ function paneElement(
           reportId={reportId}
           source={source}
           initialElementQuery={elementQuery}
+        />
+      ) : (
+        <LazyPanePlaceholder pane={pane} />
+      );
+    case 'inspections':
+      // Crop bytes are read lazily via the ReportSource; without one fall back to the placeholder.
+      return source ? (
+        <LazyElementInspectionsPane
+          manifest={report.elementInspections}
+          reportId={reportId}
+          source={source}
         />
       ) : (
         <LazyPanePlaceholder pane={pane} />
