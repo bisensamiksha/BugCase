@@ -20,6 +20,7 @@ beforeAll(async () => {
     import('./panes/DomPane'),
     import('./panes/ElementInspectionsPane'),
     import('./panes/ReproductionPane'),
+    import('./panes/StoragePane'),
     import('./panes/PanePlaceholder'),
   ]);
 });
@@ -143,11 +144,20 @@ describe('dashboard layout shell', () => {
   });
 
   it('renders a neutral placeholder for a not-yet-built pane', async () => {
-    window.location.hash = '#/storage';
+    window.location.hash = '#/privacy';
     await renderLoaded(reportWith({}));
 
     expect(q('pane-placeholder')).not.toBeNull();
     expect(q('console-pane')).toBeNull();
+  });
+
+  it('renders the storage pane on #/storage', async () => {
+    window.location.hash = '#/storage';
+    await renderLoaded(reportWith({ cookies: null, storage: null }));
+
+    expect(q('storage-pane')).not.toBeNull();
+    expect(q('storage-empty')).not.toBeNull();
+    expect(q('pane-placeholder')).toBeNull();
   });
 
   it('renders the reproduction pane on #/reproduction', async () => {

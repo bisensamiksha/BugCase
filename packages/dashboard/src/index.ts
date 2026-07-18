@@ -124,3 +124,14 @@ export {
   type StyleGroup,
 } from './lib/computed-style-diff';
 export { deriveSelector, elementLabel, ancestorBreadcrumb } from './panes/inspection-selector';
+export { StoragePane, type StoragePaneProps } from './panes/StoragePane';
+export { MaskedValue, type MaskedValueProps } from './components/MaskedValue';
+export {
+  cookieRows,
+  storageRows,
+  cookieSummary,
+  storageSummary,
+  type CookieRow,
+  type StorageRow,
+} from './panes/storage-tables';
+export { formatByteSize } from './lib/format-bytes';

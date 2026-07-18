@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AsyncState, type AsyncStatus } from '../components/AsyncState';
 import { SandboxFrame } from '../components/SandboxFrame';
+import { formatByteSize } from '../lib/format-bytes';
 import type { ReportSource } from '../lib/report-source';
 import { highlightHtml, type HighlightResult } from '../lib/shiki';
 
@@ -25,16 +26,6 @@ export interface DomPaneProps {
 }
 
 type SnapshotTab = 'rendered' | 'source';
-
-function formatByteSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  if (bytes >= 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  return `${bytes} B`;
-}
 
 const TAB_IDS: Record<SnapshotTab, { tab: string; panel: string }> = {
   rendered: { tab: 'dom-tab-rendered', panel: 'dom-panel-rendered' },

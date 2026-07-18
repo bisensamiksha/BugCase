@@ -14,6 +14,7 @@ import {
   LazyPanePlaceholder,
   LazyReproductionPane,
   LazyScreenshotsPane,
+  LazyStoragePane,
 } from './lib/lazy-panes';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
 import type { ReportSource } from './lib/report-source';
@@ -81,6 +82,8 @@ function paneElement(
       );
     case 'reproduction':
       return <LazyReproductionPane reproduction={report.reproduction} reportId={reportId} />;
+    case 'storage':
+      return <LazyStoragePane cookies={report.cookies} storage={report.storage} />;
     case 'overview':
       return (
         <div data-testid="pane-overview" className="h-full">
