@@ -96,3 +96,19 @@ export {
   type RouteState,
 } from './router/hash-router';
 export { useHashRoute } from './router/use-hash-route';
+export { ReproductionPane, type ReproductionPaneProps } from './panes/ReproductionPane';
+export { reproMarkdown, stepOffsetMs, formatOffset } from './lib/repro-markdown';
+export {
+  INITIAL_PLAYBACK,
+  MIN_ADVANCE_MS,
+  MAX_ADVANCE_MS,
+  DEFAULT_ADVANCE_MS,
+  startPlayback,
+  pausePlayback,
+  advancePlayback,
+  stepForward,
+  stepBackward,
+  selectStep,
+  advanceDelayMs,
+  type PlaybackState,
+} from './panes/repro-highlight';
