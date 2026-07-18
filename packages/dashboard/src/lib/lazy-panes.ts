@@ -31,6 +31,10 @@ export const LazyReproductionPane = lazy(() =>
   import('../panes/ReproductionPane').then((m) => ({ default: m.ReproductionPane })),
 );
 
+export const LazyElementInspectionsPane = lazy(() =>
+  import('../panes/ElementInspectionsPane').then((m) => ({ default: m.ElementInspectionsPane })),
+);
+
 export const LazyPanePlaceholder = lazy(() =>
   import('../panes/PanePlaceholder').then((m) => ({ default: m.PanePlaceholder })),
 );

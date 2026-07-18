@@ -112,3 +112,15 @@ export {
   advanceDelayMs,
   type PlaybackState,
 } from './panes/repro-highlight';
+export {
+  ElementInspectionsPane,
+  type ElementInspectionsPaneProps,
+} from './panes/ElementInspectionsPane';
+export { HtmlSnippet, type HtmlSnippetProps } from './components/HtmlSnippet';
+export {
+  STYLE_CATEGORY_ORDER,
+  categorizeStyles,
+  filterStyles,
+  type StyleGroup,
+} from './lib/computed-style-diff';
+export { deriveSelector, elementLabel, ancestorBreadcrumb } from './panes/inspection-selector';

@@ -18,6 +18,7 @@ beforeAll(async () => {
     import('./panes/NetworkPane'),
     import('./panes/ScreenshotsPane'),
     import('./panes/DomPane'),
+    import('./panes/ElementInspectionsPane'),
     import('./panes/ReproductionPane'),
     import('./panes/PanePlaceholder'),
   ]);
@@ -80,7 +81,7 @@ const reportWith = (extra: Partial<BugReportV1>): BugReportV1 =>
   ({ schemaVersion: 'v1', metadata: { id: 'abc-123' }, ...extra }) as unknown as BugReportV1;
 
 describe('dashboard layout shell', () => {
-  it('renders the top bar, side nav for all eight panes, and the dropzone when empty', () => {
+  it('renders the top bar, side nav for all nine panes, and the dropzone when empty', () => {
     act(() => {
       root.render(<App read={vi.fn()} />);
     });
@@ -93,6 +94,7 @@ describe('dashboard layout shell', () => {
       'console',
       'network',
       'dom',
+      'inspections',
       'reproduction',
       'storage',
       'privacy',
@@ -154,6 +156,15 @@ describe('dashboard layout shell', () => {
 
     expect(q('reproduction-pane')).not.toBeNull();
     expect(q('repro-empty')).not.toBeNull();
+    expect(q('pane-placeholder')).toBeNull();
+  });
+
+  it('renders the element inspections pane on #/inspections', async () => {
+    window.location.hash = '#/inspections';
+    await renderLoaded(reportWith({ elementInspections: null }));
+
+    expect(q('element-inspections-pane')).not.toBeNull();
+    expect(q('inspections-empty')).not.toBeNull();
     expect(q('pane-placeholder')).toBeNull();
   });
 
