@@ -35,12 +35,15 @@ describe('createCookiesCollector', () => {
     );
     const collect = createCookiesCollector({ isGranted: () => Promise.resolve(true), getAll });
 
-    const dump = await collect(URL);
+    const result = await collect(URL);
     expect(getAll).toHaveBeenCalledWith(URL);
+    const dump = result?.cookies;
     expect(dump?.entries).toHaveLength(1);
     // Value masked by the collector — the raw secret never survives.
     expect(dump?.entries[0]?.value).not.toBe('secret');
     expect(dump?.entries[0]?.masked).toBe(true);
+    // The cookie scrubber's per-rule summary is surfaced for metadata.scrubbersApplied.
+    expect(result?.scrubbersApplied.length).toBeGreaterThan(0);
   });
 
   it('resolves null without throwing when the permission check fails', async () => {

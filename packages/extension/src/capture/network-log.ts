@@ -9,6 +9,7 @@
  */
 
 import {
+  aggregateScrubberHits,
   scrubHeaders,
   type NetworkEntry,
   type NetworkLog,
@@ -71,17 +72,6 @@ function toEntry(
   return { entry, applied: [...req.applied, ...res.applied] };
 }
 
-/** Sum scrubber hits per rule id so `metadata.scrubbersApplied` carries one entry per rule. */
-function aggregate(applied: readonly ScrubberRuleApplied[]): ScrubberRuleApplied[] {
-  const byId = new Map<string, ScrubberRuleApplied>();
-  for (const item of applied) {
-    const prev = byId.get(item.id);
-    byId.set(item.id, prev ? { ...prev, hits: prev.hits + item.hits } : { ...item });
-  }
-  // Drop no-op rules so the report only lists scrubbers that actually fired.
-  return [...byId.values()].filter((rule) => rule.hits > 0);
-}
-
 export interface ToNetworkLogResult {
   readonly log: NetworkLog;
   /** Header scrubber hits, aggregated by rule id, to merge into `metadata.scrubbersApplied`. */
@@ -116,6 +106,6 @@ export function toNetworkLog(
       capturedFromDebugger: false,
       entries: mapped,
     },
-    scrubbersApplied: aggregate(allApplied),
+    scrubbersApplied: aggregateScrubberHits(allApplied),
   };
 }

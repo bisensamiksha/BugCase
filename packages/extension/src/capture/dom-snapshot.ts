@@ -13,6 +13,7 @@ import {
   scrubDom,
   type DomScrubberOptions,
   type DomSnapshot,
+  type ScrubberRuleApplied,
 } from '@bugcase/schema';
 
 export interface DomSnapshotResult {
@@ -20,6 +21,8 @@ export interface DomSnapshotResult {
   readonly snapshot: DomSnapshot;
   /** Scrubbed HTML to store at `snapshot.contentPath`. */
   readonly html: string;
+  /** Per-rule S2-08 hits, merged into `metadata.scrubbersApplied` at capture. */
+  readonly scrubbersApplied: readonly ScrubberRuleApplied[];
 }
 
 export interface CollectDomSnapshotDeps {
@@ -55,6 +58,7 @@ export async function collectDomSnapshot(
         scrubbed: true,
         scrubberHits: scrubbed.hits,
       },
+      scrubbersApplied: scrubbed.applied,
     };
   } catch {
     return null;

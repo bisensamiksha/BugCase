@@ -12,6 +12,7 @@ import type {
   ElementInspection,
   ElementInspectionsManifest,
   ScreenshotRef,
+  ScrubberRuleApplied,
 } from '@bugcase/schema';
 
 /** What the overlay sends per picked element in CAPTURE_REPORT (crop is a data URL, or null). */
@@ -26,6 +27,8 @@ export interface CaptureElementInspection {
   };
   readonly ancestors: readonly ElementAncestor[];
   readonly cropDataUrl: string | null;
+  /** Per-rule outerHTML scrub hits; merged into `metadata.scrubbersApplied` at capture (S4-13). */
+  readonly scrubbersApplied?: readonly ScrubberRuleApplied[];
 }
 
 export interface BuiltElementInspections {

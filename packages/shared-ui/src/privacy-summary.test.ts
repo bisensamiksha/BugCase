@@ -44,7 +44,25 @@ describe('summarizePrivacy', () => {
   it('returns an empty summary without throwing when metadata fields are missing', () => {
     const summary = summarizePrivacy(makeReport({}));
     expect(summary.permissions).toEqual([]);
+    expect(summary.permissionsAtCapture).toEqual([]);
     expect(summary.scrubbers).toEqual([]);
     expect(summary.totalScrubberHits).toBe(0);
+  });
+
+  it('surfaces the full permissionsAtCapture list (granted and not)', () => {
+    const summary = summarizePrivacy(
+      makeReport({
+        permissionsAtCapture: [
+          { name: 'cookies', grantedAtCapture: true },
+          { name: 'debugger', grantedAtCapture: false },
+        ],
+        scrubbersApplied: [],
+      }),
+    );
+    expect(summary.permissionsAtCapture).toEqual([
+      { name: 'cookies', grantedAtCapture: true },
+      { name: 'debugger', grantedAtCapture: false },
+    ]);
+    expect(summary.permissions).toEqual(['cookies']);
   });
 });

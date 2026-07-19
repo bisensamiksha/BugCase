@@ -12,6 +12,7 @@ import {
   LazyNetworkPane,
   LazyOverviewPane,
   LazyPanePlaceholder,
+  LazyPrivacyPane,
   LazyReproductionPane,
   LazyScreenshotsPane,
   LazyStoragePane,
@@ -84,6 +85,8 @@ function paneElement(
       return <LazyReproductionPane reproduction={report.reproduction} reportId={reportId} />;
     case 'storage':
       return <LazyStoragePane cookies={report.cookies} storage={report.storage} />;
+    case 'privacy':
+      return <LazyPrivacyPane report={report} reportId={reportId} />;
     case 'overview':
       return (
         <div data-testid="pane-overview" className="h-full">

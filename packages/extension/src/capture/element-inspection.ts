@@ -8,7 +8,7 @@
  * injectable, so the diff logic is unit-tested without a real layout engine.
  */
 
-import { scrubDom } from '@bugcase/schema';
+import { scrubDom, type ScrubberRuleApplied } from '@bugcase/schema';
 
 import { CURATED_STYLE_PROPS, computeNonDefaultStyles } from './computed-styles';
 
@@ -31,6 +31,8 @@ export interface RawElementInspection {
     readonly height: number;
   };
   readonly ancestors: readonly RawElementAncestor[];
+  /** Per-rule hits from scrubbing this element's outerHTML; merged into `metadata.scrubbersApplied` at capture. */
+  readonly scrubbersApplied?: readonly ScrubberRuleApplied[];
 }
 
 export interface BuildElementInspectionDeps {
@@ -41,7 +43,10 @@ export interface BuildElementInspectionDeps {
   /** Max ancestors captured (nearest first); defaults to 5. */
   readonly maxAncestors?: number;
   /** Scrubs the outerHTML; defaults to the S2-08 DOM scrubber (masks passwords/inputs). */
-  readonly scrub?: (html: string) => string;
+  readonly scrub?: (html: string) => {
+    readonly value: string;
+    readonly applied: readonly ScrubberRuleApplied[];
+  };
 }
 
 function defaultReadStyles(el: Element): (prop: string) => string {
@@ -105,13 +110,20 @@ export function buildElementInspection(
   const readStyles = deps.readStyles ?? defaultReadStyles;
   const readDefaultStyles = deps.readDefaultStyles ?? defaultReadDefaultStyles;
   const maxAncestors = deps.maxAncestors ?? DEFAULT_MAX_ANCESTORS;
-  const scrub = deps.scrub ?? ((html: string) => scrubDom(html).value);
+  const scrub =
+    deps.scrub ??
+    ((html: string) => {
+      const result = scrubDom(html);
+      return { value: result.value, applied: result.applied };
+    });
   const tag = el.tagName.toLowerCase();
+  const scrubbed = scrub(el.outerHTML);
 
   return {
-    outerHtml: scrub(el.outerHTML),
+    outerHtml: scrubbed.value,
     computedStyles: computeNonDefaultStyles(readStyles(el), readDefaultStyles(tag)),
     boundingClientRect: rectOf(el),
     ancestors: collectAncestors(el, maxAncestors),
+    scrubbersApplied: scrubbed.applied,
   };
 }

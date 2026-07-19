@@ -13,6 +13,7 @@ import {
   type CookieEntry,
   type CookieSameSite,
   type CookiesDump,
+  type ScrubberRuleApplied,
 } from '@bugcase/schema';
 
 /** Defensive upper bound on entries recorded (a single origin's cookie set is small; this caps pathology). */
@@ -36,6 +37,12 @@ export interface CookieLike {
 export interface CollectCookiesDeps {
   /** Lists cookies for the captured url (live: `browser.cookies.getAll({ url })`; tests inject a fake). */
   readonly getAll: () => Promise<readonly CookieLike[]>;
+}
+
+/** A collected dump plus the S2-09 cookie scrubber's per-rule summary for `metadata.scrubbersApplied`. */
+export interface CollectCookiesResult {
+  readonly cookies: CookiesDump;
+  readonly scrubbersApplied: readonly ScrubberRuleApplied[];
 }
 
 /** Map the browser's `sameSite` status onto the schema enum (`no_restriction` → `none`). */
@@ -88,7 +95,9 @@ function toEntry(item: CookieLike): CookieEntry {
  * Collect the captured origin's cookies into a {@link CookiesDump}, masking every value by default.
  * Returns an empty dump when no cookies match, and `null` only when `getAll` rejects (never throws).
  */
-export async function collectCookies(deps: CollectCookiesDeps): Promise<CookiesDump | null> {
+export async function collectCookies(
+  deps: CollectCookiesDeps,
+): Promise<CollectCookiesResult | null> {
   try {
     const items = await deps.getAll();
     const entries = items
@@ -100,7 +109,11 @@ export async function collectCookies(deps: CollectCookiesDeps): Promise<CookiesD
           a.path.localeCompare(b.path),
       )
       .slice(0, COOKIES_MAX);
-    return { schemaVersion: 'v1', entries: scrubCookies(entries).value };
+    const scrubbed = scrubCookies(entries);
+    return {
+      cookies: { schemaVersion: 'v1', entries: scrubbed.value },
+      scrubbersApplied: scrubbed.applied,
+    };
   } catch {
     return null;
   }

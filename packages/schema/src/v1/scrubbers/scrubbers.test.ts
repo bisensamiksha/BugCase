@@ -7,7 +7,7 @@ import {
   createPasswordPlaceholderRule,
   defaultSprint1Scrubbers,
 } from './password-placeholder';
-import { runScrubberPipeline } from './pipeline';
+import { aggregateScrubberHits, runScrubberPipeline } from './pipeline';
 import type { ScrubberRule } from './types';
 
 const appendRule = (id: string, suffix: string): ScrubberRule<string> => ({
@@ -49,6 +49,59 @@ describe('runScrubberPipeline', () => {
   it('does not throw on a null value (empty state)', () => {
     expect(() => runScrubberPipeline(null, defaultSprint1Scrubbers<null>())).not.toThrow();
     expect(runScrubberPipeline(null, defaultSprint1Scrubbers<null>()).value).toBeNull();
+  });
+});
+
+describe('aggregateScrubberHits', () => {
+  const entry = (id: string, hits: number, description = `rule ${id}`) => ({
+    id,
+    description,
+    hits,
+  });
+
+  it('returns an empty list for empty input', () => {
+    expect(aggregateScrubberHits([])).toEqual([]);
+  });
+
+  it('sums hits by rule id, keeping first-seen order', () => {
+    const result = aggregateScrubberHits([entry('a', 1), entry('b', 2), entry('a', 3)]);
+    expect(result).toEqual([entry('a', 4), entry('b', 2)]);
+  });
+
+  it('keeps the first description seen for a rule id', () => {
+    const result = aggregateScrubberHits([entry('a', 1, 'first'), entry('a', 1, 'second')]);
+    expect(result).toEqual([entry('a', 2, 'first')]);
+  });
+
+  it('drops rules that never fired', () => {
+    const result = aggregateScrubberHits([entry('a', 0), entry('b', 1), entry('a', 0)]);
+    expect(result).toEqual([entry('b', 1)]);
+  });
+});
+
+describe('ScrubberRuleAppliedSchema (metadata.scrubbersApplied slot lock)', () => {
+  const valid = { id: 'dom-passwords', description: 'Mask password inputs', hits: 3 };
+
+  it('round-trips a valid entry, and an empty list is a valid slot value', () => {
+    expect(ScrubberRuleAppliedSchema.parse(valid)).toEqual(valid);
+    expect(ScrubberRuleAppliedSchema.array().parse([])).toEqual([]);
+    expect(ScrubberRuleAppliedSchema.array().parse([valid])).toEqual([valid]);
+  });
+
+  it('rejects an empty rule id', () => {
+    expect(ScrubberRuleAppliedSchema.safeParse({ ...valid, id: '' }).success).toBe(false);
+  });
+
+  it('rejects negative hits', () => {
+    expect(ScrubberRuleAppliedSchema.safeParse({ ...valid, hits: -1 }).success).toBe(false);
+  });
+
+  it('rejects non-integer hits', () => {
+    expect(ScrubberRuleAppliedSchema.safeParse({ ...valid, hits: 1.5 }).success).toBe(false);
+  });
+
+  it('rejects unknown keys (strict)', () => {
+    expect(ScrubberRuleAppliedSchema.safeParse({ ...valid, value: 'leaked' }).success).toBe(false);
   });
 });
 

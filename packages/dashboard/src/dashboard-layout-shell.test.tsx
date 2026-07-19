@@ -21,6 +21,7 @@ beforeAll(async () => {
     import('./panes/ElementInspectionsPane'),
     import('./panes/ReproductionPane'),
     import('./panes/StoragePane'),
+    import('./panes/PrivacyPane'),
     import('./panes/PanePlaceholder'),
   ]);
 });
@@ -143,11 +144,12 @@ describe('dashboard layout shell', () => {
     expect(q('pane-overview')).toBeNull();
   });
 
-  it('renders a neutral placeholder for a not-yet-built pane', async () => {
+  it('renders the privacy pane on #/privacy', async () => {
     window.location.hash = '#/privacy';
     await renderLoaded(reportWith({}));
 
-    expect(q('pane-placeholder')).not.toBeNull();
+    expect(q('privacy-pane')).not.toBeNull();
+    expect(q('pane-placeholder')).toBeNull();
     expect(q('console-pane')).toBeNull();
   });
 

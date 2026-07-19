@@ -39,6 +39,10 @@ export const LazyStoragePane = lazy(() =>
   import('../panes/StoragePane').then((m) => ({ default: m.StoragePane })),
 );
 
+export const LazyPrivacyPane = lazy(() =>
+  import('../panes/PrivacyPane').then((m) => ({ default: m.PrivacyPane })),
+);
+
 export const LazyPanePlaceholder = lazy(() =>
   import('../panes/PanePlaceholder').then((m) => ({ default: m.PanePlaceholder })),
 );

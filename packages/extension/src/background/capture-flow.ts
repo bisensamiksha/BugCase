@@ -1,5 +1,6 @@
 import {
   BUG_REPORT_ZIP_LAYOUT,
+  aggregateScrubberHits,
   type AnnotationFile,
   type AnnotationsManifest,
   type BrowserInfo,
@@ -7,7 +8,6 @@ import {
   type BugReportZipAssets,
   type CaptureMetadata,
   type ConsoleLog,
-  type CookiesDump,
   type InstalledExtensionInfo,
   type NavigationLog,
   type NetworkLog,
@@ -19,6 +19,7 @@ import {
 } from '@bugcase/schema';
 
 import { annotationFilePath } from '../annotation/konva-serialization';
+import type { CollectCookiesResult } from '../capture/cookies';
 import type { DomSnapshotResult } from '../capture/dom-snapshot';
 import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 import type { DebuggerNetworkCaptureResult } from '../debugger/run-network-capture';
@@ -75,7 +76,7 @@ export interface CaptureReportDeps {
    * its result is recorded as `report.cookies` (all values masked by default). Never throws; `null`
    * means "not collected" (no `cookies` permission/error).
    */
-  readonly collectCookies?: (url: string) => Promise<CookiesDump | null>;
+  readonly collectCookies?: (url: string) => Promise<CollectCookiesResult | null>;
   /**
    * Optional local/session storage collector (S2-18). When provided, its result is recorded as
    * `report.storage` (secret-looking values masked by default). Never throws; `null` means "not
@@ -146,7 +147,9 @@ export async function captureReport(
 
     // Optional cookies (S2-17): the captured origin's cookies behind the optional `cookies`
     // permission, scoped to the page url. All values are masked by default inside the collector.
-    const cookies = deps.collectCookies ? await deps.collectCookies(input.metadata.page.url) : null;
+    const cookiesResult = deps.collectCookies
+      ? await deps.collectCookies(input.metadata.page.url)
+      : null;
 
     // Optional local/session storage (S2-18): masked, bounded localStorage/sessionStorage read in
     // the page. Never throws; `null` means not collected.
@@ -182,9 +185,21 @@ export async function captureReport(
       elementCrops: inspections?.elementCrops ?? [],
     };
 
+    // Recorded evidence (S4-13): merge every scrub run's per-rule hits into the one
+    // metadata.scrubbersApplied slot — overlay-carried (network) + DOM + cookies + inspections.
+    const scrubbersApplied = aggregateScrubberHits([
+      ...input.metadata.scrubbersApplied,
+      ...(dom?.scrubbersApplied ?? []),
+      ...(cookiesResult?.scrubbersApplied ?? []),
+      ...(input.elementInspections ?? []).flatMap(
+        (inspection) => inspection.scrubbersApplied ?? [],
+      ),
+    ]);
+    const reportMetadata: CaptureMetadata = { ...input.metadata, scrubbersApplied };
+
     const report: BugReportV1 = {
       schemaVersion: 'v1',
-      metadata: input.metadata,
+      metadata: reportMetadata,
       userInput: input.userInput,
       screenshots,
       browser: reportBrowser,
@@ -192,7 +207,7 @@ export async function captureReport(
       network: input.network ?? null,
       dom: dom?.snapshot ?? null,
       storage,
-      cookies,
+      cookies: cookiesResult?.cookies ?? null,
       navigation,
       reproduction: input.reproduction ?? null,
       elementInspections: inspections?.manifest ?? null,
