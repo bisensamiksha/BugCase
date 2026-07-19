@@ -36,3 +36,19 @@ export function runScrubberPipeline<T>(
 
   return { value: current, hits: totalHits, applied };
 }
+
+/**
+ * Sum per-rule hits across one or many scrub runs so `metadata.scrubbersApplied` carries a
+ * single entry per rule. First-seen order and description win; rules that never fired are
+ * dropped — the report only lists scrubbers that actually removed something.
+ */
+export function aggregateScrubberHits(
+  applied: readonly ScrubberRuleApplied[],
+): ScrubberRuleApplied[] {
+  const byId = new Map<string, ScrubberRuleApplied>();
+  for (const item of applied) {
+    const prev = byId.get(item.id);
+    byId.set(item.id, prev ? { ...prev, hits: prev.hits + item.hits } : { ...item });
+  }
+  return [...byId.values()].filter((rule) => rule.hits > 0);
+}

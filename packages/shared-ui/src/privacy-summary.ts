@@ -12,6 +12,12 @@ export interface PrivacySummaryScrubber {
   readonly hits: number;
 }
 
+/** One permission as it stood at capture (granted or not) — evidence for the privacy pane. */
+export interface PrivacySummaryPermission {
+  readonly name: string;
+  readonly grantedAtCapture: boolean;
+}
+
 /**
  * The privacy-relevant facts a user should confirm before the report leaves the preview:
  * which permissions were active while capturing, and which scrubbers ran (and what they removed).
@@ -19,6 +25,8 @@ export interface PrivacySummaryScrubber {
 export interface PrivacySummary {
   /** Names of the permissions that were granted while the capture ran. */
   readonly permissions: readonly string[];
+  /** Every permission as it stood at capture (granted or not), for evidence display. */
+  readonly permissionsAtCapture: readonly PrivacySummaryPermission[];
   /** Scrubber rules that ran over the capture, in pipeline order, with their match counts. */
   readonly scrubbers: readonly PrivacySummaryScrubber[];
   /** Total number of values the scrubbers removed across every rule. */
@@ -45,5 +53,13 @@ export function summarizePrivacy(report: BugReportV1): PrivacySummary {
 
   const totalScrubberHits = scrubbers.reduce((sum, s) => sum + s.hits, 0);
 
-  return { permissions, scrubbers, totalScrubberHits };
+  return {
+    permissions,
+    permissionsAtCapture: permissionsAtCapture.map((p) => ({
+      name: p.name,
+      grantedAtCapture: p.grantedAtCapture,
+    })),
+    scrubbers,
+    totalScrubberHits,
+  };
 }

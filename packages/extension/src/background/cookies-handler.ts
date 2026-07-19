@@ -14,9 +14,7 @@
  * browser branching is needed. The permission gate plus never-throw degradation covers absence.
  */
 
-import type { CookiesDump } from '@bugcase/schema';
-
-import { collectCookies, type CookieLike } from '../capture/cookies';
+import { collectCookies, type CollectCookiesResult, type CookieLike } from '../capture/cookies';
 import browser from '../lib/browser';
 import { hasOptionalPermissions } from '../permissions/optional-permissions';
 
@@ -34,7 +32,7 @@ export interface CookiesCollectorDeps {
  */
 export function createCookiesCollector(
   deps: CookiesCollectorDeps = {},
-): (url: string) => Promise<CookiesDump | null> {
+): (url: string) => Promise<CollectCookiesResult | null> {
   const isGranted = deps.isGranted ?? (() => hasOptionalPermissions({ permissions: ['cookies'] }));
   const getAll = deps.getAll ?? ((url: string) => browser.cookies.getAll({ url }));
 

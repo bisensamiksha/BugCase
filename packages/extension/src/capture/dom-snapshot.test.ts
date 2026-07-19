@@ -16,6 +16,16 @@ describe('collectDomSnapshot', () => {
     expect(result?.snapshot.scrubberHits).toBe(1);
   });
 
+  it('surfaces the DOM scrubber per-rule summary alongside the snapshot', async () => {
+    const raw = '<html><body><input type="password" value="hunter2"></body></html>';
+    const result = await collectDomSnapshot({ readOuterHtml: () => Promise.resolve(raw) });
+
+    expect(result).not.toBeNull();
+    expect(result!.scrubbersApplied.length).toBeGreaterThan(0);
+    const total = result!.scrubbersApplied.reduce((sum, rule) => sum + rule.hits, 0);
+    expect(total).toBe(result!.snapshot.scrubberHits);
+  });
+
   it('builds a schema-valid DomSnapshot at the raw dom-snapshot path', async () => {
     const raw = '<html><body><p>hi</p></body></html>';
     const result = await collectDomSnapshot({ readOuterHtml: () => Promise.resolve(raw) });

@@ -8,3 +8,9 @@ export {
   type CompiledSearch,
 } from './json-search';
 export { DOM_SANDBOX, SNAPSHOT_CSP, buildSandboxSrcDoc } from './sandbox-html';
+export {
+  summarizePrivacy,
+  type PrivacySummary,
+  type PrivacySummaryScrubber,
+  type PrivacySummaryPermission,
+} from './privacy-summary';

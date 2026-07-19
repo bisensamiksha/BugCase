@@ -177,6 +177,7 @@ describe('runCaptureFlow', () => {
         scrubberHits: 1,
       },
       html: '<html>scrubbed</html>',
+      scrubbersApplied: [],
     };
     const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
     const writeZip = vi.fn((_report: BugReportV1, _assets: BugReportZipAssets) =>
@@ -438,7 +439,9 @@ describe('runCaptureFlow', () => {
       Promise.resolve(new Blob([new Uint8Array([1])], { type: 'application/zip' })),
     );
     const download = vi.fn(() => Promise.resolve(9));
-    const collectCookies = vi.fn((_url: string) => Promise.resolve(cookies));
+    const collectCookies = vi.fn((_url: string) =>
+      Promise.resolve({ cookies, scrubbersApplied: [] }),
+    );
 
     const result = await runCaptureFlow(
       { metadata, userInput },
@@ -611,6 +614,56 @@ describe('captureReport', () => {
     const captureScreenshot = vi.fn(() => Promise.reject(new Error('denied')));
     const captured = await captureReport({ metadata, userInput }, { captureScreenshot });
     expect(captured).toEqual({ ok: false, reason: 'denied' });
+  });
+
+  it('merges DOM, cookie, and inspection scrubber hits with the overlay-carried ones', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const captured = await captureReport(
+      {
+        metadata: {
+          ...metadata,
+          scrubbersApplied: [{ id: 'headers', description: 'Scrub headers', hits: 2 }],
+        },
+        userInput,
+        elementInspections: [
+          {
+            outerHtml: '<input>',
+            computedStyles: {},
+            boundingClientRect: { x: 0, y: 0, width: 10, height: 10 },
+            ancestors: [],
+            cropDataUrl: null,
+            scrubbersApplied: [{ id: 'dom-passwords', description: 'Mask passwords', hits: 1 }],
+          },
+        ],
+      },
+      {
+        captureScreenshot,
+        collectDom: () =>
+          Promise.resolve({
+            snapshot: {
+              schemaVersion: 'v1',
+              contentPath: BUG_REPORT_ZIP_LAYOUT.raw.domSnapshot,
+              byteSize: 6,
+              scrubbed: true,
+              scrubberHits: 3,
+            },
+            html: '<html>',
+            scrubbersApplied: [{ id: 'dom-passwords', description: 'Mask passwords', hits: 3 }],
+          }),
+        collectCookies: () =>
+          Promise.resolve({
+            cookies: { schemaVersion: 'v1', entries: [] },
+            scrubbersApplied: [{ id: 'cookies', description: 'Mask cookie values', hits: 4 }],
+          }),
+      },
+    );
+
+    expect(captured.ok).toBe(true);
+    expect(captured.report!.metadata.scrubbersApplied).toEqual([
+      { id: 'headers', description: 'Scrub headers', hits: 2 },
+      { id: 'dom-passwords', description: 'Mask passwords', hits: 4 },
+      { id: 'cookies', description: 'Mask cookie values', hits: 4 },
+    ]);
   });
 });
 

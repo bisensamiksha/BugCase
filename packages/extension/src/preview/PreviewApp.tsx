@@ -1,4 +1,5 @@
 import type { BugReportV1 } from '@bugcase/schema';
+import { summarizePrivacy } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
 import { KonvaAnnotationCanvas, type AnnotationResult } from '../annotation/AnnotationCanvas';
@@ -12,7 +13,6 @@ import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
 import { PrivacyNoticeModal } from './PrivacyNoticeModal';
 import { isJsonViewable, selectArtifactJson } from './artifact-json';
 import { buildArtifactList, formatBytes, type ArtifactId } from './artifact-list';
-import { summarizePrivacy } from './privacy-summary';
 import { saveDownloadedReport, type DownloadedReportInput } from './save-history';
 import { resolveScreenshot } from './screenshot-source';
 

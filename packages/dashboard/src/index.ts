@@ -135,3 +135,5 @@ export {
   type StorageRow,
 } from './panes/storage-tables';
 export { formatByteSize } from './lib/format-bytes';
+export { PrivacyPane, type PrivacyPaneProps } from './panes/PrivacyPane';
+export { downloadJson } from './lib/export-json';

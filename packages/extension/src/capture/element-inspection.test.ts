@@ -43,6 +43,19 @@ describe('buildElementInspection', () => {
     expect(inspection.outerHtml).not.toContain('hunter2');
   });
 
+  it('records the outerHTML scrub per-rule summary on the raw inspection', () => {
+    document.body.innerHTML = '<form><input id="p" type="password" value="hunter2" /></form>';
+    const el = document.getElementById('p') as Element;
+    const inspection = buildElementInspection(el, {
+      readStyles: styleReader({}),
+      readDefaultStyles: () => () => '',
+    });
+    expect(inspection.scrubbersApplied).toBeDefined();
+    const total = inspection.scrubbersApplied!.reduce((sum, rule) => sum + rule.hits, 0);
+    expect(total).toBeGreaterThan(0);
+    expect(inspection.outerHtml).not.toContain('hunter2');
+  });
+
   it('caps the ancestor chain at maxAncestors', () => {
     document.body.innerHTML =
       '<div><div><div><div><div><div><div><span id="deep">x</span></div></div></div></div></div></div></div>';

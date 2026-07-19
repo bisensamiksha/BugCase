@@ -1,6 +1,5 @@
+import type { PrivacySummary } from '@bugcase/shared-ui';
 import { useState, type CSSProperties } from 'react';
-
-import type { PrivacySummary } from './privacy-summary';
 
 export interface PrivacyNoticeModalProps {
   /** Permissions + scrubber state to show the user, from {@link summarizePrivacy}. */

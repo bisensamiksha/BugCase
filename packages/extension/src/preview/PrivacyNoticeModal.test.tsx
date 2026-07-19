@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
+import type { PrivacySummary } from '@bugcase/shared-ui';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PrivacyNoticeModal, type PrivacyNoticeModalProps } from './PrivacyNoticeModal';
-import type { PrivacySummary } from './privacy-summary';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,6 +30,10 @@ function q(id: string): HTMLElement | null {
 
 const summaryWithData: PrivacySummary = {
   permissions: ['cookies', 'downloads'],
+  permissionsAtCapture: [
+    { name: 'cookies', grantedAtCapture: true },
+    { name: 'downloads', grantedAtCapture: true },
+  ],
   scrubbers: [
     { id: 'dom-password-input-mask', description: 'Mask password inputs', hits: 2 },
     { id: 'dom-all-input-mask', description: 'Mask input values', hits: 1 },
@@ -37,7 +41,12 @@ const summaryWithData: PrivacySummary = {
   totalScrubberHits: 3,
 };
 
-const emptySummary: PrivacySummary = { permissions: [], scrubbers: [], totalScrubberHits: 0 };
+const emptySummary: PrivacySummary = {
+  permissions: [],
+  permissionsAtCapture: [],
+  scrubbers: [],
+  totalScrubberHits: 0,
+};
 
 function render(props: Partial<PrivacyNoticeModalProps> = {}): void {
   act(() => {
