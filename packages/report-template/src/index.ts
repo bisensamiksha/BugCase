@@ -1,1 +1,7 @@
-// Placeholder for the report-template package.
+export {
+  assertNoExternalRefs,
+  buildInlineHtml,
+  injectReportData,
+  REPORT_DATA_PLACEHOLDER,
+  type InlineHtmlInput,
+} from './build-inline-html';
