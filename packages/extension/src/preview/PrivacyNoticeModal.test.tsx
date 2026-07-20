@@ -113,6 +113,18 @@ describe('PrivacyNoticeModal', () => {
     });
     expect(q('privacy-notice-modal')).not.toBeNull();
     expect((q('privacy-confirm') as HTMLButtonElement).disabled).toBe(true);
-    expect(q('privacy-scrubber-summary')?.textContent).toMatch(/no sensitive/i);
+    // The no-scrubber copy must be scoped to TEXT and must not imply the capture is clean of
+    // sensitive data — images are never covered by the text scrubbers (BUG-01).
+    const summaryText = q('privacy-scrubber-summary')?.textContent ?? '';
+    expect(summaryText).toMatch(/text scrubber rules/i);
+    expect(summaryText).not.toMatch(/no sensitive (values|data)/i);
+  });
+
+  it('discloses that screenshots and element crops are not scrubbed', () => {
+    render();
+    const note = q('privacy-image-disclosure');
+    expect(note).not.toBeNull();
+    expect(note?.textContent).toMatch(/not .*scrubbed/i);
+    expect(note?.textContent).toMatch(/visible on screen/i);
   });
 });

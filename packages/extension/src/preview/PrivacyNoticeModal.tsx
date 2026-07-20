@@ -1,6 +1,8 @@
 import type { PrivacySummary } from '@bugcase/shared-ui';
 import { useState, type CSSProperties } from 'react';
 
+import { ImageDisclosure } from './ImageDisclosure';
+
 export interface PrivacyNoticeModalProps {
   /** Permissions + scrubber state to show the user, from {@link summarizePrivacy}. */
   readonly summary: PrivacySummary;
@@ -48,7 +50,7 @@ export function PrivacyNoticeModal({
 
   const scrubberSummary =
     summary.scrubbers.length === 0
-      ? 'No sensitive values were detected or removed from this capture.'
+      ? 'No text scrubber rules removed anything from this capture. (Text only — see the note below about images.)'
       : `${summary.scrubbers.length} scrubber ${
           summary.scrubbers.length === 1 ? 'rule' : 'rules'
         } ran and removed ${summary.totalScrubberHits} ${
@@ -93,6 +95,11 @@ export function PrivacyNoticeModal({
           : summary.permissions.join(', ')}
       </p>
 
+      <ImageDisclosure testId="privacy-image-disclosure">
+        Go back and use <strong>Annotate</strong> to black out sensitive areas if a screenshot needs
+        it.
+      </ImageDisclosure>
+
       <label style={consentStyle}>
         <input
           type="checkbox"
@@ -101,7 +108,8 @@ export function PrivacyNoticeModal({
           onChange={(e) => setUnderstood(e.target.checked)}
         />
         <span>
-          I understand this report may still contain sensitive data and will be saved to my device.
+          I understand this report may still contain sensitive data — including anything visible in
+          screenshots or element crops — and will be saved to my device.
         </span>
       </label>
 
