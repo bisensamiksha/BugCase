@@ -9,6 +9,7 @@ export * from './metadata';
 export * from './navigation';
 export * from './network';
 export * from './report';
+export * from './report-html';
 export * from './reproduction';
 export * from './safe-stringify';
 export * from './screenshots';

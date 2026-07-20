@@ -58,6 +58,7 @@ import { handleRecordingRequest, isRecordingRequest } from './recording-handler'
 import { createRecordingNavigationHandler } from './recording-navigation';
 import { handlePeekReportAsset } from './report-asset-handler';
 import { createReportHold } from './report-hold';
+import { reportTemplateHtml } from './report-template-html';
 import { runScrollStitchCapture } from './scroll-stitch-runner';
 
 const overlay = createOverlayController();
@@ -278,7 +279,7 @@ async function handleFinalizeReport(
     held.report,
     held.assets,
     message.removedIds,
-    { writeZip: writeBugReportZip, download: downloadBlob },
+    { writeZip: writeBugReportZip, download: downloadBlob, reportTemplateHtml },
     annotation,
   );
   return finalizeResponseFrom(result);

@@ -11,6 +11,9 @@
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@bugcase/schema": "workspace:*"
+  },
   "devDependencies": {
     "@bugcase/dashboard": "workspace:*",
     "@vitejs/plugin-react": "^4.3.3",

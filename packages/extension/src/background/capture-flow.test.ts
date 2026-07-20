@@ -108,6 +108,26 @@ describe('runCaptureFlow', () => {
     expect(download).toHaveBeenCalledWith(zipBlob, 'bugcase-example-com-20260613-090807.zip');
   });
 
+  it('embeds report.html into the ZIP when a report template is supplied', async () => {
+    const captureScreenshot = vi.fn(() => Promise.resolve(fakeShot()));
+    const writeZip = vi.fn(
+      (_report: BugReportV1, _assets: BugReportZipAssets, _options?: { reportHtml?: string }) =>
+        Promise.resolve(new Blob(['zip'])),
+    );
+    const download = vi.fn((_blob: Blob, _filename: string) => Promise.resolve(1));
+    const reportTemplateHtml =
+      '<script>window.__BUG_REPORT__ = /* @BUGCASE_REPORT_DATA@ */ null;</script>';
+
+    await runCaptureFlow(
+      { metadata, userInput },
+      { captureScreenshot, writeZip, download, reportTemplateHtml },
+    );
+
+    const options = writeZip.mock.calls[0]?.[2];
+    expect(options?.reportHtml).toContain('window.__BUG_REPORT__ = {');
+    expect(options?.reportHtml).not.toContain('@BUGCASE_REPORT_DATA@');
+  });
+
   it('stores a full-page screenshot in the fullPage slot, not viewport', async () => {
     const fullPageShot: CapturedScreenshot = {
       blob: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),

@@ -13,6 +13,12 @@ export interface BugReportZipAssets {
   readonly files: ReadonlyMap<string, Blob | string | Uint8Array>;
 }
 
+/** Optional extras for the ZIP writer. */
+export interface WriteBugReportZipOptions {
+  /** Pre-rendered self-contained report.html (S4-15); written at `report.html` when present. */
+  readonly reportHtml?: string;
+}
+
 /**
  * Fixed entry timestamp so the same input always produces byte-identical output.
  * (Reproducible build hashes are formalized later in S4-27; deterministic ordering
@@ -42,11 +48,15 @@ async function toZipData(data: Blob | string | Uint8Array): Promise<string | Uin
 export async function writeBugReportZip(
   report: BugReportV1,
   assets: BugReportZipAssets = EMPTY_ASSETS,
+  options: WriteBugReportZipOptions = {},
 ): Promise<Blob> {
   // Collect every entry first so canonical documents win over any colliding asset path.
   const entries = new Map<string, Blob | string | Uint8Array>(assets.files);
   entries.set(BUG_REPORT_ZIP_LAYOUT.report, JSON.stringify(report, null, 2));
   entries.set(BUG_REPORT_ZIP_LAYOUT.metadata, JSON.stringify(report.metadata, null, 2));
+  if (options.reportHtml !== undefined) {
+    entries.set(BUG_REPORT_ZIP_LAYOUT.reportHtml, options.reportHtml);
+  }
 
   const zip = new JSZip();
   for (const path of [...entries.keys()].sort()) {

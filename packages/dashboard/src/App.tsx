@@ -34,6 +34,12 @@ import {
 export interface AppProps {
   /** Defaults to the real client-side ZIP reader; injectable for tests. */
   readonly read?: (input: Blob) => Promise<ReadReportResult>;
+  /**
+   * When the dashboard is opened as a self-contained `report.html`, `main.tsx` parses the injected
+   * `window.__BUG_REPORT__` payload into a {@link ReportSource} and passes it here so the report
+   * auto-opens with no drop step (S4-15). Absent for the hosted dashboard.
+   */
+  readonly initialSource?: ReportSource;
 }
 
 /** The active pane's element, chosen by route. Each pane is a lazy chunk (see `lazy-panes.ts`). */
@@ -119,8 +125,15 @@ function LoadedPane({
   );
 }
 
-export function App({ read = readReportZip }: AppProps = {}) {
-  const [tabs, setTabs] = useState<readonly ReportTab[]>([]);
+export function App({ read = readReportZip, initialSource }: AppProps = {}) {
+  // Seed the inline report (report.html) exactly once, before first paint, so it renders with no drop.
+  const initialTabRef = useRef<ReportTab | null>(null);
+  if (initialSource && !initialTabRef.current) {
+    initialTabRef.current = makeReportTab(initialSource.report, 'report.html');
+  }
+  const [tabs, setTabs] = useState<readonly ReportTab[]>(
+    initialTabRef.current ? [initialTabRef.current] : [],
+  );
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const route = useHashRoute();
@@ -130,6 +143,10 @@ export function App({ read = readReportZip }: AppProps = {}) {
   // Lazy ZIP data-access, one ReportSource per open tab (keyed by report id). Kept out of the pure
   // tab state; the App owns their object-URL lifecycle and disposes them on close/unmount (S4-05).
   const sourcesRef = useRef<Map<string, ReportSource>>(new Map());
+  // Register the seeded inline source (report.html) once so its panes can read entries immediately.
+  if (initialSource && initialTabRef.current && !sourcesRef.current.has(initialTabRef.current.id)) {
+    sourcesRef.current.set(initialTabRef.current.id, initialSource);
+  }
 
   // Dispose every open source when the dashboard unmounts so no object URLs leak.
   useEffect(() => {
