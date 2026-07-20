@@ -100,4 +100,20 @@ describe('writeBugReportZip', () => {
     const json = await zip.file(BUG_REPORT_ZIP_LAYOUT.report)?.async('string');
     expect(() => BugReportV1Schema.parse(JSON.parse(json as string))).not.toThrow();
   });
+
+  it('writes report.html when the reportHtml option is provided and omits it otherwise', async () => {
+    const withHtml = await loadZip(
+      await writeBugReportZip(
+        validMinimal,
+        { files: new Map() },
+        { reportHtml: '<html>hi</html>' },
+      ),
+    );
+    expect(await withHtml.file(BUG_REPORT_ZIP_LAYOUT.reportHtml)?.async('string')).toBe(
+      '<html>hi</html>',
+    );
+
+    const without = await loadZip(await writeBugReportZip(validMinimal));
+    expect(without.file(BUG_REPORT_ZIP_LAYOUT.reportHtml)).toBeNull();
+  });
 });

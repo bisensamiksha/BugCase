@@ -90,6 +90,20 @@ describe('App', () => {
     expect(section?.textContent).toContain('abc-123');
   });
 
+  it('auto-opens an injected report from initialSource without a drop (report.html)', async () => {
+    const report = { schemaVersion: 'v1', metadata: { id: 'inline1' } } as unknown as BugReportV1;
+    act(() => {
+      root.render(<App initialSource={fakeReportSource(report)} />);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="empty"]')).toBeNull();
+    const section = container.querySelector('[data-testid="pane-overview"]');
+    expect(section).not.toBeNull();
+    expect(section?.textContent).toContain('inline1');
+  });
+
   it('routes a loaded report into the console and network panes', async () => {
     const report = {
       schemaVersion: 'v1',

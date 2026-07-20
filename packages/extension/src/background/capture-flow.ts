@@ -1,3 +1,4 @@
+import { embedReportData } from '@bugcase/report-template';
 import {
   BUG_REPORT_ZIP_LAYOUT,
   aggregateScrubberHits,
@@ -16,6 +17,7 @@ import {
   type ScreenshotsManifest,
   type StorageDump,
   type UserInput,
+  type WriteBugReportZipOptions,
 } from '@bugcase/schema';
 
 import { annotationFilePath } from '../annotation/konva-serialization';
@@ -87,8 +89,17 @@ export interface CaptureReportDeps {
 
 /** Finalize-side injected effects: write the ZIP + download. */
 export interface FinalizeReportDeps {
-  readonly writeZip: (report: BugReportV1, assets: BugReportZipAssets) => Promise<Blob>;
+  readonly writeZip: (
+    report: BugReportV1,
+    assets: BugReportZipAssets,
+    options?: WriteBugReportZipOptions,
+  ) => Promise<Blob>;
   readonly download: (blob: Blob, filename: string) => Promise<number>;
+  /**
+   * The report.html template (S4-15). When set, finalize embeds the final report + assets into it
+   * and adds `report.html` to the ZIP. Optional so tests that don't exercise it stay unchanged.
+   */
+  readonly reportTemplateHtml?: string;
   readonly now?: () => Date;
 }
 
@@ -367,7 +378,20 @@ export async function finalizeReport(
     if (annotation) {
       trimmed = applyAnnotations(trimmed.report, trimmed.assets, annotation);
     }
-    const zip = await deps.writeZip(trimmed.report, trimmed.assets);
+    // Build the self-contained report.html from the final (trimmed + annotated) report + assets, so
+    // the embedded viewer matches exactly what ships in the ZIP (S4-15).
+    const reportHtml = deps.reportTemplateHtml
+      ? await embedReportData({
+          templateHtml: deps.reportTemplateHtml,
+          report: trimmed.report,
+          assets: trimmed.assets.files,
+        })
+      : undefined;
+    const zip = await deps.writeZip(
+      trimmed.report,
+      trimmed.assets,
+      reportHtml !== undefined ? { reportHtml } : {},
+    );
     const filename = buildCaptureReportFilename(
       deps.now?.() ?? new Date(),
       trimmed.report.metadata.page.origin,

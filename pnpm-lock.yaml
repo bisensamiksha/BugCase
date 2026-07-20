@@ -117,6 +117,9 @@ importers:
 
   packages/extension:
     dependencies:
+      '@bugcase/report-template':
+        specifier: workspace:*
+        version: link:../report-template
       '@bugcase/schema':
         specifier: workspace:*
         version: link:../schema
@@ -180,6 +183,10 @@ importers:
         version: 8.10.0
 
   packages/report-template:
+    dependencies:
+      '@bugcase/schema':
+        specifier: workspace:*
+        version: link:../schema
     devDependencies:
       '@bugcase/dashboard':
         specifier: workspace:*
