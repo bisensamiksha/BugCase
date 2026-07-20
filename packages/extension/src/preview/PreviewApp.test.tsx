@@ -106,6 +106,23 @@ describe('PreviewApp', () => {
     expect(q('artifact-network')?.textContent).toContain('Not captured');
   });
 
+  it('warns on the review screen that screenshots/crops are not scrubbed', () => {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    const note = q('review-image-disclosure');
+    expect(note).not.toBeNull();
+    expect(note?.textContent).toMatch(/not .*scrubbed/i);
+    expect(note?.textContent).toMatch(/Annotate/);
+  });
+
   it('keeps the service worker alive while mounted and stops it on unmount', () => {
     const stop = vi.fn();
     const keepAlive = vi.fn(() => ({ stop }));

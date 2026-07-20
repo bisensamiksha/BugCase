@@ -8,6 +8,7 @@ import { startServiceWorkerKeepAlive, type KeepAliveHandle } from '../overlay/ke
 import { requestFinalize } from '../overlay/request-capture';
 
 import { SandboxedDomSnapshotViewer } from './DomSnapshotViewer';
+import { ImageDisclosure } from './ImageDisclosure';
 import { JsonTreeViewer } from './JsonTreeViewer';
 import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
 import { PrivacyNoticeModal } from './PrivacyNoticeModal';
@@ -220,6 +221,10 @@ export function PreviewApp({
       <p style={{ color: '#475569' }}>
         Choose what to include, then download. Nothing leaves your browser.
       </p>
+      <ImageDisclosure testId="review-image-disclosure">
+        Use <strong>Annotate</strong> to black out any sensitive areas of the screenshot before
+        downloading.
+      </ImageDisclosure>
       <div>
         {artifacts.map((a) => {
           const isRemoved = removed.has(a.id);
