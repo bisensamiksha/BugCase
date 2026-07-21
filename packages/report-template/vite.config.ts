@@ -41,6 +41,13 @@ function inlineSingleFile(): Plugin {
       if (!js || !css) {
         throw new Error('inlineSingleFile: expected exactly one entry chunk and one css asset');
       }
+      // Under `inlineDynamicImports`, Vite emits its `__vitePreload(() => import(…), __VITE_PRELOAD__,
+      // import.meta.url)` wrapper for the dashboard's React.lazy panes but never resolves the
+      // `__VITE_PRELOAD__` marker, so the first lazy pane throws `__VITE_PRELOAD__ is not defined` at
+      // runtime (found by the S4-16 integration test; the empty-data shell never triggers a lazy
+      // pane, so earlier manual checks missed it). There are no separate chunks to preload here, so
+      // neutralize the marker to `void 0` — the wrapper then short-circuits to the (inlined) module.
+      js = js.replaceAll('__VITE_PRELOAD__', 'void 0');
       const templateHtml = readFileSync(templatePath, 'utf8');
       const html = buildInlineHtml({ templateHtml, js, css });
       assertNoExternalRefs(html);

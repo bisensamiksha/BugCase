@@ -58,6 +58,10 @@ jobs:
       - name: Build extension (Chromium target)
         if: matrix.browser == 'chromium'
         run: pnpm build:chrome
+      # The report.html integration test (S4-16) opens the built self-contained report.html; both
+      # browser projects run it, so build the template for both (this job does not run `pnpm build`).
+      - name: Build self-contained report.html (report.html integration test)
+        run: pnpm --filter @bugcase/report-template build
       - name: Install Playwright browser (${{ matrix.browser }})
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       - name: Run E2E (${{ matrix.browser }})
