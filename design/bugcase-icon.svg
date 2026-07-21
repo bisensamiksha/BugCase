@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="BugCase — a bug inside a privacy shield">
+  <!--
+    BugCase brand mark (S4-17). A beetle (software "bug") inside a shield ("privacy-first").
+    Single flat-fill master in brand blue-600 (#2563eb); transparent outside the shield. Kept
+    bold and low-detail so it stays legible when rasterized down to 16px. Source of truth for
+    packages/extension/public/icons/icon-{16,32,48,128}.png — regenerate via `pnpm icons:generate`.
+  -->
+  <!-- Shield: flat top, rounded corners, tapering to a rounded point. -->
+  <path
+    fill="#2563eb"
+    d="M30 20 L98 20 Q108 20 108 30 L108 66 C108 92 90 108 64 118 C38 108 20 92 20 66 L20 30 Q20 20 30 20 Z"
+  />
+  <!-- Beetle, in negative white space. Antennae + legs are the "insect" cue at 32px and up. -->
+  <g fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round">
+    <!-- antennae -->
+    <path d="M60 43 L54 31" />
+    <path d="M68 43 L74 31" />
+    <!-- legs (3 pairs) -->
+    <path d="M48 65 L34 59" />
+    <path d="M47 75 L33 75" />
+    <path d="M48 85 L34 91" />
+    <path d="M80 65 L94 59" />
+    <path d="M81 75 L95 75" />
+    <path d="M80 85 L94 91" />
+  </g>
+  <circle fill="#ffffff" cx="64" cy="49" r="7.5" />
+  <ellipse fill="#ffffff" cx="64" cy="74" rx="19" ry="21" />
+  <!-- Wing seam: cut back to the shield blue so the body reads as a beetle. -->
+  <path stroke="#2563eb" stroke-width="5" stroke-linecap="round" d="M64 58 L64 92" />
+</svg>
