@@ -13,6 +13,7 @@
     "build:chrome": "pnpm --filter @bugcase/extension run build:chrome",
     "build:firefox": "pnpm --filter @bugcase/extension run build:firefox",
     "build:harness": "pnpm --filter @bugcase/extension run build:harness",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "zip:chrome": "node scripts/zip-extension.mjs packages/extension/dist-chrome dist/bugcase-chrome.zip",
     "zip:firefox": "node scripts/zip-extension.mjs packages/extension/dist-firefox dist/bugcase-firefox.zip",
     "test": "pnpm -r run test",
