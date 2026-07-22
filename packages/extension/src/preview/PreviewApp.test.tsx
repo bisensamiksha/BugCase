@@ -7,42 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // PreviewApp's default finalize reaches lib/browser; stub the polyfill so import succeeds.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
-// Konva needs a real <canvas>; mock react-konva to plain divs. The Stage ref exposes toJSON() so the
-// canvas's default Done serialization (stageRef.toJSON()) works without a real stage.
-vi.mock('react-konva', async () => {
-  const React = await import('react');
-  const passthrough =
-    (name: string) =>
-    (props: { children?: React.ReactNode }): React.ReactElement =>
-      React.createElement('div', { 'data-testid': `konva-${name}` }, props.children);
-  const Stage = React.forwardRef(
-    (
-      props: { children?: React.ReactNode },
-      ref: React.Ref<{ toJSON: () => string; toDataURL: () => string }>,
-    ) => {
-      React.useImperativeHandle(ref, () => ({
-        toJSON: () => '{"mock":"stage"}',
-        toDataURL: () => 'data:image/png;base64,MOCK',
-      }));
-      return React.createElement('div', { 'data-testid': 'konva-stage' }, props.children);
-    },
-  );
-  return {
-    Stage,
-    Layer: passthrough('layer'),
-    Image: passthrough('image'),
-    Rect: passthrough('rect'),
-    Ellipse: passthrough('ellipse'),
-    Arrow: passthrough('arrow'),
-    Line: passthrough('line'),
-    Text: passthrough('text'),
-    Group: passthrough('group'),
-  };
-});
+// TD-03: PreviewApp no longer imports the Konva canvas — the Annotate action injects it on demand
+// through the `annotate` dep, which these tests stub. No react-konva mock is needed here anymore.
+
+import type { Annotation } from '../annotation/tools';
 
 import { PreviewApp } from './PreviewApp';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/** A non-empty annotation shape set, so a Done result reads as "annotated" (BUG-02 empty→cleared logic). */
+const sampleShapes: readonly Annotation[] = [
+  { type: 'redact', id: 'r1', x: 0, y: 0, width: 10, height: 10 },
+];
 
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
@@ -525,16 +502,20 @@ describe('PreviewApp', () => {
     expect((q('annotate-screenshot') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('opens the annotation canvas from the Annotate action', async () => {
-    const peekAsset = vi.fn(() =>
-      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
+  it('injects the annotation surface via the annotate dep and stores its result', async () => {
+    const annotate = vi.fn(() =>
+      Promise.resolve({
+        konvaJson: '{"a":1}',
+        pngDataUrl: 'data:image/png;base64,ANNOT',
+        shapes: sampleShapes,
+      }),
     );
     await act(async () => {
       root.render(
         <PreviewApp
           reportId="r1"
           report={reportWithShot()}
-          peekAsset={peekAsset}
+          annotate={annotate}
           onCancel={() => {}}
           onComplete={() => {}}
         />,
@@ -545,62 +526,80 @@ describe('PreviewApp', () => {
       q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
-    expect(q('konva-annotation-canvas')).not.toBeNull();
-  });
-
-  it('marks the screenshot annotated and returns to the list on Done', async () => {
-    const peekAsset = vi.fn(() =>
-      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
-    );
-    await act(async () => {
-      root.render(
-        <PreviewApp
-          reportId="r1"
-          report={reportWithShot()}
-          peekAsset={peekAsset}
-          onCancel={() => {}}
-          onComplete={() => {}}
-        />,
-      );
-      await Promise.resolve();
-    });
-    await act(async () => {
-      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-    await act(async () => {
-      q('annotation-done')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-    expect(q('preview-review-screen-scaffold')).not.toBeNull();
+    expect(annotate).toHaveBeenCalledWith(expect.objectContaining({ reportId: 'r1' }));
     expect(q('screenshot-annotated')).not.toBeNull();
+    expect(q('annotate-screenshot')!.textContent).toBe('Re-annotate');
   });
 
-  it('forwards the annotation to finalize on download', async () => {
-    const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
-    const peekAsset = vi.fn(() =>
-      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
-    );
+  it('leaves state unchanged when the user cancels (null result)', async () => {
+    const annotate = vi.fn(() => Promise.resolve(null));
     await act(async () => {
       root.render(
         <PreviewApp
           reportId="r1"
           report={reportWithShot()}
-          finalize={finalize}
-          peekAsset={peekAsset}
+          annotate={annotate}
           onCancel={() => {}}
           onComplete={() => {}}
         />,
       );
       await Promise.resolve();
     });
-    // Annotate → Done (mock stage returns toJSON + toDataURL).
     await act(async () => {
       q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
+    expect(annotate).toHaveBeenCalledTimes(1);
+    expect(q('screenshot-annotated')).toBeNull();
+  });
+
+  it('surfaces an inject failure as an error, without throwing', async () => {
+    const annotate = vi.fn(() => Promise.reject(new Error('restricted page')));
     await act(async () => {
-      q('annotation-done')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          annotate={annotate}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('preview-error')!.textContent).toMatch(/restricted page/);
+    expect(q('preview-review-screen-scaffold')).not.toBeNull();
+  });
+
+  it('forwards a prior annotation result to finalize on download', async () => {
+    const annotate = vi.fn(() =>
+      Promise.resolve({
+        konvaJson: '{"m":1}',
+        pngDataUrl: 'data:image/png;base64,PNG',
+        shapes: sampleShapes,
+      }),
+    );
+    const finalize = vi.fn(() => Promise.resolve({ ok: true, downloadId: 1, filename: 'f.zip' }));
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          annotate={annotate}
+          finalize={finalize}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    // Annotate (dep resolves the result).
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
     // Download → consent → confirm.
@@ -616,8 +615,140 @@ describe('PreviewApp', () => {
     });
 
     expect(finalize).toHaveBeenCalledWith('r1', [], {
-      konvaJson: '{"mock":"stage"}',
-      screenshotDataUrl: 'data:image/png;base64,MOCK',
+      konvaJson: '{"m":1}',
+      screenshotDataUrl: 'data:image/png;base64,PNG',
     });
+  });
+
+  it('reloads prior marks into the canvas on Re-annotate (BUG-02)', async () => {
+    const annotate = vi.fn(() =>
+      Promise.resolve({ konvaJson: '{"a":1}', pngDataUrl: 'data:png', shapes: sampleShapes }),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          annotate={annotate}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    // Annotate once, then Re-annotate — the second call must carry the prior marks as initialShapes.
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(annotate).toHaveBeenCalledTimes(2);
+    expect(annotate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ initialShapes: sampleShapes }),
+    );
+  });
+
+  it('clears the annotation when Re-annotate returns no marks (BUG-02)', async () => {
+    let call = 0;
+    const annotate = vi.fn(() =>
+      Promise.resolve(
+        call++ === 0
+          ? { konvaJson: '{"a":1}', pngDataUrl: 'data:png', shapes: sampleShapes }
+          : { konvaJson: '{}', pngDataUrl: 'data:orig', shapes: [] as readonly Annotation[] },
+      ),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          annotate={annotate}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('screenshot-annotated')).not.toBeNull();
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('screenshot-annotated')).toBeNull();
+    expect(q('annotate-screenshot')!.textContent).toBe('Annotate');
+  });
+
+  it('removes the annotation via the Remove button (BUG-02)', async () => {
+    const annotate = vi.fn(() =>
+      Promise.resolve({ konvaJson: '{"a":1}', pngDataUrl: 'data:png', shapes: sampleShapes }),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          annotate={annotate}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(q('screenshot-annotated')).not.toBeNull();
+    act(() => {
+      q('remove-annotation')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('screenshot-annotated')).toBeNull();
+    expect(q('remove-annotation')).toBeNull();
+    expect(q('annotate-screenshot')!.textContent).toBe('Annotate');
+  });
+
+  it('shows the redacted result in View once annotated (BUG-02)', async () => {
+    const peekAsset = vi.fn(() =>
+      Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,ORIGINAL' }),
+    );
+    const annotate = vi.fn(() =>
+      Promise.resolve({
+        konvaJson: '{"a":1}',
+        pngDataUrl: 'data:image/png;base64,REDACTED',
+        shapes: sampleShapes,
+      }),
+    );
+    await act(async () => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithShot()}
+          annotate={annotate}
+          peekAsset={peekAsset}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('annotate-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      q('view-screenshot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    // View shows the flattened redacted image, and the SW peek is bypassed (the annotated preview is used).
+    expect(q('lightbox-image')?.getAttribute('src')).toBe('data:image/png;base64,REDACTED');
+    expect(peekAsset).not.toHaveBeenCalled();
   });
 });

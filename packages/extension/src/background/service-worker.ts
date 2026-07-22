@@ -29,6 +29,7 @@ import {
   isDismissErrorBadgeRequest,
   isFinalizeReportRequest,
   isGetPassiveErrorCountRequest,
+  isInjectAnnotationRequest,
   isOverlayInjectRequest,
   isPassiveErrorRequest,
   isPeekReportAssetRequest,
@@ -291,6 +292,13 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isOverlayInjectRequest(message)) {
     return overlay.injectActiveTab();
+  }
+  if (isInjectAnnotationRequest(message)) {
+    // On-demand annotation surface (TD-03): inject into the sending tab only.
+    const tabId = sender.tab?.id;
+    return typeof tabId === 'number'
+      ? overlay.injectAnnotation(tabId)
+      : Promise.resolve({ ok: false, reason: 'no tab id' });
   }
   if (isCaptureReportRequest(message)) {
     return handleCaptureReport(message, sender);

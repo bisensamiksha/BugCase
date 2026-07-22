@@ -14,6 +14,7 @@ import { requestPeekAsset } from '../overlay/request-capture';
 import type { PeekAssetFn } from '../preview/Lightbox';
 
 import { AnnotationToolbar } from './AnnotationToolbar';
+import type { AnnotationResult } from './annotation-result';
 import { computeFitScale, toImageSpace } from './canvas-fit';
 import { flattenAnnotatedScreenshot, flattenRedactedScreenshot } from './export-annotations';
 import { extractRedactions, scaleRedactions, type RedactionRect } from './redaction';
@@ -29,6 +30,10 @@ import {
   type Point,
 } from './tools';
 
+// Re-export so existing importers (`../preview/PreviewApp`, tests) can keep importing the result type
+// from here; the canonical definition lives in `annotation-result.ts` (Konva-free) for TD-03.
+export type { AnnotationResult } from './annotation-result';
+
 /** Minimal shape of the react-konva pointer event we read the stage pointer position from. */
 interface KonvaPointerEvent {
   readonly target: { getStage: () => { getPointerPosition: () => Point | null } | null };
@@ -37,6 +42,8 @@ interface KonvaPointerEvent {
 export interface KonvaAnnotationCanvasProps {
   readonly reportId?: string;
   readonly screenshot: ScreenshotRef;
+  /** Marks to preload (BUG-02): Re-annotate seeds the canvas with the prior shapes so they can be edited. */
+  readonly initialShapes?: readonly Annotation[];
   /** Drives `aria-busy` and gates interactions (matches the ticket contract). */
   readonly disabled?: boolean;
   /** Fetches the held screenshot as a data URL; defaults to the SW bridge (as in the Lightbox). */
@@ -62,12 +69,6 @@ export interface KonvaAnnotationCanvasProps {
    * Injectable so tests can drive the fit-to-window scale deterministically.
    */
   readonly availableSize?: { readonly width: number; readonly height: number };
-}
-
-/** What the canvas hands back on Done: re-editable Konva JSON + the flattened image to ship in the ZIP. */
-export interface AnnotationResult {
-  readonly konvaJson: string;
-  readonly pngDataUrl: string;
 }
 
 type LoadStatus = 'loading' | 'loaded' | 'error';
@@ -120,6 +121,7 @@ interface DrawState {
 export function KonvaAnnotationCanvas({
   reportId,
   screenshot,
+  initialShapes,
   disabled,
   peekAsset,
   onCancel,
@@ -130,7 +132,9 @@ export function KonvaAnnotationCanvas({
   availableSize,
 }: KonvaAnnotationCanvasProps) {
   const [state, dispatch] = useReducer(annotationReducer, undefined, () =>
-    initialAnnotationState(),
+    initialAnnotationState(
+      initialShapes && initialShapes.length > 0 ? { shapes: initialShapes } : {},
+    ),
   );
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -317,7 +321,8 @@ export function KonvaAnnotationCanvas({
           : stageRef.current
             ? flattenAnnotatedScreenshot(stageRef.current, exportPixelRatio)
             : '';
-    onComplete?.({ konvaJson, pngDataUrl });
+    // Return the editable shape model too (BUG-02) so Re-annotate can reload and edit these exact marks.
+    onComplete?.({ konvaJson, pngDataUrl, shapes: state.shapes });
   }
 
   function eraseOnClick(id: string): void {
