@@ -21,9 +21,23 @@ async function listFiles(dir) {
   return found;
 }
 
-/** Zip a directory deterministically (sorted POSIX paths, fixed timestamps, level-9 DEFLATE). */
-export async function zipDirectory(sourceDir, outFile) {
-  const files = (await listFiles(sourceDir)).sort();
+/**
+ * Zip a directory deterministically (sorted POSIX paths, fixed timestamps, level-9 DEFLATE).
+ *
+ * @param {string} sourceDir
+ * @param {string} outFile
+ * @param {{ filter?: (posixRelPath: string) => boolean }} [options] Optional `filter` receives each
+ *   entry's POSIX-relative path and returns whether to include it (default: include everything, so
+ *   existing callers like `zip:chrome`/`zip:firefox` are unaffected). `package-chrome` uses it to drop
+ *   sourcemaps from the store upload.
+ */
+export async function zipDirectory(sourceDir, outFile, { filter } = {}) {
+  let files = (await listFiles(sourceDir)).sort();
+  const totalFound = files.length;
+  if (filter) {
+    files = files.filter((file) => filter(relative(sourceDir, file).split(sep).join('/')));
+  }
+  const excluded = totalFound - files.length;
   const zip = new JSZip();
   for (const file of files) {
     const name = relative(sourceDir, file).split(sep).join('/');
@@ -38,7 +52,8 @@ export async function zipDirectory(sourceDir, outFile) {
   });
   await mkdir(dirname(outFile), { recursive: true });
   await writeFile(outFile, buffer);
-  return { outFile, entries: files.length, bytes: buffer.length };
+  const paths = files.map((file) => relative(sourceDir, file).split(sep).join('/'));
+  return { outFile, entries: files.length, bytes: buffer.length, paths, excluded };
 }
 
 async function main() {
