@@ -4,11 +4,13 @@ import {
   CAPTURE_REPORT,
   CAPTURE_VISIBLE_TAB,
   FINALIZE_REPORT,
+  INJECT_ANNOTATION,
   OVERLAY_INJECT,
   PEEK_REPORT_ASSET,
   finalizeResponseFrom,
   isCaptureReportRequest,
   isFinalizeReportRequest,
+  isInjectAnnotationRequest,
   isOverlayInjectRequest,
   isPeekReportAssetRequest,
 } from './messages';
@@ -41,6 +43,18 @@ describe('isOverlayInjectRequest', () => {
     expect(isOverlayInjectRequest({ type: CAPTURE_VISIBLE_TAB })).toBe(false);
     expect(isOverlayInjectRequest(null)).toBe(false);
     expect(isOverlayInjectRequest('overlay')).toBe(false);
+  });
+});
+
+describe('isInjectAnnotationRequest', () => {
+  it('accepts a well-formed inject-annotation request', () => {
+    expect(isInjectAnnotationRequest({ type: INJECT_ANNOTATION })).toBe(true);
+  });
+
+  it('rejects other message types and non-objects', () => {
+    expect(isInjectAnnotationRequest({ type: OVERLAY_INJECT })).toBe(false);
+    expect(isInjectAnnotationRequest(null)).toBe(false);
+    expect(isInjectAnnotationRequest('annotate')).toBe(false);
   });
 });
 

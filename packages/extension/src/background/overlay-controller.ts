@@ -26,6 +26,14 @@ export const OVERLAY_CONTENT_SCRIPT = 'content/overlay.js';
  */
 export const RECORDER_MAIN_SCRIPT = PASSIVE_MAIN_SCRIPT_FILE;
 
+/**
+ * On-demand annotation surface (TD-03): a self-contained IIFE that carries Konva, injected only when
+ * the user clicks Annotate so `overlay.js` never ships the ~150 kB canvas engine on every capture.
+ * Built by `vite.annotation.config.ts`; injected the same way as the overlay, via `activeTab` (no host
+ * permission). Like the overlay, this is the built artifact path, not the TS source.
+ */
+export const ANNOTATION_CONTENT_SCRIPT = 'content/annotation.js';
+
 /** Result of an overlay inject/remove attempt. Serializable so it can cross the message boundary. */
 export interface OverlayInjectResult {
   readonly ok: boolean;
@@ -41,6 +49,8 @@ export interface OverlayController {
   injectActiveTab(): Promise<OverlayInjectResult>;
   /** Re-inject the recorder + overlay to continue a recording across a navigation (mount, not toggle). */
   reinject(tabId: number): Promise<OverlayInjectResult>;
+  /** Inject the on-demand annotation surface into a specific tab (TD-03). */
+  injectAnnotation(tabId: number): Promise<OverlayInjectResult>;
 }
 
 /** Runs in the page; removes the overlay host. Must stay self-contained (serialized for injection). */
@@ -131,5 +141,20 @@ export function createOverlayController(): OverlayController {
     }
   }
 
-  return { inject, remove, injectActiveTab, reinject };
+  async function injectAnnotation(tabId: number): Promise<OverlayInjectResult> {
+    if (!isValidTabId(tabId)) {
+      return { ok: false, reason: `invalid tab id: ${String(tabId)}` };
+    }
+    try {
+      await browser.scripting.executeScript({
+        target: { tabId },
+        files: [ANNOTATION_CONTENT_SCRIPT],
+      });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: toReason(error) };
+    }
+  }
+
+  return { inject, remove, injectActiveTab, reinject, injectAnnotation };
 }

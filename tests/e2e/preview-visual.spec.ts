@@ -44,8 +44,17 @@ test.describe('S3-17 preview screen visual regression', () => {
   });
 
   test('annotation canvas', async ({ page }) => {
-    await openHarness(page);
-    await page.locator('[data-testid="annotate-screenshot"]').click();
+    // TD-03: the canvas is now an on-demand injected bundle, so PreviewApp's Annotate button asks the
+    // (absent-here) service worker to inject it. The harness `?view=annotate` mode renders the real
+    // KonvaAnnotationCanvas directly with the same fixture, keeping this snapshot's coverage.
+    try {
+      await access(HARNESS_HTML);
+    } catch {
+      throw new Error(
+        `Missing ${HARNESS_HTML} — build the visual harness first: pnpm build:harness`,
+      );
+    }
+    await page.goto(`${HARNESS_URL}?view=annotate`);
     // The Konva stage renders onto a <canvas> once the injected screenshot image has loaded.
     await page.waitForSelector('[data-testid="konva-annotation-canvas"] canvas');
     await expect(page).toHaveScreenshot('preview-annotation-canvas.png', { fullPage: true });

@@ -9,6 +9,7 @@ vi.mock('webextension-polyfill', () => ({
 }));
 
 import {
+  ANNOTATION_CONTENT_SCRIPT,
   OVERLAY_CONTENT_SCRIPT,
   RECORDER_MAIN_SCRIPT,
   createOverlayController,
@@ -128,6 +129,34 @@ describe('createOverlayController', () => {
       expect(result.ok).toBe(false);
       expect(result.reason).toMatch(/active tab/i);
       expect(executeScript).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('injectAnnotation', () => {
+    it('injects the on-demand annotation surface into the given tab', async () => {
+      const result = await createOverlayController().injectAnnotation(7);
+      expect(result).toEqual({ ok: true });
+      expect(executeScript).toHaveBeenCalledWith({
+        target: { tabId: 7 },
+        files: [ANNOTATION_CONTENT_SCRIPT],
+      });
+    });
+
+    it('does not inject the recorder or overlay (annotation ships Konva only)', async () => {
+      await createOverlayController().injectAnnotation(7);
+      expect(executeScript).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns a handled failure on an invalid tab id, without injecting', async () => {
+      const result = await createOverlayController().injectAnnotation(-1);
+      expect(result).toEqual({ ok: false, reason: 'invalid tab id: -1' });
+      expect(executeScript).not.toHaveBeenCalled();
+    });
+
+    it('maps an executeScript rejection to a handled failure', async () => {
+      executeScript.mockRejectedValueOnce(new Error('restricted page'));
+      const result = await createOverlayController().injectAnnotation(7);
+      expect(result).toEqual({ ok: false, reason: 'restricted page' });
     });
   });
 

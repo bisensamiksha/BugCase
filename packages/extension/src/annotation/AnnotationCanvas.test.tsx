@@ -173,6 +173,7 @@ describe('KonvaAnnotationCanvas', () => {
     expect(onComplete).toHaveBeenCalledWith({
       konvaJson: 'STAGE_JSON',
       pngDataUrl: 'data:image/png;base64,FLAT',
+      shapes: [],
     });
   });
 
@@ -202,10 +203,13 @@ describe('KonvaAnnotationCanvas', () => {
     expect(flatten).not.toHaveBeenCalled();
     // Rects are dpr-scaled (×2) into the exported PNG's pixel space.
     expect(bakeRedacted).toHaveBeenCalledWith(4, [{ x: 40, y: 40, width: 120, height: 80 }]);
-    expect(onComplete).toHaveBeenCalledWith({
-      konvaJson: 'STAGE_JSON',
-      pngDataUrl: 'data:image/png;base64,REDACTED',
-    });
+    // The drawn redact carries a random id, so match the stable fields (BUG-02 adds `shapes`).
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        konvaJson: 'STAGE_JSON',
+        pngDataUrl: 'data:image/png;base64,REDACTED',
+      }),
+    );
   });
 
   it('uses the plain flatten path when there are no redactions', async () => {
@@ -219,6 +223,28 @@ describe('KonvaAnnotationCanvas', () => {
       q('annotation-done')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(bakeRedacted).not.toHaveBeenCalled();
+  });
+
+  it('seeds the canvas from initialShapes and returns them on Done (BUG-02)', async () => {
+    const onComplete = vi.fn();
+    const initialShapes = [
+      { type: 'redact', id: 'seed-1', x: 5, y: 5, width: 20, height: 20 },
+    ] as const;
+    await render({
+      onComplete,
+      initialShapes,
+      serialize: () => 'STAGE_JSON',
+      bakeRedacted: () => 'data:image/png;base64,REDACTED',
+    });
+    // The preloaded redact renders immediately — proves Re-annotate reloads prior marks.
+    expect(qa('konva-rect').length).toBeGreaterThan(0);
+    act(() => {
+      q('annotation-done')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // Done hands the editable model back so a further Re-annotate can keep editing them.
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ konvaJson: 'STAGE_JSON', shapes: initialShapes }),
+    );
   });
 
   it('keeps the background image on its own layer so drawing never redraws it', async () => {

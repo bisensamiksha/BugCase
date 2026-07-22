@@ -49,6 +49,17 @@ export interface OverlayInjectResponse {
   readonly reason?: string;
 }
 
+/**
+ * Runtime message: overlay → service worker, asking it to inject the on-demand annotation surface
+ * (TD-03). Only the service worker can `executeScript` a packaged file, so the overlay routes the
+ * inject through it; the reply reuses {@link OverlayInjectResponse}.
+ */
+export const INJECT_ANNOTATION = 'bugcase/inject-annotation';
+
+export interface InjectAnnotationRequest {
+  readonly type: typeof INJECT_ANNOTATION;
+}
+
 /** Runtime message: overlay → service worker, asking it to run the full capture → ZIP → download. */
 export const CAPTURE_REPORT = 'bugcase/capture-report';
 
@@ -237,6 +248,7 @@ export interface DebuggerActivityMessage {
 export type ExtensionMessage =
   | CaptureVisibleTabRequest
   | OverlayInjectRequest
+  | InjectAnnotationRequest
   | CaptureReportRequest
   | FinalizeReportRequest
   | PeekReportAssetRequest
@@ -255,6 +267,14 @@ export function isOverlayInjectRequest(value: unknown): value is OverlayInjectRe
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === OVERLAY_INJECT
+  );
+}
+
+export function isInjectAnnotationRequest(value: unknown): value is InjectAnnotationRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === INJECT_ANNOTATION
   );
 }
 

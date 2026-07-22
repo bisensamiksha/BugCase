@@ -2,9 +2,11 @@ import type { BugReportV1 } from '@bugcase/schema';
 import { summarizePrivacy } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
-import { KonvaAnnotationCanvas, type AnnotationResult } from '../annotation/AnnotationCanvas';
+import type { AnnotationResult } from '../annotation/annotation-result';
 import type { FinalizeAnnotationPayload, FinalizeReportResponse } from '../background/messages';
+import type { AnnotationRequest } from '../content/annotation-channel';
 import { startServiceWorkerKeepAlive, type KeepAliveHandle } from '../overlay/keepalive';
+import { requestAnnotation } from '../overlay/request-annotation';
 import { requestFinalize } from '../overlay/request-capture';
 
 import { SandboxedDomSnapshotViewer } from './DomSnapshotViewer';
@@ -33,6 +35,12 @@ export interface PreviewAppProps {
   readonly onView?: (id: ArtifactId) => void;
   /** Fetches a held asset as a data URL for the screenshot lightbox; defaults to the SW bridge. */
   readonly peekAsset?: PeekAssetFn;
+  /**
+   * Opens the on-demand annotation surface (TD-03) and resolves the result, or null if the user
+   * cancels; rejects if the surface fails to inject. Defaults to the SW bridge, so Konva is injected
+   * on demand rather than bundled into the always-injected overlay. Injectable for tests/harness.
+   */
+  readonly annotate?: (request: AnnotationRequest) => Promise<AnnotationResult | null>;
   /** Records a metadata-only history entry after a successful download; defaults to `saveDownloadedReport`. */
   readonly saveHistory?: (input: DownloadedReportInput) => Promise<void>;
   /**
@@ -82,6 +90,7 @@ export function PreviewApp({
   finalize,
   onView,
   peekAsset,
+  annotate,
   saveHistory,
   keepAlive,
   disabled,
@@ -99,8 +108,9 @@ export function PreviewApp({
   );
   const screenshot = useMemo(() => resolveScreenshot(report), [report]);
   const privacySummary = useMemo(() => summarizePrivacy(report), [report]);
-  const [viewing, setViewing] = useState<ArtifactId | 'annotate' | null>(null);
+  const [viewing, setViewing] = useState<ArtifactId | null>(null);
   const [annotation, setAnnotation] = useState<AnnotationResult | null>(null);
+  const [annotating, setAnnotating] = useState(false);
   const [removed, setRemoved] = useState<ReadonlySet<ArtifactId>>(new Set());
   const [consenting, setConsenting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -116,6 +126,34 @@ export function PreviewApp({
       }
       return next;
     });
+  }
+
+  async function handleAnnotate(): Promise<void> {
+    if (!screenshot) {
+      return;
+    }
+    setError(null);
+    setAnnotating(true);
+    try {
+      const run = annotate ?? requestAnnotation;
+      // Re-annotate reloads the existing marks (BUG-02) so the user can edit/delete individual ones.
+      const request: AnnotationRequest = {
+        reportId,
+        screenshot,
+        ...(annotation && annotation.shapes.length > 0 ? { initialShapes: annotation.shapes } : {}),
+      };
+      const result = await run(request);
+      // A null result means the user cancelled; leave any prior annotation untouched. A result with no
+      // marks means they cleared everything — drop the annotation so the download uses the original and
+      // the "Annotated" badge disappears (fixes the stale-badge confusion).
+      if (result) {
+        setAnnotation(result.shapes.length > 0 ? result : null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Annotation failed');
+    } finally {
+      setAnnotating(false);
+    }
   }
 
   async function handleDownload(): Promise<void> {
@@ -150,28 +188,19 @@ export function PreviewApp({
   }
 
   if (viewing === 'screenshot' && screenshot) {
+    // When an annotation exists (BUG-02), View shows the flattened, redacted result the user will
+    // download — not the held original — so they can confirm exactly what leaves the browser.
+    const annotatedPeek: PeekAssetFn | undefined = annotation
+      ? () => Promise.resolve({ ok: true, dataUrl: annotation.pngDataUrl })
+      : undefined;
+    const viewPeek = annotatedPeek ?? peekAsset;
     return (
       <LightboxScreenshotViewer
         reportId={reportId}
         screenshot={screenshot}
         onCancel={() => setViewing(null)}
         onComplete={() => setViewing(null)}
-        {...(peekAsset ? { peekAsset } : {})}
-      />
-    );
-  }
-
-  if (viewing === 'annotate' && screenshot) {
-    return (
-      <KonvaAnnotationCanvas
-        reportId={reportId}
-        screenshot={screenshot}
-        onCancel={() => setViewing(null)}
-        onComplete={(result) => {
-          setAnnotation(result);
-          setViewing(null);
-        }}
-        {...(peekAsset ? { peekAsset } : {})}
+        {...(viewPeek ? { peekAsset: viewPeek } : {})}
       />
     );
   }
@@ -188,7 +217,7 @@ export function PreviewApp({
     );
   }
 
-  if (viewing && viewing !== 'annotate' && isJsonViewable(viewing)) {
+  if (viewing && isJsonViewable(viewing)) {
     return (
       <JsonTreeViewer
         title={artifacts.find((a) => a.id === viewing)?.label ?? ''}
@@ -258,18 +287,30 @@ export function PreviewApp({
                 <button
                   type="button"
                   data-testid="annotate-screenshot"
-                  onClick={() => setViewing('annotate')}
+                  disabled={annotating || busy}
+                  onClick={() => void handleAnnotate()}
                 >
-                  {annotation ? 'Re-annotate' : 'Annotate'}
+                  {annotating ? 'Annotating…' : annotation ? 'Re-annotate' : 'Annotate'}
                 </button>
               ) : null}
               {a.id === 'screenshot' && annotation ? (
-                <span
-                  data-testid="screenshot-annotated"
-                  style={{ color: '#16a34a', fontSize: '12px' }}
-                >
-                  Annotated
-                </span>
+                <>
+                  <span
+                    data-testid="screenshot-annotated"
+                    style={{ color: '#16a34a', fontSize: '12px' }}
+                  >
+                    Annotated
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="remove-annotation"
+                    disabled={annotating || busy}
+                    title="Discard the annotation and restore the original screenshot"
+                    onClick={() => setAnnotation(null)}
+                  >
+                    Remove annotation
+                  </button>
+                </>
               ) : null}
               {a.removable ? (
                 <button
