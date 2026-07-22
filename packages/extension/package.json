@@ -13,6 +13,7 @@
     "build:firefox": "pnpm --filter @bugcase/report-template build && cross-env BROWSER=firefox vite build && cross-env BROWSER=firefox vite build --config vite.content.config.ts && cross-env BROWSER=firefox vite build --config vite.annotation.config.ts && cross-env BROWSER=firefox INJECTED_ENTRY=main-entry vite build --config vite.injected.config.ts && cross-env BROWSER=firefox INJECTED_ENTRY=passive-bridge vite build --config vite.injected.config.ts && node ../../scripts/check-overlay-no-konva.mjs firefox",
     "build:all": "pnpm run build:chrome && pnpm run build:firefox",
     "build:harness": "vite build --config vite.harness.config.ts",
+    "package:chrome": "pnpm run build:chrome && node ../../scripts/package-chrome.mjs",
     "lint:firefox-manifest": "web-ext lint --source-dir=dist-firefox",
     "test": "vitest run",
     "test:watch": "vitest",
