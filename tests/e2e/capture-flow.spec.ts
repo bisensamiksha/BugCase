@@ -5,6 +5,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium, expect, test } from '@playwright/test';
 import JSZip from 'jszip';
 
+import { openPopupPage } from './helpers/extension-harness';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_DIST = path.resolve(here, '../../packages/extension/dist-chrome');
 const FIXTURE_URL = pathToFileURL(path.resolve(here, 'fixtures/basic-page.html')).href;
@@ -70,8 +72,7 @@ test.describe('extension capture pipeline (Chromium)', () => {
       await pageUnderTest.goto(FIXTURE_URL);
       const pageTitle = await pageUnderTest.title();
 
-      const extensionPage = await context.newPage();
-      await extensionPage.goto(`chrome-extension://${extensionId}/src/popup/popup.html`);
+      const extensionPage = await openPopupPage(context, extensionId);
 
       // Stub only the OS boundaries that aren't under test and break headless CI: the
       // screenshot source and the on-disk download. Everything between — the real message

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium, expect, test } from '@playwright/test';
 
+import { openPopupPage } from './helpers/extension-harness';
 import {
   REPORT_ZIP_PATHS,
   hasEntry,
@@ -134,8 +135,7 @@ test.describe('capture engine integration (Chromium)', () => {
         };
       }, ONE_PX_PNG);
 
-      const extensionPage = await context.newPage();
-      await extensionPage.goto(`chrome-extension://${extensionId}/src/popup/popup.html`);
+      const extensionPage = await openPopupPage(context, extensionId);
       const response = await extensionPage.evaluate(
         async (args: { fixtureUrl: string; title: string }): Promise<CaptureFinalizeResult> => {
           const g = globalThis as unknown as {
