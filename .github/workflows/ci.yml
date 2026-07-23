@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Reusable: release.yml calls this workflow to validate the tagged commit (S4-19).
+  workflow_call:
+
+# Least privilege for validation: read the repo, nothing else.
+permissions:
+  contents: read
 
 # Cancel superseded runs on the same ref to conserve free-tier minutes.
 concurrency:
@@ -13,6 +19,7 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -20,23 +27,29 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm typecheck
       - run: pnpm typecheck:e2e
+      - run: pnpm typecheck:workflows
 
   unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm test
       # S4-05 performance budget: 50 MB report opens to an interactive overview under 2 s.
       - run: pnpm test:perf
+      # S4-19 workflow contract tests (parse + required keys + hash-dist determinism).
+      - run: pnpm test:workflows
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -47,6 +60,7 @@ jobs:
   e2e:
     name: e2e (${{ matrix.browser }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -66,3 +80,11 @@ jobs:
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       - name: Run E2E (${{ matrix.browser }})
         run: pnpm test:e2e:${{ matrix.browser }}
+      # Keep the HTML report only on failure, briefly, to debug flakes without bloating storage.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7

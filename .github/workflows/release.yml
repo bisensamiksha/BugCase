@@ -1,0 +1,70 @@
+name: Release
+
+# Tag-driven release. Push a `vX.Y.Z` tag that matches the extension package version (see
+# .github/workflows/README.md). Store submission (Chrome/Edge/AMO) stays in S4-24 / S4-32; this
+# workflow only builds, proves reproducibility, and attaches artifacts to the GitHub Release.
+on:
+  push:
+    tags: ['v*']
+
+# Least privilege: create the Release and upload its assets. Nothing broader.
+permissions:
+  contents: write
+
+# Never abort an in-flight release publish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Reuse the full PR/main validation matrix (lint, typecheck, unit, build, chromium+firefox E2E) on
+  # the tagged commit — one source of truth. Firefox packaging is an additive matrix entry (S4-31).
+  validate:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Build all targets
+        run: pnpm build
+
+      # Reproducibility gate: package Chrome, hash dist-chrome, rebuild, re-hash, assert equal.
+      - name: Package Chrome extension
+        run: pnpm package:chrome
+      - name: Assert reproducible dist hashes (double build)
+        run: |
+          hash1="$(node scripts/hash-dist.mjs packages/extension/dist-chrome)"
+          pnpm package:chrome
+          hash2="$(node scripts/hash-dist.mjs packages/extension/dist-chrome)"
+          echo "build #1 dist-chrome hash: $hash1"
+          echo "build #2 dist-chrome hash: $hash2"
+          if [ "$hash1" != "$hash2" ]; then
+            echo "::error::dist-chrome is not reproducible across builds ($hash1 != $hash2)"
+            exit 1
+          fi
+
+      # Assemble the release assets: the store ZIP, the self-contained report.html, and the dashboard
+      # (zipped with our own deterministic zipper — no reliance on the runner's `zip`).
+      - name: Assemble release assets
+        run: |
+          version="$(node -p "require('./packages/extension/package.json').version")"
+          mkdir -p release-assets
+          cp "dist/bugcase-chrome-${version}.zip" release-assets/
+          cp packages/report-template/dist/report.html "release-assets/bugcase-report-template-${version}.html"
+          node scripts/zip-extension.mjs packages/dashboard/dist "release-assets/bugcase-dashboard-${version}.zip"
+
+      # Attach to the GitHub Release with the built-in gh CLI (no third-party actions).
+      - name: Create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release-assets/* \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag \
+          || gh release upload "${GITHUB_REF_NAME}" release-assets/* --clobber
