@@ -88,6 +88,26 @@ export async function extractReportHtmlFromRealZip(): Promise<string> {
   return entry.async('string');
 }
 
+/**
+ * Build a real, full kitchen-sink report ZIP (the shared fixture + its assets + an embedded
+ * `report.html`) as a Buffer — the exact artifact a user downloads. Feed it to the dashboard's
+ * drop-zone `<input type=file>` via Playwright's `setInputFiles({ buffer })` to exercise the
+ * standalone reader/intake path (S4-02) end-to-end.
+ */
+export async function buildKitchenSinkZipBuffer(): Promise<Buffer> {
+  const filled = await embedReportData({
+    templateHtml: readBuiltTemplate(),
+    report: sampleReport,
+    assets: sampleAssets,
+  });
+  const zipBlob = await writeBugReportZip(
+    sampleReport,
+    { files: sampleAssets },
+    { reportHtml: filled },
+  );
+  return Buffer.from(await zipBlob.arrayBuffer());
+}
+
 /** The built template unchanged: `window.__BUG_REPORT__` is `null`, so the dashboard shows the drop UI. */
 export function emptyDataReportHtml(): string {
   return readBuiltTemplate();
