@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "marked": "^18.0.6",
     "vite": "^5.4.10",
     "vitest": "^2.1.4"
   }

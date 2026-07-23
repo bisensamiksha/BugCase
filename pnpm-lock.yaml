@@ -56,6 +56,9 @@ importers:
 
   apps/privacy-site:
     devDependencies:
+      marked:
+        specifier: ^18.0.6
+        version: 18.0.6
       vite:
         specifier: ^5.4.10
         version: 5.4.21(@types/node@20.19.41)

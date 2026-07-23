@@ -25,6 +25,12 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Build dashboard
         run: pnpm --filter @bugcase/dashboard build
+      - name: Build privacy-site (legal pages)
+        run: pnpm --filter @bugcase/privacy-site build
+      - name: Fold legal pages into the dashboard Pages artifact
+        run: |
+          mkdir -p packages/dashboard/dist/legal
+          cp -R apps/privacy-site/dist/. packages/dashboard/dist/legal/
       - uses: actions/configure-pages@v5
       - name: Upload dashboard as a Pages artifact
         uses: actions/upload-pages-artifact@v3

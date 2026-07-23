@@ -61,6 +61,13 @@ const rowStyle: CSSProperties = {
   margin: '4px 0',
 };
 const mutedStyle: CSSProperties = { color: '#475569', margin: '0 0 8px' };
+const footerLegalStyle: CSSProperties = {
+  marginTop: '24px',
+  paddingTop: '12px',
+  borderTop: '1px solid #e2e8f0',
+  fontSize: '12px',
+  color: '#475569',
+};
 
 /** Split a textarea's contents into trimmed, non-empty header names, preserving order. */
 function parseHeaderLines(text: string): string[] {
@@ -279,6 +286,28 @@ export function OptionsApp({
       ) : (
         <p data-testid="options-loading">Loading settings…</p>
       )}
+
+      <footer data-testid="legal-footer" style={footerLegalStyle}>
+        <a
+          href="https://bisensamiksha.github.io/BugCase/legal/privacy-policy"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Privacy Policy
+        </a>
+        {' · '}
+        <a
+          href="https://bisensamiksha.github.io/BugCase/legal/terms"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Terms of Use
+        </a>
+        {' · '}
+        <a href="https://github.com/bisensamiksha/BugCase" target="_blank" rel="noreferrer">
+          Source
+        </a>
+      </footer>
     </main>
   );
 }

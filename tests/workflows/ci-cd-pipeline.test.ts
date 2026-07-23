@@ -105,6 +105,12 @@ describe('CI/CD workflow contract', () => {
         expect(typeof job['timeout-minutes']).toBe('number');
       }
     });
+
+    it('builds the privacy-site and publishes it under /legal/', () => {
+      const asText = JSON.stringify(pages.jobs);
+      expect(asText).toContain('@bugcase/privacy-site');
+      expect(asText).toContain('legal');
+    });
   });
 
   describe('release.yml', () => {

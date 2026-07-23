@@ -70,6 +70,22 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
+
+      <footer
+        data-testid="legal-footer"
+        className="border-t border-[var(--bc-border)] bg-[var(--bc-surface)] px-4 py-2 text-xs text-[var(--bc-fg-muted)]"
+      >
+        <a
+          className="underline"
+          href="https://bisensamiksha.github.io/BugCase/legal/privacy-policy"
+        >
+          Privacy Policy
+        </a>
+        {' · '}
+        <a className="underline" href="https://bisensamiksha.github.io/BugCase/legal/terms">
+          Terms of Use
+        </a>
+      </footer>
     </div>
   );
 }
