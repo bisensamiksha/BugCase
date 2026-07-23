@@ -7,8 +7,13 @@ export interface OptionalPermission {
   readonly why: string;
 }
 
-export const PRIVACY_POLICY_VERSION = 'v1';
-export const PRIVACY_POLICY_LAST_UPDATED = '2026-06-13';
+export const PRIVACY_POLICY_VERSION = 'v2';
+export const PRIVACY_POLICY_LAST_UPDATED = '2026-07-23';
+
+/** Canonical hosted URLs (GitHub Pages; S4-35 may later add a custom-domain redirect). */
+export const CANONICAL_BASE_URL = 'https://bisensamiksha.github.io/BugCase/';
+export const PRIVACY_POLICY_URL = 'https://bisensamiksha.github.io/BugCase/legal/privacy-policy';
+export const TERMS_URL = 'https://bisensamiksha.github.io/BugCase/legal/terms';
 
 /**
  * Permissions BugCase requests only at runtime, with explicit consent. Every entry here must be

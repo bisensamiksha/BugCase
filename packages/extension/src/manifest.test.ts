@@ -14,3 +14,10 @@ describe('buildManifest options_ui', () => {
     expect(ui?.open_in_tab).toBe(true);
   });
 });
+
+describe('buildManifest homepage_url', () => {
+  it.each(['chrome', 'firefox'] as const)('links the canonical site for %s', (target) => {
+    const manifest = buildManifest(target) as { homepage_url?: string };
+    expect(manifest.homepage_url).toBe('https://bisensamiksha.github.io/BugCase/');
+  });
+});

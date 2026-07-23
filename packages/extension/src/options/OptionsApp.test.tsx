@@ -210,4 +210,14 @@ describe('OptionsApp', () => {
     expect(q('options-app')).not.toBeNull();
     expect(q('ring-buffer-size')).not.toBeNull();
   });
+
+  it('renders a legal footer linking the hosted policy, terms, and source', async () => {
+    await renderApp();
+    const footer = q('legal-footer');
+    expect(footer).not.toBeNull();
+    const hrefs = [...footer!.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('https://bisensamiksha.github.io/BugCase/legal/privacy-policy');
+    expect(hrefs).toContain('https://bisensamiksha.github.io/BugCase/legal/terms');
+    expect(hrefs).toContain('https://github.com/bisensamiksha/BugCase');
+  });
 });

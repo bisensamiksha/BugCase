@@ -9,6 +9,9 @@ const COMMON = {
   name: 'Bug Reporter Tool',
   short_name: 'BugCase',
   description: 'Privacy-first bug report capture. No backend, no telemetry.',
+  // MV3 has no `privacy_policy` manifest key — the hosted policy URL is a store-listing field
+  // (tracked in store/privacy-links.md). `homepage_url` is the manifest's link to the project site.
+  homepage_url: 'https://bisensamiksha.github.io/BugCase/',
   version: pkg.version,
   action: {
     default_popup: 'src/popup/popup.html',
