@@ -15,6 +15,7 @@
     "build:harness": "pnpm --filter @bugcase/extension run build:harness",
     "icons:generate": "node scripts/generate-icons.mjs",
     "package:chrome": "pnpm --filter @bugcase/extension run package:chrome",
+    "hash:dist": "node scripts/hash-dist.mjs",
     "zip:chrome": "node scripts/zip-extension.mjs packages/extension/dist-chrome dist/bugcase-chrome.zip",
     "zip:firefox": "node scripts/zip-extension.mjs packages/extension/dist-firefox dist/bugcase-firefox.zip",
     "test": "pnpm -r run test",
@@ -24,10 +25,13 @@
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:visual": "PWTEST_VISUAL=1 playwright test --project=visual",
     "test:e2e:report": "playwright show-report",
+    "test:workflows": "vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:workflows": "pnpm test:workflows",
     "typecheck": "pnpm -r run typecheck",
     "typecheck:e2e": "tsc -p tests/e2e/tsconfig.json --noEmit",
+    "typecheck:workflows": "tsc -p tests/workflows/tsconfig.json --noEmit",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css,html}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css,html}\"",
     "prepare": "husky",
@@ -55,6 +59,8 @@
     "lint-staged": "^15.2.10",
     "prettier": "^3.3.3",
     "typescript": "^5.6.0",
-    "typescript-eslint": "^8.10.0"
+    "typescript-eslint": "^8.10.0",
+    "vitest": "^2.1.4",
+    "yaml": "^2.5.0"
   }
 }
