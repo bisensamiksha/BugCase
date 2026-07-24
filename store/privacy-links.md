@@ -17,6 +17,7 @@ S4-35 may later add a custom-domain redirect without changing which document is 
 | Extension options page footer                       | Policy + Terms + Source links | S4-22         | ✅ done    |
 | Dashboard shell footer                              | Policy + Terms links          | S4-22         | ✅ done    |
 | Privacy-site landing (`/legal/`)                    | Policy + Terms + Source links | S4-22         | ✅ done    |
+| Repo `README.md` (Privacy & legal section)          | Policy + Terms links          | S4-22         | ✅ done    |
 
 **Note — no MV3 privacy key.** Manifest V3 has no `privacy_policy` field; the store privacy-policy
 URL is entered in each store's Developer Dashboard listing, not in `manifest.json`.
