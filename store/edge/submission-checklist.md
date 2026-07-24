@@ -34,7 +34,7 @@
 
 ## Track (in S4-24)
 
-- [ ] Record artifact hash, submission date, and review state in `docs/release/store-submission-tracker.md` (created in S4-24).
+- [ ] Record artifact hash, submission date, and review state in [`../release/store-submission-tracker.md`](../release/store-submission-tracker.md) (created in S4-24).
 - [ ] Verify the Chrome ZIP installs on **Edge** and that the **Brave** install path works (Brave listing decision stays open — S4-24).
 
 ## Notes
