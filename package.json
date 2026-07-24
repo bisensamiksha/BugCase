@@ -14,6 +14,8 @@
     "build:firefox": "pnpm --filter @bugcase/extension run build:firefox",
     "build:harness": "pnpm --filter @bugcase/extension run build:harness",
     "icons:generate": "node scripts/generate-icons.mjs",
+    "store:assets": "node scripts/generate-store-assets.mjs",
+    "check:permission-justifications": "node scripts/check-permission-justifications.mjs",
     "package:chrome": "pnpm --filter @bugcase/extension run package:chrome",
     "hash:dist": "node scripts/hash-dist.mjs",
     "zip:chrome": "node scripts/zip-extension.mjs packages/extension/dist-chrome dist/bugcase-chrome.zip",
