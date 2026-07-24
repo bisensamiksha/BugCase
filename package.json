@@ -17,6 +17,7 @@
     "store:assets": "node scripts/generate-store-assets.mjs",
     "check:permission-justifications": "node scripts/check-permission-justifications.mjs",
     "package:chrome": "pnpm --filter @bugcase/extension run package:chrome",
+    "verify:edge-brave": "node scripts/verify-edge-brave-artifacts.mjs",
     "hash:dist": "node scripts/hash-dist.mjs",
     "zip:chrome": "node scripts/zip-extension.mjs packages/extension/dist-chrome dist/bugcase-chrome.zip",
     "zip:firefox": "node scripts/zip-extension.mjs packages/extension/dist-firefox dist/bugcase-firefox.zip",
