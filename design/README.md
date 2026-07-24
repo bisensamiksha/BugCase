@@ -46,6 +46,27 @@ toolchain) and writes transparent PNGs at exact pixel dimensions. Commit the reg
 alongside the SVG. `packages/extension/src/icons.test.ts` verifies every committed PNG exists and
 matches its declared size.
 
+## Store promo masters (S4-23)
+
+The store listing art reuses the same mark and palette in three additional SVG masters:
+
+| Master                    | Size     | Generated PNG                                    | Store use                 |
+| ------------------------- | -------- | ------------------------------------------------ | ------------------------- |
+| `store-promo-small.svg`   | 440×280  | `store/chrome/assets/promo-tile-440x280.png`     | Chrome small promo tile   |
+| `store-promo-marquee.svg` | 1400×560 | `store/chrome/assets/promo-marquee-1400x560.png` | Chrome marquee promo tile |
+| `store-logo.svg`          | 300×300  | `store/edge/assets/store-logo-300x300.png`       | Edge store logo           |
+
+Each embeds the `bugcase-icon.svg` mark via a nested `<svg viewBox="0 0 128 128">`, adds the "BugCase"
+wordmark + tagline, and stays self-contained (flat fills, no external refs). Regenerate the PNGs with:
+
+```bash
+pnpm store:assets
+```
+
+This runs [`scripts/generate-store-assets.mjs`](../scripts/generate-store-assets.mjs) (headless
+Chromium via Playwright, same as the icons). Dimensions are guarded by
+`packages/extension/src/packaging/store-assets.test.ts`.
+
 ## Design notes
 
 - **Legibility first:** the shield + bold white beetle body/head carry the mark at 16px; the finer
