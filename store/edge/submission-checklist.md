@@ -18,7 +18,7 @@
 
 ## Listing fields (from [`listing.md`](./listing.md) → shared copy)
 
-- [ ] Name: **Bug Reporter Tool** (≤ 45 chars).
+- [ ] Name: **BugCase — Bug Reporter Tool** (≤ 45 chars).
 - [ ] Short description = shared tagline (≤ 132 chars).
 - [ ] Description = shared detailed description (≤ 10,000 chars).
 - [ ] Category: **Developer tools**.

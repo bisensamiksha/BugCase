@@ -9,7 +9,7 @@
 
 | Field                                  | Value / source                                                                             | Edge limit     |
 | -------------------------------------- | ------------------------------------------------------------------------------------------ | -------------- |
-| Name                                   | **Bug Reporter Tool** (from manifest `name`)                                               | ≤ 45 chars     |
+| Name                                   | **BugCase — Bug Reporter Tool** (from manifest `name`)                                     | ≤ 45 chars     |
 | Short description                      | shared **Tagline**                                                                         | ≤ 132 chars    |
 | Description                            | shared **Detailed description**                                                            | ≤ 10,000 chars |
 | Category                               | **Developer tools**                                                                        | single choice  |
@@ -21,7 +21,7 @@
 
 ## Edge deltas vs. Chrome
 
-- **Name limit is shorter (45 chars).** "Bug Reporter Tool" (17 chars) fits — no change needed.
+- **Name limit is shorter (45 chars).** "BugCase — Bug Reporter Tool" (27 chars) fits comfortably.
 - **Description limit is 10,000 chars** (Chrome allows 16,000). The shared detailed description is well
   under both; no Edge-specific trim required.
 - Edge requires a **300×300 store logo** (Chrome uses the 128×128 package icon). Generated:

@@ -8,7 +8,7 @@
 
 | Field                         | Value / source                                                                               | Chrome limit                       |
 | ----------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Item name                     | **Bug Reporter Tool** (from manifest `name`)                                                 | ≤ 75 chars                         |
+| Item name                     | **BugCase — Bug Reporter Tool** (from manifest `name`)                                       | ≤ 75 chars                         |
 | Summary (short description)   | shared **Tagline**                                                                           | ≤ 132 chars                        |
 | Detailed description          | shared **Detailed description**                                                              | ≤ 16,000 chars                     |
 | Category                      | **Developer Tools**                                                                          | single choice                      |

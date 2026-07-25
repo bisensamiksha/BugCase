@@ -15,7 +15,7 @@
 
 | Field              | Value                                    | Notes                                                                                                           |
 | ------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Store item name    | **Bug Reporter Tool**                    | Matches the manifest `name`; do not rename in one store only.                                                   |
+| Store item name    | **BugCase — Bug Reporter Tool**          | Matches the manifest `name`; do not rename in one store only.                                                   |
 | Short name / brand | **BugCase**                              | Matches the manifest `short_name`; used throughout the copy.                                                    |
 | Category           | **Developer Tools**                      | Same on Chrome and Edge.                                                                                        |
 | Homepage / support | https://bisensamiksha.github.io/BugCase/ | Manifest `homepage_url`; issues at the public repo.                                                             |

@@ -1,7 +1,7 @@
 /**
  * Keep the draggable overlay panel on-screen (S3-13 follow-up).
  *
- * The Bug Reporter panel can be dragged by its header so it doesn't obscure the page. This clamps a
+ * The BugCase panel can be dragged by its header so it doesn't obscure the page. This clamps a
  * proposed position so a grabbable strip always stays within the viewport — you can push the panel
  * mostly off an edge, but never lose the header (and with it the way to drag it back or close it).
  * Pure, so the geometry is unit-tested without a DOM.
