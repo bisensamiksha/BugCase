@@ -676,7 +676,7 @@ export function OverlayApp({
         data-testid="bugcase-overlay-header"
         onMouseDown={onHeaderMouseDown}
       >
-        <strong>Bug Reporter</strong>
+        <strong>BugCase</strong>
         <button
           type="button"
           aria-label="Close overlay"

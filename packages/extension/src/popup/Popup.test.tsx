@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getManifest, sendMessage } = vi.hoisted(() => ({
-  getManifest: vi.fn(() => ({ name: 'Bug Reporter Tool', version: '0.0.1' })),
+  getManifest: vi.fn(() => ({ name: 'BugCase — Bug Reporter Tool', version: '0.0.1' })),
   sendMessage: vi.fn(() => Promise.resolve({ ok: true })),
 }));
 vi.mock('webextension-polyfill', () => ({
