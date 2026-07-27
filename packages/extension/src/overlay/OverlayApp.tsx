@@ -55,6 +55,7 @@ import {
   ELEMENT_INSPECTION_SESSION_INITIAL,
   elementInspectionSessionReducer,
 } from './element-inspection-session';
+import { withHostHidden } from './hide-host-during-capture';
 import {
   appendRecordingStep,
   clearRecording,
@@ -93,13 +94,16 @@ export interface ElementPickerController {
   ) => { stop: () => void };
 }
 
-/** Ask the service worker to capture the viewport + crop the picked element's box; `null` on failure. */
+/** Ask the service worker to capture the viewport + crop the picked element's box; `null` on failure.
+ *  The overlay host is hidden for the capture so the picker pill isn't baked into the crop (BUG-03). */
 function requestElementCrop(rect: CropRect, devicePixelRatio: number): Promise<string | null> {
   const message: CropElementRequest = { type: CROP_ELEMENT, rect, devicePixelRatio };
-  return browser.runtime
-    .sendMessage<CropElementRequest, CropElementResult>(message)
-    .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
-    .catch(() => null);
+  return withHostHidden(() =>
+    browser.runtime
+      .sendMessage<CropElementRequest, CropElementResult>(message)
+      .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
+      .catch(() => null),
+  );
 }
 
 /** Read the passive error count for this tab (S3-14); defaults to the runtime bridge. */
@@ -259,6 +263,7 @@ const bodyStyle: CSSProperties = {
   flex: '1 1 auto',
   minHeight: 0,
   overflowY: 'auto',
+  paddingBottom: '8px',
 };
 
 // While recording, the panel collapses to this small pill so the page underneath stays interactive.
@@ -315,6 +320,7 @@ export function OverlayApp({
   const [showOptIn, setShowOptIn] = useState(false);
   const [cookiesGranted, setCookiesGranted] = useState(false);
   const [captureOptions, setCaptureOptions] = useState<UserOptions>(CAPTURE_OPTION_DEFAULTS);
+  const [minimized, setMinimized] = useState(false);
   const [userReport, setUserReport] = useState<UserInput>(USER_REPORT_DEFAULTS);
   const [phase, setPhase] = useState<OverlayPhase>('form');
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -663,6 +669,43 @@ export function OverlayApp({
     );
   }
 
+  if (minimized) {
+    // Collapsed to a small pill (same look as the recording/picker pills) so the page underneath is
+    // fully usable; Expand restores the capture form.
+    return (
+      <div
+        role="dialog"
+        aria-label="BugCase capture overlay (minimized)"
+        data-testid="bugcase-overlay-minimized"
+        style={pillStyle}
+      >
+        <div style={{ ...headerStyle, marginBottom: 0, cursor: 'default' }}>
+          <strong>BugCase</strong>
+          <span style={{ display: 'flex', gap: '4px' }}>
+            <button
+              type="button"
+              aria-label="Expand overlay"
+              data-testid="bugcase-overlay-expand"
+              onClick={() => setMinimized(false)}
+              style={closeStyle}
+            >
+              ⤢
+            </button>
+            <button
+              type="button"
+              aria-label="Close overlay"
+              data-testid="bugcase-overlay-close-min"
+              onClick={onClose}
+              style={closeStyle}
+            >
+              ×
+            </button>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       role="dialog"
@@ -677,16 +720,28 @@ export function OverlayApp({
         onMouseDown={onHeaderMouseDown}
       >
         <strong>BugCase</strong>
-        <button
-          type="button"
-          aria-label="Close overlay"
-          data-testid="bugcase-overlay-close"
-          onClick={onClose}
-          onMouseDown={(event) => event.stopPropagation()}
-          style={closeStyle}
-        >
-          ×
-        </button>
+        <span style={{ display: 'flex', gap: '4px' }}>
+          <button
+            type="button"
+            aria-label="Minimize overlay"
+            data-testid="bugcase-overlay-minimize"
+            onClick={() => setMinimized(true)}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={closeStyle}
+          >
+            –
+          </button>
+          <button
+            type="button"
+            aria-label="Close overlay"
+            data-testid="bugcase-overlay-close"
+            onClick={onClose}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={closeStyle}
+          >
+            ×
+          </button>
+        </span>
       </header>
       <div style={bodyStyle} data-testid="bugcase-overlay-body">
         {debuggerActivity.active ? (
@@ -740,29 +795,33 @@ export function OverlayApp({
             onStopPicking={handleStopPicking}
           />
         ) : null}
-        <CaptureButton
-          onComplete={(result) => {
-            if (result.ok && result.reportId && result.report) {
-              setPreview({
-                reportId: result.reportId,
-                report: result.report,
-                ...(result.assetSizes ? { assetSizes: result.assetSizes } : {}),
-              });
-              setPhase('preview');
-            }
-          }}
-          onCapture={async () => {
-            const reproduction = await buildReproduction();
-            return (onCapture ?? requestCapture)({
-              userOptions: captureOptions,
-              userInput: userReport,
-              ...(reproduction ? { reproduction } : {}),
-              ...(elementSession.inspections.length > 0
-                ? { elementInspections: elementSession.inspections }
-                : {}),
-            });
-          }}
-        />
+        <div style={{ marginTop: '12px' }}>
+          <CaptureButton
+            onComplete={(result) => {
+              if (result.ok && result.reportId && result.report) {
+                setPreview({
+                  reportId: result.reportId,
+                  report: result.report,
+                  ...(result.assetSizes ? { assetSizes: result.assetSizes } : {}),
+                });
+                setPhase('preview');
+              }
+            }}
+            onCapture={async () => {
+              const reproduction = await buildReproduction();
+              return withHostHidden(() =>
+                (onCapture ?? requestCapture)({
+                  userOptions: captureOptions,
+                  userInput: userReport,
+                  ...(reproduction ? { reproduction } : {}),
+                  ...(elementSession.inspections.length > 0
+                    ? { elementInspections: elementSession.inspections }
+                    : {}),
+                }),
+              );
+            }}
+          />
+        </div>
       </div>
     </div>
   );

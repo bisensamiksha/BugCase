@@ -89,6 +89,20 @@ export type CaptureOptionsAction =
   | { readonly type: 'set'; readonly key: CaptureOptionKey; readonly value: boolean }
   | { readonly type: 'reset' };
 
+/**
+ * Single-select groups (BUG-03): choosing one option clears the others in the same group. A screenshot
+ * is always captured, so "Visible area" vs "Full page" is a one-of choice, not two independent toggles.
+ */
+const MUTEX_GROUPS: readonly (readonly CaptureOptionKey[])[] = [
+  ['viewportScreenshot', 'fullPageScreenshot'],
+];
+
+/** The keys a given option is mutually exclusive with (empty for ordinary, independent options). */
+function mutexSiblings(key: CaptureOptionKey): readonly CaptureOptionKey[] {
+  const group = MUTEX_GROUPS.find((g) => g.includes(key));
+  return group ? group.filter((k) => k !== key) : [];
+}
+
 /** Pure reducer over the capture options; never mutates `state`. */
 export function captureOptionsReducer(
   state: UserOptions,
@@ -97,8 +111,23 @@ export function captureOptionsReducer(
   switch (action.type) {
     case 'toggle':
       return { ...state, [action.key]: !state[action.key] };
-    case 'set':
+    case 'set': {
+      const siblings = mutexSiblings(action.key);
+      if (siblings.length > 0) {
+        if (action.value) {
+          // Selecting one in a single-select group turns its siblings off.
+          return siblings.reduce<UserOptions>((acc, sibling) => ({ ...acc, [sibling]: false }), {
+            ...state,
+            [action.key]: true,
+          });
+        }
+        // Keep exactly one selected: ignore a deselect that would leave the whole group off.
+        if (siblings.every((sibling) => !state[sibling])) {
+          return state;
+        }
+      }
       return { ...state, [action.key]: action.value };
+    }
     case 'reset':
       return CAPTURE_OPTION_DEFAULTS;
   }

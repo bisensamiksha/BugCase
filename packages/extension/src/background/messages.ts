@@ -173,7 +173,34 @@ export const FINALIZE_REPORT = 'bugcase/finalize-report';
  */
 export interface FinalizeAnnotationPayload {
   readonly konvaJson: string;
-  readonly screenshotDataUrl: string;
+  /**
+   * The flattened annotated PNG as a data URL. Omitted when it's too large for a single message — it's
+   * streamed first via FINALIZE_ANNOTATION_CHUNK and the worker reassembles it (BUG-03).
+   */
+  readonly screenshotDataUrl?: string;
+}
+
+/**
+ * Runtime message: streams one sub-64MiB slice of a large annotated screenshot's data URL ahead of
+ * FINALIZE_REPORT (Chrome caps `runtime.sendMessage` at 64 MiB). The worker buffers the slices by
+ * `reportId` and reassembles them at finalize (BUG-03).
+ */
+export const FINALIZE_ANNOTATION_CHUNK = 'bugcase/finalize-annotation-chunk';
+
+export interface FinalizeAnnotationChunkRequest {
+  readonly type: typeof FINALIZE_ANNOTATION_CHUNK;
+  readonly reportId: string;
+  /** 0-based index of this slice. */
+  readonly seq: number;
+  /** Total number of slices that make up the screenshot. */
+  readonly total: number;
+  /** This slice of the screenshot data URL. */
+  readonly chunk: string;
+}
+
+export interface FinalizeAnnotationChunkResponse {
+  readonly ok: boolean;
+  readonly reason?: string;
 }
 
 export interface FinalizeReportRequest {
@@ -251,6 +278,7 @@ export type ExtensionMessage =
   | InjectAnnotationRequest
   | CaptureReportRequest
   | FinalizeReportRequest
+  | FinalizeAnnotationChunkRequest
   | PeekReportAssetRequest
   | DebuggerActivityMessage;
 
@@ -291,6 +319,16 @@ export function isFinalizeReportRequest(value: unknown): value is FinalizeReport
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === FINALIZE_REPORT
+  );
+}
+
+export function isFinalizeAnnotationChunkRequest(
+  value: unknown,
+): value is FinalizeAnnotationChunkRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === FINALIZE_ANNOTATION_CHUNK
   );
 }
 

@@ -6,9 +6,11 @@ vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 import {
   CAPTURE_REPORT,
+  FINALIZE_ANNOTATION_CHUNK,
   FINALIZE_REPORT,
   PEEK_REPORT_ASSET,
   type CaptureReportRequest,
+  type FinalizeAnnotationChunkRequest,
   type FinalizeReportRequest,
 } from '../background/messages';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
@@ -262,7 +264,7 @@ describe('requestFinalize', () => {
       Promise.resolve({ ok: true, downloadId: 3, filename: 'f.zip' }),
     );
 
-    const result = await requestFinalize('r1', ['console', 'cookies'], undefined, send);
+    const result = await requestFinalize('r1', ['console', 'cookies'], undefined, { send });
 
     expect(result).toEqual({ ok: true, downloadId: 3, filename: 'f.zip' });
     expect(send).toHaveBeenCalledTimes(1);
@@ -277,7 +279,7 @@ describe('requestFinalize', () => {
     const send = vi.fn((_message: FinalizeReportRequest) => Promise.resolve({ ok: true }));
     const annotation = { konvaJson: '{"k":1}', screenshotDataUrl: 'data:image/png;base64,AAAA' };
 
-    await requestFinalize('r1', [], annotation, send);
+    await requestFinalize('r1', [], annotation, { send });
 
     expect(send.mock.calls[0]?.[0]).toEqual({
       type: FINALIZE_REPORT,
@@ -285,6 +287,49 @@ describe('requestFinalize', () => {
       removedIds: [],
       annotation,
     });
+  });
+
+  it('streams a large annotated screenshot in chunks, then finalizes without the inline image (BUG-03)', async () => {
+    const send = vi.fn((_m: FinalizeReportRequest) => Promise.resolve({ ok: true }));
+    const sendChunk = vi.fn((_m: FinalizeAnnotationChunkRequest) => Promise.resolve({ ok: true }));
+    const annotation = { konvaJson: '{"k":1}', screenshotDataUrl: 'ABCDEFG' };
+
+    await requestFinalize('r1', ['console'], annotation, {
+      send,
+      sendChunk,
+      inlineMax: 4,
+      chunkSize: 3,
+    });
+
+    // 'ABCDEFG' (7 chars) at chunk size 3 → 3 slices.
+    expect(sendChunk.mock.calls.map((c) => c[0])).toEqual([
+      { type: FINALIZE_ANNOTATION_CHUNK, reportId: 'r1', seq: 0, total: 3, chunk: 'ABC' },
+      { type: FINALIZE_ANNOTATION_CHUNK, reportId: 'r1', seq: 1, total: 3, chunk: 'DEF' },
+      { type: FINALIZE_ANNOTATION_CHUNK, reportId: 'r1', seq: 2, total: 3, chunk: 'G' },
+    ]);
+    // Finalize omits the image; only the konva JSON rides along.
+    expect(send.mock.calls[0]?.[0]).toEqual({
+      type: FINALIZE_REPORT,
+      reportId: 'r1',
+      removedIds: ['console'],
+      annotation: { konvaJson: '{"k":1}' },
+    });
+  });
+
+  it('aborts with a failure when a chunk send is rejected by the worker (BUG-03)', async () => {
+    const send = vi.fn((_m: FinalizeReportRequest) => Promise.resolve({ ok: true }));
+    const sendChunk = vi.fn((_m: FinalizeAnnotationChunkRequest) => Promise.resolve({ ok: false }));
+    const annotation = { konvaJson: '{}', screenshotDataUrl: 'ABCDEFG' };
+
+    const result = await requestFinalize('r1', [], annotation, {
+      send,
+      sendChunk,
+      inlineMax: 4,
+      chunkSize: 3,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(send).not.toHaveBeenCalled();
   });
 });
 

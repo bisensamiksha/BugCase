@@ -7,6 +7,8 @@ import { PermissionGrants } from './PermissionGrants';
 function openOverlay(): void {
   // Fire-and-forget: the service worker resolves the active tab and injects the overlay there.
   void browser.runtime.sendMessage({ type: OVERLAY_INJECT } satisfies OverlayInjectRequest);
+  // Close the toolbar popup so it doesn't linger on top of the injected overlay (BUG-03).
+  window.close();
 }
 
 export function Popup() {
