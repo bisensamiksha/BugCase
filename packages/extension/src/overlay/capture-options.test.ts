@@ -56,6 +56,48 @@ describe('captureOptionsReducer', () => {
     });
     expect(captureOptionsReducer(dirty, { type: 'reset' })).toEqual(DEFAULT_USER_OPTIONS);
   });
+
+  it('screenshot options are single-select: choosing one clears the other (BUG-03)', () => {
+    // Default is Visible area on. Choosing Full page turns Visible area off.
+    const full = captureOptionsReducer(DEFAULT_USER_OPTIONS, {
+      type: 'set',
+      key: 'fullPageScreenshot',
+      value: true,
+    });
+    expect(full.fullPageScreenshot).toBe(true);
+    expect(full.viewportScreenshot).toBe(false);
+
+    // Choosing Visible area again turns Full page off.
+    const back = captureOptionsReducer(full, {
+      type: 'set',
+      key: 'viewportScreenshot',
+      value: true,
+    });
+    expect(back.viewportScreenshot).toBe(true);
+    expect(back.fullPageScreenshot).toBe(false);
+  });
+
+  it('screenshot options keep exactly one selected — deselecting the active one is ignored (BUG-03)', () => {
+    // A screenshot is always captured, so the mode is a one-of choice; unticking the only selected
+    // one must not leave both off.
+    const next = captureOptionsReducer(DEFAULT_USER_OPTIONS, {
+      type: 'set',
+      key: 'viewportScreenshot',
+      value: false,
+    });
+    expect(next.viewportScreenshot).toBe(true);
+    expect(next.fullPageScreenshot).toBe(false);
+  });
+
+  it('single-select does not affect non-screenshot options', () => {
+    const next = captureOptionsReducer(DEFAULT_USER_OPTIONS, {
+      type: 'set',
+      key: 'localStorage',
+      value: true,
+    });
+    expect(next.localStorage).toBe(true);
+    expect(next.viewportScreenshot).toBe(true);
+  });
 });
 
 describe('optionPermission', () => {

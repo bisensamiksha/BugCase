@@ -92,6 +92,11 @@ function normalizeCaptureOptions(value: unknown): UserOptions {
       next[key] = stored;
     }
   }
+  // Screenshot mode is single-select (BUG-03): repair a legacy/corrupt state that has both modes on
+  // by keeping Visible area (the default) and clearing Full page.
+  if (next.viewportScreenshot && next.fullPageScreenshot) {
+    next.fullPageScreenshot = false;
+  }
   return next;
 }
 

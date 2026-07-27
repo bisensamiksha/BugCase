@@ -65,6 +65,22 @@ describe('getSettings', () => {
     expect(settings.blockedHeaders).toEqual(SENSITIVE_HEADER_NAMES);
   });
 
+  it('repairs a legacy state with both screenshot modes on to single-select (BUG-03)', async () => {
+    const storage = fakeStorage({
+      [SETTINGS_STORAGE_KEY]: {
+        defaultCaptureOptions: {
+          ...DEFAULT_USER_OPTIONS,
+          viewportScreenshot: true,
+          fullPageScreenshot: true,
+        },
+      },
+    });
+    const settings = await getSettings({ storage });
+    // Screenshot mode is one-of; the stored both-on state is normalized to Visible area only.
+    expect(settings.defaultCaptureOptions.viewportScreenshot).toBe(true);
+    expect(settings.defaultCaptureOptions.fullPageScreenshot).toBe(false);
+  });
+
   it('clamps an out-of-range ring-buffer size and ignores malformed fields without throwing', async () => {
     const storage = fakeStorage({
       [SETTINGS_STORAGE_KEY]: {

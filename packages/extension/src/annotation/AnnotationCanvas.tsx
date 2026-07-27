@@ -100,6 +100,17 @@ function pointerFrom(e: KonvaPointerEvent, scale: number): Point | null {
   return toImageSpace(e.target.getStage()?.getPointerPosition() ?? null, scale);
 }
 
+// User zoom on top of the fit-to-window scale, so full-resolution captures can be enlarged to annotate
+// fine detail (BUG-03). Zoom 1 = fit-to-window (the minimum); zooming in grows the canvas and pans by
+// scrolling. Shapes stay in image-space, so the exported PNG is unaffected by zoom.
+const ZOOM_STEP = 1.25;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+
+/** Generous hit region around thin strokes so the eraser (and click) can land on unfilled shapes,
+ *  not just the exact 1–2px outline (BUG-03). Filled shapes (redactions) are already fully clickable. */
+const HIT_STROKE_WIDTH = 20;
+
 /** The box the canvas may occupy (net of the toolbar), derived from the current window. */
 function windowAvailableSize(): { width: number; height: number } {
   if (typeof window === 'undefined') {
@@ -141,6 +152,7 @@ export function KonvaAnnotationCanvas({
   const [draft, setDraft] = useState<Annotation | null>(null);
   const [textAt, setTextAt] = useState<Point | null>(null);
   const [autoSize, setAutoSize] = useState(windowAvailableSize);
+  const [zoom, setZoom] = useState(1);
   const drawing = useRef<DrawState | null>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -159,6 +171,11 @@ export function KonvaAnnotationCanvas({
 
   const avail = availableSize ?? autoSize;
   const scale = computeFitScale(screenshot.width, screenshot.height, avail.width, avail.height);
+  // Effective on-screen scale = fit-to-window × user zoom. Everything display-related (stage size,
+  // pointer mapping, text overlay, export raster) uses this so shapes land correctly at any zoom.
+  const displayScale = scale * zoom;
+  const canZoomIn = zoom < MAX_ZOOM;
+  const canZoomOut = zoom > MIN_ZOOM;
 
   useEffect(() => {
     let cancelled = false;
@@ -207,7 +224,7 @@ export function KonvaAnnotationCanvas({
     if (disabled || textAt) {
       return;
     }
-    const pos = pointerFrom(e, scale);
+    const pos = pointerFrom(e, displayScale);
     if (!pos || state.tool === 'select' || state.tool === 'eraser') {
       return;
     }
@@ -229,7 +246,7 @@ export function KonvaAnnotationCanvas({
     if (!active || disabled) {
       return;
     }
-    const pos = pointerFrom(e, scale);
+    const pos = pointerFrom(e, displayScale);
     if (!pos) {
       return;
     }
@@ -247,7 +264,7 @@ export function KonvaAnnotationCanvas({
     if (!active) {
       return;
     }
-    const pos = pointerFrom(e, scale) ?? active.start;
+    const pos = pointerFrom(e, displayScale) ?? active.start;
     setDraft(null);
     if (state.tool === 'freehand') {
       if (active.points.length >= 4) {
@@ -302,7 +319,7 @@ export function KonvaAnnotationCanvas({
     const konvaJson = serialize ? serialize() : (stageRef.current?.toJSON() ?? '');
     // The stage is drawn at `scale`, so raster at devicePixelRatio / scale to land back on the original
     // device dimensions (e.g. dpr 2 fitted to 0.5 → pixelRatio 4 → same pixels as the source screenshot).
-    const exportPixelRatio = screenshot.devicePixelRatio / (scale > 0 ? scale : 1);
+    const exportPixelRatio = screenshot.devicePixelRatio / (displayScale > 0 ? displayScale : 1);
     // Redact shapes are stored in image-space; scale them into the exported PNG's pixel space, which is
     // image-space × devicePixelRatio (the fit `scale` and the export `pixelRatio` cancel out).
     const redactions = scaleRedactions(
@@ -344,6 +361,7 @@ export function KonvaAnnotationCanvas({
             height={shape.height}
             stroke={shape.color}
             strokeWidth={shape.strokeWidth}
+            hitStrokeWidth={HIT_STROKE_WIDTH}
             onClick={onClick}
           />
         );
@@ -357,6 +375,7 @@ export function KonvaAnnotationCanvas({
             radiusY={shape.radiusY}
             stroke={shape.color}
             strokeWidth={shape.strokeWidth}
+            hitStrokeWidth={HIT_STROKE_WIDTH}
             onClick={onClick}
           />
         );
@@ -368,6 +387,7 @@ export function KonvaAnnotationCanvas({
             stroke={shape.color}
             fill={shape.color}
             strokeWidth={shape.strokeWidth}
+            hitStrokeWidth={HIT_STROKE_WIDTH}
             onClick={onClick}
           />
         );
@@ -381,6 +401,7 @@ export function KonvaAnnotationCanvas({
             lineCap="round"
             lineJoin="round"
             tension={0.4}
+            hitStrokeWidth={HIT_STROKE_WIDTH}
             onClick={onClick}
           />
         );
@@ -435,6 +456,12 @@ export function KonvaAnnotationCanvas({
         onClear={() => dispatch({ type: 'clear' })}
         onDone={handleDone}
         onCancel={() => onCancel?.()}
+        zoomPercent={Math.round(zoom * 100)}
+        canZoomIn={canZoomIn}
+        canZoomOut={canZoomOut}
+        onZoomIn={() => setZoom((z) => Math.min(MAX_ZOOM, z * ZOOM_STEP))}
+        onZoomOut={() => setZoom((z) => Math.max(MIN_ZOOM, z / ZOOM_STEP))}
+        onZoomReset={() => setZoom(1)}
       />
 
       {status === 'loading' ? (
@@ -449,57 +476,72 @@ export function KonvaAnnotationCanvas({
       ) : null}
 
       {status === 'loaded' ? (
-        <div style={{ position: 'relative' }}>
-          <Stage
-            ref={stageRef}
-            width={screenshot.width * scale}
-            height={screenshot.height * scale}
-            scaleX={scale}
-            scaleY={scale}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+        // Scroll-to-pan: when zoomed past fit, the content grows beyond this box and scrollbars appear.
+        <div
+          data-testid="annotation-canvas-scroll"
+          style={{ maxWidth: `${avail.width}px`, maxHeight: `${avail.height}px`, overflow: 'auto' }}
+        >
+          <div
+            data-testid="annotation-canvas-content"
+            style={{
+              position: 'relative',
+              width: `${screenshot.width * displayScale}px`,
+              height: `${screenshot.height * displayScale}px`,
+            }}
           >
-            {/* Background image on its own layer with hit-testing off: it never re-rasterises while
-                drawing, which is the multi-megapixel redraw that made annotation lag. */}
-            <Layer listening={false}>
-              <KonvaImage
-                image={image ?? undefined}
-                width={screenshot.width}
-                height={screenshot.height}
+            <Stage
+              ref={stageRef}
+              width={screenshot.width * displayScale}
+              height={screenshot.height * displayScale}
+              scaleX={displayScale}
+              scaleY={displayScale}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            >
+              {/* Background image on its own layer with hit-testing off: it never re-rasterises while
+                  drawing, which is the multi-megapixel redraw that made annotation lag. */}
+              <Layer listening={false}>
+                <KonvaImage
+                  image={image ?? undefined}
+                  width={screenshot.width}
+                  height={screenshot.height}
+                />
+              </Layer>
+              <Layer>
+                {state.shapes.map((shape, i) => renderShape(shape, `${shape.id}-${i}`))}
+              </Layer>
+              {/* Live draft on a dedicated layer so only this small layer repaints on every pointer move. */}
+              <Layer>{draft ? renderShape(draft, 'draft') : null}</Layer>
+            </Stage>
+            {textAt ? (
+              <textarea
+                data-testid="annotation-text-input"
+                autoFocus
+                defaultValue=""
+                style={{
+                  position: 'absolute',
+                  left: `${textAt.x * displayScale}px`,
+                  top: `${textAt.y * displayScale}px`,
+                  font: `${DEFAULT_FONT_SIZE * displayScale}px sans-serif`,
+                  color: state.color,
+                  background: 'rgba(255,255,255,0.9)',
+                  border: '1px solid #2563eb',
+                  resize: 'none',
+                  zIndex: 4,
+                }}
+                onBlur={(e) => commitText(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    commitText(e.currentTarget.value);
+                  } else if (e.key === 'Escape') {
+                    setTextAt(null);
+                  }
+                }}
               />
-            </Layer>
-            <Layer>{state.shapes.map((shape, i) => renderShape(shape, `${shape.id}-${i}`))}</Layer>
-            {/* Live draft on a dedicated layer so only this small layer repaints on every pointer move. */}
-            <Layer>{draft ? renderShape(draft, 'draft') : null}</Layer>
-          </Stage>
-          {textAt ? (
-            <textarea
-              data-testid="annotation-text-input"
-              autoFocus
-              defaultValue=""
-              style={{
-                position: 'absolute',
-                left: `${textAt.x * scale}px`,
-                top: `${textAt.y * scale}px`,
-                font: `${DEFAULT_FONT_SIZE * scale}px sans-serif`,
-                color: state.color,
-                background: 'rgba(255,255,255,0.9)',
-                border: '1px solid #2563eb',
-                resize: 'none',
-                zIndex: 4,
-              }}
-              onBlur={(e) => commitText(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  commitText(e.currentTarget.value);
-                } else if (e.key === 'Escape') {
-                  setTextAt(null);
-                }
-              }}
-            />
-          ) : null}
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>

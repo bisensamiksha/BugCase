@@ -4,7 +4,17 @@ import { buildAnnotationFile } from '../annotation/konva-serialization';
 import { dataUrlToBlob } from '../capture/capture-visible-tab';
 
 import type { AnnotationExport } from './capture-flow';
-import type { FinalizeAnnotationPayload } from './messages';
+
+/**
+ * A finalize annotation payload with the screenshot already resolved to an inline data URL. The worker
+ * reassembles any streamed slices (BUG-03) before calling {@link buildAnnotationExport}, so this is
+ * always the complete flattened PNG — distinct from the wire `FinalizeAnnotationPayload`, whose
+ * `screenshotDataUrl` is optional.
+ */
+export interface ResolvedAnnotationPayload {
+  readonly konvaJson: string;
+  readonly screenshotDataUrl: string;
+}
 
 /** The ZIP path of the report's primary screenshot (viewport preferred, else full-page); `null` if none. */
 export function resolveScreenshotPath(report: BugReportV1): string | null {
@@ -18,7 +28,7 @@ export function resolveScreenshotPath(report: BugReportV1): string | null {
  */
 export function buildAnnotationExport(
   report: BugReportV1,
-  payload: FinalizeAnnotationPayload,
+  payload: ResolvedAnnotationPayload,
   toBlob: (dataUrl: string) => Blob = dataUrlToBlob,
 ): AnnotationExport | null {
   const screenshotPath = resolveScreenshotPath(report);

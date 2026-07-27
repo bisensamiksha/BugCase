@@ -10,6 +10,7 @@ vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
+import { OVERLAY_HOST_ID } from '../shared/overlay-host';
 import type { RecordingSession } from '../storage/recording-session';
 
 import { OverlayApp, type ElementPickerController, type RecordingClient } from './OverlayApp';
@@ -695,5 +696,90 @@ describe('OverlayApp element inspector', () => {
     };
     expect(arg.elementInspections).toHaveLength(1);
     expect(arg.elementInspections?.[0]?.outerHtml).toBe('<button/>');
+  });
+});
+
+describe('OverlayApp capture hygiene (BUG-03)', () => {
+  it('hides the overlay host while capturing so the panel is not in the screenshot', async () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback): number => {
+      cb(0);
+      return 0;
+    });
+    const host = document.createElement('div');
+    host.id = OVERLAY_HOST_ID;
+    host.style.visibility = 'visible';
+    document.body.appendChild(host);
+
+    let visibilityDuringCapture = '';
+    const onCapture = vi.fn(() => {
+      visibilityDuringCapture = host.style.visibility;
+      return Promise.resolve({ ok: true });
+    });
+
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          onCapture={onCapture}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    // The host was hidden at the moment the capture ran, and restored afterwards.
+    expect(visibilityDuringCapture).toBe('hidden');
+    expect(host.style.visibility).toBe('visible');
+
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it('minimizes the panel to a pill and expands back', async () => {
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          onCapture={() => Promise.resolve({ ok: true })}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Full panel is showing.
+    expect(queryTestId('capture-button')).not.toBeNull();
+
+    // Minimize → a pill with an Expand control; the capture form is gone.
+    await act(async () => {
+      queryTestId('bugcase-overlay-minimize')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+    expect(queryTestId('bugcase-overlay-expand')).not.toBeNull();
+    expect(queryTestId('capture-button')).toBeNull();
+
+    // Expand → the full panel is restored.
+    await act(async () => {
+      queryTestId('bugcase-overlay-expand')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+    expect(queryTestId('capture-button')).not.toBeNull();
   });
 });

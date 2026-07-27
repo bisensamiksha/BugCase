@@ -11,6 +11,7 @@ import { readPageStorage, type RawPageStorage } from '../injected/storage-reader
 import { openOnboardingOnInstall } from '../onboarding/open-on-install';
 import { getRecordingSession } from '../storage/recording-session';
 
+import { AnnotationChunkBuffer } from './annotation-chunk-buffer';
 import { buildAnnotationExport } from './annotation-finalize';
 import { captureReport, finalizeReport } from './capture-flow';
 import { syncPassiveContentScripts } from './content-script-registration';
@@ -27,6 +28,7 @@ import {
   isCaptureVisibleTabRequest,
   isCropElementRequest,
   isDismissErrorBadgeRequest,
+  isFinalizeAnnotationChunkRequest,
   isFinalizeReportRequest,
   isGetPassiveErrorCountRequest,
   isInjectAnnotationRequest,
@@ -38,6 +40,8 @@ import {
   type CaptureVisibleTabRequest,
   type CaptureVisibleTabResponse,
   type DebuggerActivityMessage,
+  type FinalizeAnnotationChunkRequest,
+  type FinalizeAnnotationChunkResponse,
   type FinalizeReportRequest,
   type FinalizeReportResponse,
   type GetPassiveErrorCountResponse,
@@ -84,6 +88,10 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // (ZIP + download), keyed by reportId. The worker may be evicted between the two; a missing
 // reportId is reported as `expired` so the overlay can offer a re-capture.
 const reportHold = createReportHold();
+
+// Buffers the streamed slices of a large annotated screenshot (BUG-03) between FINALIZE_ANNOTATION_CHUNK
+// and FINALIZE_REPORT, keyed by reportId. Reassembled + cleared at finalize.
+const annotationChunks = new AnnotationChunkBuffer();
 
 // Reconcile passive-monitoring content-script registrations with the allowlist. Registrations
 // persist across service-worker restarts, so syncing on install and startup repairs any drift
@@ -265,16 +273,30 @@ async function captureAndHold(
   };
 }
 
+/** Buffer one streamed slice of a large annotated screenshot (BUG-03), keyed by reportId. */
+function handleFinalizeAnnotationChunk(
+  message: FinalizeAnnotationChunkRequest,
+): FinalizeAnnotationChunkResponse {
+  annotationChunks.add(message.reportId, message.seq, message.total, message.chunk);
+  return { ok: true };
+}
+
 /** ZIP + download a held report minus the removed artifacts; `expired` if the hold is gone. */
 async function handleFinalizeReport(
   message: FinalizeReportRequest,
 ): Promise<FinalizeReportResponse> {
   const held = reportHold.take(message.reportId);
+  // Always drain any streamed slices so a buffer never lingers, even on the expired/no-annotation paths.
+  const streamed = annotationChunks.take(message.reportId);
   if (!held) {
     return { ok: false, reason: 'expired' };
   }
   const annotation = message.annotation
-    ? (buildAnnotationExport(held.report, message.annotation) ?? undefined)
+    ? (buildAnnotationExport(held.report, {
+        konvaJson: message.annotation.konvaJson,
+        // Inline when small enough to ride the message; otherwise the reassembled streamed slices.
+        screenshotDataUrl: message.annotation.screenshotDataUrl ?? streamed,
+      }) ?? undefined)
     : undefined;
   const result = await finalizeReport(
     held.report,
@@ -302,6 +324,9 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isCaptureReportRequest(message)) {
     return handleCaptureReport(message, sender);
+  }
+  if (isFinalizeAnnotationChunkRequest(message)) {
+    return Promise.resolve(handleFinalizeAnnotationChunk(message));
   }
   if (isFinalizeReportRequest(message)) {
     return handleFinalizeReport(message);

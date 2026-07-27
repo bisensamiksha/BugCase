@@ -13,8 +13,12 @@ vi.mock('react-konva', async () => {
   const React = await import('react');
   const passthrough =
     (name: string) =>
-    (props: { children?: React.ReactNode }): React.ReactElement =>
-      React.createElement('div', { 'data-testid': `konva-${name}` }, props.children);
+    (props: { children?: React.ReactNode; onClick?: () => void }): React.ReactElement =>
+      React.createElement(
+        'div',
+        { 'data-testid': `konva-${name}`, onClick: props.onClick },
+        props.children,
+      );
   const Stage = React.forwardRef(
     (
       props: {
@@ -309,5 +313,60 @@ describe('KonvaAnnotationCanvas', () => {
       input!.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
     });
     expect(qa('konva-text')).toHaveLength(1);
+  });
+
+  it('zooms in and resets, growing the canvas content and updating the level (BUG-03)', async () => {
+    // A 4000×4000 available box → fit scale 1 for the 800×600 image, so zoom math is clean.
+    await render({ availableSize: { width: 4000, height: 4000 } });
+
+    expect(q('annotation-canvas-content')?.style.width).toBe('800px');
+    expect(q('annotation-zoom-level')?.textContent).toContain('100%');
+    expect((q('annotation-zoom-out') as HTMLButtonElement).disabled).toBe(true);
+
+    act(() => {
+      q('annotation-zoom-in')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('annotation-canvas-content')?.style.width).toBe('1000px'); // 800 × 1.25
+    expect(q('annotation-zoom-level')?.textContent).toContain('125%');
+    expect((q('annotation-zoom-out') as HTMLButtonElement).disabled).toBe(false);
+
+    act(() => {
+      q('annotation-zoom-reset')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('annotation-canvas-content')?.style.width).toBe('800px');
+    expect(q('annotation-zoom-level')?.textContent).toContain('100%');
+  });
+
+  it('still draws a shape after zooming in (BUG-03)', async () => {
+    await render({ availableSize: { width: 4000, height: 4000 } });
+    act(() => {
+      q('tool-rect')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('annotation-zoom-in')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    mouse('mousedown', 20, 20);
+    mouse('mousemove', 80, 60);
+    mouse('mouseup', 80, 60);
+    expect(qa('konva-rect')).toHaveLength(1);
+  });
+
+  it('erases a shape when clicked with the eraser tool (BUG-03)', async () => {
+    await render();
+    act(() => {
+      q('tool-rect')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    mouse('mousedown', 10, 10);
+    mouse('mousemove', 60, 40);
+    mouse('mouseup', 60, 40);
+    expect(qa('konva-rect')).toHaveLength(1);
+
+    act(() => {
+      q('tool-eraser')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('konva-rect')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(qa('konva-rect')).toHaveLength(0);
   });
 });

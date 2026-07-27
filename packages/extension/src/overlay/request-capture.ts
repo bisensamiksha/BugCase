@@ -12,10 +12,13 @@ import type {
 import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import {
   CAPTURE_REPORT,
+  FINALIZE_ANNOTATION_CHUNK,
   FINALIZE_REPORT,
   PEEK_REPORT_ASSET,
   type CaptureReportRequest,
   type CaptureReportResponse,
+  type FinalizeAnnotationChunkRequest,
+  type FinalizeAnnotationChunkResponse,
   type FinalizeAnnotationPayload,
   type FinalizeReportRequest,
   type FinalizeReportResponse,
@@ -173,13 +176,76 @@ function defaultFinalizeSend(message: FinalizeReportRequest): Promise<FinalizeRe
   return browser.runtime.sendMessage<FinalizeReportRequest, FinalizeReportResponse>(message);
 }
 
-/** Ask the service worker to ZIP + download a held report, minus the removed artifacts. */
-export function requestFinalize(
+/** Sends a FINALIZE_ANNOTATION_CHUNK message; defaults to the real runtime bridge. */
+export type FinalizeChunkSendFn = (
+  message: FinalizeAnnotationChunkRequest,
+) => Promise<FinalizeAnnotationChunkResponse>;
+
+function defaultChunkSend(
+  message: FinalizeAnnotationChunkRequest,
+): Promise<FinalizeAnnotationChunkResponse> {
+  return browser.runtime.sendMessage<
+    FinalizeAnnotationChunkRequest,
+    FinalizeAnnotationChunkResponse
+  >(message);
+}
+
+// Chrome caps runtime.sendMessage at 64 MiB. Inline the annotated screenshot data URL up to this size;
+// stream it in slices above it. Kept well under 64 MiB (base64 chars may serialize as UTF-16).
+const FINALIZE_INLINE_MAX = 16 * 1024 * 1024;
+const FINALIZE_CHUNK_SIZE = 16 * 1024 * 1024;
+
+export interface RequestFinalizeDeps {
+  /** Sends the FINALIZE_REPORT message; defaults to the runtime bridge. Injectable for tests. */
+  readonly send?: FinalizeSendFn;
+  /** Sends each FINALIZE_ANNOTATION_CHUNK message; defaults to the runtime bridge. Injectable for tests. */
+  readonly sendChunk?: FinalizeChunkSendFn;
+  /** Inline the screenshot data URL up to this length; stream it above. Injectable for tests. */
+  readonly inlineMax?: number;
+  /** Slice size when streaming the screenshot data URL. Injectable for tests. */
+  readonly chunkSize?: number;
+}
+
+/**
+ * Ask the service worker to ZIP + download a held report, minus the removed artifacts. A large annotated
+ * screenshot would exceed Chrome's 64 MiB `runtime.sendMessage` cap, so it is streamed in slices via
+ * FINALIZE_ANNOTATION_CHUNK and finalized with the image omitted; the worker reassembles it (BUG-03).
+ */
+export async function requestFinalize(
   reportId: string,
   removedIds: readonly ArtifactId[],
   annotation?: FinalizeAnnotationPayload,
-  send: FinalizeSendFn = defaultFinalizeSend,
+  deps: RequestFinalizeDeps = {},
 ): Promise<FinalizeReportResponse> {
+  const send = deps.send ?? defaultFinalizeSend;
+  const dataUrl = annotation?.screenshotDataUrl;
+  const inlineMax = deps.inlineMax ?? FINALIZE_INLINE_MAX;
+
+  if (annotation && dataUrl !== undefined && dataUrl.length > inlineMax) {
+    const sendChunk = deps.sendChunk ?? defaultChunkSend;
+    const chunkSize = deps.chunkSize ?? FINALIZE_CHUNK_SIZE;
+    const total = Math.ceil(dataUrl.length / chunkSize);
+    for (let seq = 0; seq < total; seq += 1) {
+      const ack = await sendChunk({
+        type: FINALIZE_ANNOTATION_CHUNK,
+        reportId,
+        seq,
+        total,
+        chunk: dataUrl.slice(seq * chunkSize, (seq + 1) * chunkSize),
+      });
+      if (!ack.ok) {
+        return { ok: false, reason: ack.reason ?? 'Failed to transfer the annotated screenshot' };
+      }
+    }
+    // Finalize with the image omitted; the worker pairs the streamed slices to this report by id.
+    return send({
+      type: FINALIZE_REPORT,
+      reportId,
+      removedIds,
+      annotation: { konvaJson: annotation.konvaJson },
+    });
+  }
+
   return send({
     type: FINALIZE_REPORT,
     reportId,
