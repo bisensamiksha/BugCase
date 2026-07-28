@@ -3,6 +3,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { OverlayApp } from '../overlay/OverlayApp';
 import { OVERLAY_HOST_ID } from '../shared/overlay-host';
 
+import { reportOverlayState } from './overlay-state-report';
+
 /** Id of the host element that holds the overlay's Shadow DOM. Kept stable so removal can find it. */
 export { OVERLAY_HOST_ID };
 
@@ -38,6 +40,8 @@ export function mountOverlay(doc: Document = document): boolean {
   const root = createRoot(mountPoint);
   root.render(<OverlayApp onClose={() => removeOverlay(doc)} />);
   active = { host, root };
+  // BUG-05: tell the worker the overlay is open so it re-mounts it across navigations.
+  reportOverlayState(true);
   return true;
 }
 
@@ -50,6 +54,8 @@ export function removeOverlay(doc: Document = document): boolean {
   active?.root.unmount();
   host.remove();
   active = null;
+  // BUG-05: an explicit close must stop the worker re-mounting the overlay on the next navigation.
+  reportOverlayState(false);
   return true;
 }
 

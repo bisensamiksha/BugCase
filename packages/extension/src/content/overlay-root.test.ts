@@ -5,6 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // OverlayApp now renders CaptureButton, whose module graph reaches lib/browser; stub the polyfill.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+// BUG-05: the worker tracks overlay-open state from these reports; assert them without a real port.
+const reportOverlayState = vi.fn<(mounted: boolean) => void>();
+vi.mock('./overlay-state-report', () => ({
+  reportOverlayState: (mounted: boolean) => {
+    reportOverlayState(mounted);
+  },
+}));
+
 import {
   OVERLAY_HOST_ID,
   isOverlayMounted,
@@ -82,6 +90,18 @@ describe('toggleOverlay', () => {
     });
     expect(isOverlayMounted(document)).toBe(false);
   });
+
+  it('reports the resulting state each way so the worker tracks a toggle correctly', () => {
+    reportOverlayState.mockClear();
+    act(() => {
+      toggleOverlay(document);
+    });
+    expect(reportOverlayState).toHaveBeenLastCalledWith(true);
+    act(() => {
+      toggleOverlay(document);
+    });
+    expect(reportOverlayState).toHaveBeenLastCalledWith(false);
+  });
 });
 
 describe('OverlayApp close affordance', () => {
@@ -97,5 +117,19 @@ describe('OverlayApp close affordance', () => {
       closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(isOverlayMounted(document)).toBe(false);
+  });
+
+  it('reports the overlay as closed so the worker stops re-mounting it after navigations', () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    reportOverlayState.mockClear();
+    const closeButton = document
+      .getElementById(OVERLAY_HOST_ID)
+      ?.shadowRoot?.querySelector<HTMLButtonElement>('[data-testid="bugcase-overlay-close"]');
+    act(() => {
+      closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(reportOverlayState).toHaveBeenCalledWith(false);
   });
 });

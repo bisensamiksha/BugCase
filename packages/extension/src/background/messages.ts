@@ -50,6 +50,21 @@ export interface OverlayInjectResponse {
 }
 
 /**
+ * Runtime message: overlay → service worker, reporting whether the overlay is now mounted (BUG-05).
+ *
+ * Injection *toggles*, and the user can also close the overlay from its own UI, so the page is the
+ * only authority on the resulting state. The worker records it per tab (storage/overlay-session) to
+ * decide whether to re-mount the overlay after a navigation — and, just as importantly, to stay out
+ * of the way once the user has explicitly closed it.
+ */
+export const OVERLAY_STATE = 'bugcase/overlay-state';
+
+export interface OverlayStateRequest {
+  readonly type: typeof OVERLAY_STATE;
+  readonly mounted: boolean;
+}
+
+/**
  * Runtime message: overlay → service worker, asking it to inject the on-demand annotation surface
  * (TD-03). Only the service worker can `executeScript` a packaged file, so the overlay routes the
  * inject through it; the reply reuses {@link OverlayInjectResponse}.
@@ -362,6 +377,15 @@ export function isOverlayInjectRequest(value: unknown): value is OverlayInjectRe
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === OVERLAY_INJECT
+  );
+}
+
+export function isOverlayStateRequest(value: unknown): value is OverlayStateRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === OVERLAY_STATE &&
+    typeof (value as { mounted?: unknown }).mounted === 'boolean'
   );
 }
 

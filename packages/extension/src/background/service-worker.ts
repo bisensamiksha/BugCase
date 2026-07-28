@@ -9,6 +9,7 @@ import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 import { openOnboardingOnInstall } from '../onboarding/open-on-install';
+import { clearOverlayOpen, isOverlayOpen, setOverlayOpen } from '../storage/overlay-session';
 import { getRecordingSession } from '../storage/recording-session';
 import { toDomScrubberOptions } from '../storage/scrubber-options';
 import { getSettings } from '../storage/settings';
@@ -35,6 +36,7 @@ import {
   isGetPassiveErrorCountRequest,
   isInjectAnnotationRequest,
   isOverlayInjectRequest,
+  isOverlayStateRequest,
   isPassiveErrorRequest,
   isPeekReportAssetRequest,
   isRedactTextRequest,
@@ -52,6 +54,7 @@ import {
 } from './messages';
 import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
+import { createOverlayNavigationHandler } from './overlay-navigation';
 import {
   clearPassiveErrorBadge,
   getPassiveErrorCount,
@@ -80,13 +83,29 @@ const onRecordingNavigation = createRecordingNavigationHandler({
   getRecording: (tabId) => getRecordingSession(tabId),
   reinject: (tabId) => overlay.reinject(tabId),
 });
+
+// Keep an open overlay across navigations (BUG-05): the overlay host dies with the old document, so
+// a page that self-navigates right after injection used to drop it silently — the toolbar button
+// looked broken. Re-mount it until the user explicitly closes it. Same `tabs.onUpdated` signal.
+const onOverlayNavigation = createOverlayNavigationHandler({
+  isOverlayOpen: (tabId) => isOverlayOpen(tabId),
+  isRecording: async (tabId) => (await getRecordingSession(tabId))?.status === 'recording',
+  reinject: (tabId) => overlay.reinject(tabId),
+});
+
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void onRecordingNavigation(tabId, changeInfo.status, tab.url);
+  void onOverlayNavigation(tabId, changeInfo.status, tab.url);
   // Passive error badge (S3-14): a fresh page load resets the per-page error count + badge, so the
   // count always reflects "errors on this page" (and a clean page clears a stale badge).
   if (changeInfo.status === 'loading') {
     void clearPassiveErrorBadge(tabId);
   }
+});
+
+// Don't leak per-tab overlay state when the tab goes away (BUG-05); ids are reused.
+browser.tabs.onRemoved.addListener((tabId) => {
+  void clearOverlayOpen(tabId);
 });
 
 // Holds the assembled report + assets between CAPTURE_REPORT (assemble) and FINALIZE_REPORT
@@ -342,6 +361,17 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isOverlayInjectRequest(message)) {
     return overlay.injectActiveTab();
+  }
+  if (isOverlayStateRequest(message)) {
+    // BUG-05: the page is the only authority on whether the overlay ended up mounted (inject
+    // toggles, and the user can close it from its own UI). Record it so navigation can re-mount.
+    const tabId = sender.tab?.id;
+    if (typeof tabId !== 'number') {
+      return Promise.resolve(undefined);
+    }
+    return (message.mounted ? setOverlayOpen(tabId) : clearOverlayOpen(tabId)).then(
+      () => undefined,
+    );
   }
   if (isInjectAnnotationRequest(message)) {
     // On-demand annotation surface (TD-03): inject into the sending tab only.
