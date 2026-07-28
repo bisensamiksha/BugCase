@@ -5,6 +5,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // OverlayApp now renders CaptureButton, whose module graph reaches lib/browser; stub the polyfill.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+// BUG-05: the worker tracks overlay-open state from these reports; assert them without a real port.
+const reportOverlayState = vi.fn<(mounted: boolean) => void>();
+const queryOverlayOpen = vi.fn<() => Promise<boolean | null>>(() => Promise.resolve(null));
+vi.mock('./overlay-state-report', () => ({
+  reportOverlayState: (mounted: boolean) => {
+    reportOverlayState(mounted);
+  },
+  queryOverlayOpen: () => queryOverlayOpen(),
+}));
+
 import {
   OVERLAY_HOST_ID,
   isOverlayMounted,
@@ -82,6 +92,18 @@ describe('toggleOverlay', () => {
     });
     expect(isOverlayMounted(document)).toBe(false);
   });
+
+  it('reports the resulting state each way so the worker tracks a toggle correctly', () => {
+    reportOverlayState.mockClear();
+    act(() => {
+      toggleOverlay(document);
+    });
+    expect(reportOverlayState).toHaveBeenLastCalledWith(true);
+    act(() => {
+      toggleOverlay(document);
+    });
+    expect(reportOverlayState).toHaveBeenLastCalledWith(false);
+  });
 });
 
 describe('OverlayApp close affordance', () => {
@@ -97,5 +119,89 @@ describe('OverlayApp close affordance', () => {
       closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(isOverlayMounted(document)).toBe(false);
+  });
+
+  it('reports the overlay as closed so the worker stops re-mounting it after navigations', () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    reportOverlayState.mockClear();
+    const closeButton = document
+      .getElementById(OVERLAY_HOST_ID)
+      ?.shadowRoot?.querySelector<HTMLButtonElement>('[data-testid="bugcase-overlay-close"]');
+    act(() => {
+      closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(reportOverlayState).toHaveBeenCalledWith(false);
+  });
+});
+
+// BUG-05 follow-up: the back/forward cache restores a whole document verbatim, overlay host and all.
+// A page closed on a *different* document is still cached with its own overlay, so on restore the
+// page must reconcile itself against the worker's authoritative flag.
+describe('back/forward cache restore', () => {
+  function firePageshow(persisted: boolean): void {
+    const event = new Event('pageshow') as Event & { persisted?: boolean };
+    Object.defineProperty(event, 'persisted', { value: persisted });
+    window.dispatchEvent(event);
+  }
+
+  it('removes a restored overlay the user had already dismissed', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    expect(isOverlayMounted(document)).toBe(true);
+    queryOverlayOpen.mockResolvedValue(false);
+
+    firePageshow(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(isOverlayMounted(document)).toBe(false);
+  });
+
+  it('keeps a restored overlay the user still has open', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    queryOverlayOpen.mockResolvedValue(true);
+
+    firePageshow(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(isOverlayMounted(document)).toBe(true);
+  });
+
+  it('leaves the page alone when the worker cannot be reached', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    queryOverlayOpen.mockResolvedValue(null);
+
+    firePageshow(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(isOverlayMounted(document)).toBe(true);
+  });
+
+  it('ignores an ordinary page load, which is not a cache restore', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    queryOverlayOpen.mockClear();
+    queryOverlayOpen.mockResolvedValue(false);
+
+    firePageshow(false);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(queryOverlayOpen).not.toHaveBeenCalled();
+    expect(isOverlayMounted(document)).toBe(true);
   });
 });
