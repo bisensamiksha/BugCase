@@ -1,4 +1,4 @@
-import type { BugReportV1 } from '@bugcase/schema';
+import type { BugReportV1, ScreenshotRef } from '@bugcase/schema';
 import { summarizePrivacy } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
@@ -14,6 +14,7 @@ import { ImageDisclosure } from './ImageDisclosure';
 import { JsonTreeViewer } from './JsonTreeViewer';
 import { LightboxScreenshotViewer, type PeekAssetFn } from './Lightbox';
 import { PrivacyNoticeModal } from './PrivacyNoticeModal';
+import { RedactTextPanel } from './RedactTextPanel';
 import { isJsonViewable, selectArtifactJson } from './artifact-json';
 import { buildArtifactList, formatBytes, type ArtifactId } from './artifact-list';
 import { saveDownloadedReport, type DownloadedReportInput } from './save-history';
@@ -29,7 +30,9 @@ export interface PreviewAppProps {
   readonly finalize?: (
     reportId: string,
     removedIds: readonly ArtifactId[],
-    annotation?: FinalizeAnnotationPayload,
+    annotations?: FinalizeAnnotationPayload | readonly FinalizeAnnotationPayload[],
+    deps?: unknown,
+    removedInspectionIds?: readonly string[],
   ) => Promise<FinalizeReportResponse>;
   /** Opens an artifact viewer not handled in-app (none remain after S3-04); kept as an escape hatch. */
   readonly onView?: (id: ArtifactId) => void;
@@ -77,6 +80,16 @@ const footerStyle: CSSProperties = { display: 'flex', gap: '12px', marginTop: '1
 
 /** Artifacts that open a viewer inside the preview: the screenshot lightbox, the DOM snapshot
  * sandbox, or the JSON tree viewer for everything else. */
+/** Short human label for an inspection row: the opening tag, e.g. `input#password.form-text-input`. */
+function describeInspection(inspection: { readonly outerHtml: string }): string {
+  const match = /<([a-z][\w-]*)([^>]*)>/i.exec(inspection.outerHtml);
+  const tag = match?.[1]?.toLowerCase() ?? 'element';
+  const attrs = match?.[2] ?? '';
+  const id = /\bid\s*=\s*["']([^"']+)["']/i.exec(attrs)?.[1];
+  const cls = /\bclass\s*=\s*["']([^"']+)["']/i.exec(attrs)?.[1]?.split(/\s+/)[0];
+  return `${tag}${id ? `#${id}` : ''}${!id && cls ? `.${cls}` : ''}`;
+}
+
 function isInAppViewable(id: ArtifactId): boolean {
   return id === 'screenshot' || id === 'dom' || isJsonViewable(id);
 }
@@ -107,10 +120,26 @@ export function PreviewApp({
     [report, assetSizes],
   );
   const screenshot = useMemo(() => resolveScreenshot(report), [report]);
+  // Element crops are separate images with their own marks, so each inspection gets its own row
+  // (BUG-05). Pairing by `screenshotCropPath` keeps the crop and its metadata together.
+  const inspectionRows = useMemo(() => {
+    const inspections = report.elementInspections?.inspections ?? [];
+    return inspections.map((inspection, index) => ({
+      inspection,
+      index,
+      crop:
+        report.screenshots.elementCrops.find((c) => c.path === inspection.screenshotCropPath) ??
+        null,
+    }));
+  }, [report]);
   const privacySummary = useMemo(() => summarizePrivacy(report), [report]);
   const [viewing, setViewing] = useState<ArtifactId | null>(null);
-  const [annotation, setAnnotation] = useState<AnnotationResult | null>(null);
-  const [annotating, setAnnotating] = useState(false);
+  // Keyed by the annotated screenshot's ZIP path: the primary shot and every element crop can each
+  // carry their own marks (BUG-05).
+  const [annotations, setAnnotations] = useState<ReadonlyMap<string, AnnotationResult>>(new Map());
+  const [annotating, setAnnotating] = useState<string | null>(null);
+  const [removedInspections, setRemovedInspections] = useState<ReadonlySet<string>>(new Set());
+  const [viewingCrop, setViewingCrop] = useState<ScreenshotRef | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<ArtifactId>>(new Set());
   const [consenting, setConsenting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -128,32 +157,50 @@ export function PreviewApp({
     });
   }
 
-  async function handleAnnotate(): Promise<void> {
-    if (!screenshot) {
-      return;
-    }
+  async function handleAnnotate(target: ScreenshotRef): Promise<void> {
     setError(null);
-    setAnnotating(true);
+    setAnnotating(target.path);
     try {
       const run = annotate ?? requestAnnotation;
+      const existing = annotations.get(target.path);
       // Re-annotate reloads the existing marks (BUG-02) so the user can edit/delete individual ones.
       const request: AnnotationRequest = {
         reportId,
-        screenshot,
-        ...(annotation && annotation.shapes.length > 0 ? { initialShapes: annotation.shapes } : {}),
+        screenshot: target,
+        ...(existing && existing.shapes.length > 0 ? { initialShapes: existing.shapes } : {}),
       };
       const result = await run(request);
       // A null result means the user cancelled; leave any prior annotation untouched. A result with no
       // marks means they cleared everything — drop the annotation so the download uses the original and
       // the "Annotated" badge disappears (fixes the stale-badge confusion).
       if (result) {
-        setAnnotation(result.shapes.length > 0 ? result : null);
+        setAnnotations((prev) => {
+          const next = new Map(prev);
+          if (result.shapes.length > 0) {
+            next.set(target.path, result);
+          } else {
+            next.delete(target.path);
+          }
+          return next;
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Annotation failed');
     } finally {
-      setAnnotating(false);
+      setAnnotating(null);
     }
+  }
+
+  function toggleRemoveInspection(id: string): void {
+    setRemovedInspections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }
 
   async function handleDownload(): Promise<void> {
@@ -162,10 +209,20 @@ export function PreviewApp({
     setError(null);
     try {
       const run = finalize ?? requestFinalize;
-      const annotationPayload: FinalizeAnnotationPayload | undefined = annotation
-        ? { konvaJson: annotation.konvaJson, screenshotDataUrl: annotation.pngDataUrl }
-        : undefined;
-      const result = await run(reportId, [...removed], annotationPayload);
+      const annotationPayloads: FinalizeAnnotationPayload[] = [...annotations].map(
+        ([path, value]) => ({
+          konvaJson: value.konvaJson,
+          screenshotDataUrl: value.pngDataUrl,
+          screenshotPath: path,
+        }),
+      );
+      const result = await run(
+        reportId,
+        [...removed],
+        annotationPayloads.length > 0 ? annotationPayloads : undefined,
+        undefined,
+        removedInspections.size > 0 ? [...removedInspections] : undefined,
+      );
       if (result.ok) {
         // Record a metadata-only history entry — best-effort, never block or fail the download.
         const save = saveHistory ?? saveDownloadedReport;
@@ -190,8 +247,9 @@ export function PreviewApp({
   if (viewing === 'screenshot' && screenshot) {
     // When an annotation exists (BUG-02), View shows the flattened, redacted result the user will
     // download — not the held original — so they can confirm exactly what leaves the browser.
-    const annotatedPeek: PeekAssetFn | undefined = annotation
-      ? () => Promise.resolve({ ok: true, dataUrl: annotation.pngDataUrl })
+    const primaryAnnotation = annotations.get(screenshot.path);
+    const annotatedPeek: PeekAssetFn | undefined = primaryAnnotation
+      ? () => Promise.resolve({ ok: true, dataUrl: primaryAnnotation.pngDataUrl })
       : undefined;
     const viewPeek = annotatedPeek ?? peekAsset;
     return (
@@ -201,6 +259,22 @@ export function PreviewApp({
         onCancel={() => setViewing(null)}
         onComplete={() => setViewing(null)}
         {...(viewPeek ? { peekAsset: viewPeek } : {})}
+      />
+    );
+  }
+
+  if (viewingCrop) {
+    const cropAnnotation = annotations.get(viewingCrop.path);
+    const cropPeek: PeekAssetFn | undefined = cropAnnotation
+      ? () => Promise.resolve({ ok: true, dataUrl: cropAnnotation.pngDataUrl })
+      : peekAsset;
+    return (
+      <LightboxScreenshotViewer
+        reportId={reportId}
+        screenshot={viewingCrop}
+        onCancel={() => setViewingCrop(null)}
+        onComplete={() => setViewingCrop(null)}
+        {...(cropPeek ? { peekAsset: cropPeek } : {})}
       />
     );
   }
@@ -254,6 +328,8 @@ export function PreviewApp({
         Use <strong>Annotate</strong> to black out any sensitive areas of the screenshot before
         downloading.
       </ImageDisclosure>
+      {/* Text counterpart to Annotate: strip a secret the scrubbers could not know about (BUG-04). */}
+      <RedactTextPanel reportId={reportId} {...(disabled === undefined ? {} : { disabled })} />
       <div>
         {artifacts.map((a) => {
           const isRemoved = removed.has(a.id);
@@ -283,17 +359,21 @@ export function PreviewApp({
               >
                 View
               </button>
-              {a.id === 'screenshot' && a.present ? (
+              {a.id === 'screenshot' && a.present && screenshot ? (
                 <button
                   type="button"
                   data-testid="annotate-screenshot"
-                  disabled={annotating || busy}
-                  onClick={() => void handleAnnotate()}
+                  disabled={annotating !== null || busy}
+                  onClick={() => void handleAnnotate(screenshot)}
                 >
-                  {annotating ? 'Annotating…' : annotation ? 'Re-annotate' : 'Annotate'}
+                  {annotating === screenshot.path
+                    ? 'Annotating…'
+                    : annotations.has(screenshot.path)
+                      ? 'Re-annotate'
+                      : 'Annotate'}
                 </button>
               ) : null}
-              {a.id === 'screenshot' && annotation ? (
+              {a.id === 'screenshot' && screenshot && annotations.has(screenshot.path) ? (
                 <>
                   <span
                     data-testid="screenshot-annotated"
@@ -304,9 +384,15 @@ export function PreviewApp({
                   <button
                     type="button"
                     data-testid="remove-annotation"
-                    disabled={annotating || busy}
+                    disabled={annotating !== null || busy}
                     title="Discard the annotation and restore the original screenshot"
-                    onClick={() => setAnnotation(null)}
+                    onClick={() =>
+                      setAnnotations((prev) => {
+                        const next = new Map(prev);
+                        if (screenshot) next.delete(screenshot.path);
+                        return next;
+                      })
+                    }
                   >
                     Remove annotation
                   </button>
@@ -327,6 +413,68 @@ export function PreviewApp({
           );
         })}
       </div>
+      {inspectionRows.length > 0 ? (
+        <div data-testid="element-inspection-rows" style={{ marginTop: '8px' }}>
+          <p style={{ margin: '0 0 4px', fontSize: '12px', color: '#475569' }}>
+            Each inspected element also stores a cropped screenshot. Those are raw pixels — annotate
+            or remove any that show something sensitive.
+          </p>
+          {inspectionRows.map(({ inspection, crop, index }) => {
+            const isRemoved = removedInspections.has(inspection.id);
+            const isAnnotated = crop ? annotations.has(crop.path) : false;
+            return (
+              <div
+                key={inspection.id}
+                data-testid={`inspection-${inspection.id}`}
+                style={{ ...rowStyle, opacity: isRemoved ? 0.5 : 1 }}
+              >
+                <span
+                  style={{ flex: 1, textDecoration: isRemoved ? 'line-through' : 'none' }}
+                  data-testid={`inspection-label-${inspection.id}`}
+                >
+                  {`#${index + 1} ${describeInspection(inspection)}`}
+                </span>
+                {isAnnotated ? (
+                  <span
+                    data-testid={`inspection-annotated-${inspection.id}`}
+                    style={{ color: '#16a34a', fontSize: '12px' }}
+                  >
+                    Annotated
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid={`inspection-view-${inspection.id}`}
+                  disabled={!crop || isRemoved || busy}
+                  onClick={() => crop && setViewingCrop(crop)}
+                >
+                  View
+                </button>
+                <button
+                  type="button"
+                  data-testid={`inspection-annotate-${inspection.id}`}
+                  disabled={!crop || isRemoved || annotating !== null || busy}
+                  onClick={() => crop && void handleAnnotate(crop)}
+                >
+                  {crop && annotating === crop.path
+                    ? 'Annotating…'
+                    : isAnnotated
+                      ? 'Re-annotate'
+                      : 'Annotate'}
+                </button>
+                <button
+                  type="button"
+                  data-testid={`inspection-remove-${inspection.id}`}
+                  disabled={busy}
+                  onClick={() => toggleRemoveInspection(inspection.id)}
+                >
+                  {isRemoved ? 'Restore' : 'Remove'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       {error ? (
         <p data-testid="preview-error" role="alert" style={{ color: '#b91c1c' }}>
           {error === 'expired'

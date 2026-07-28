@@ -54,6 +54,7 @@ test.describe('S3-16 settings persistence (Chromium)', () => {
       // First launch: change a scrubber toggle + the ring-buffer size, which auto-save to storage.local.
       const first = await launchExtension({ userDataDir });
       await seedOnboardingSeen(first.worker); // suppress the first-run tour overlay (persists across restart)
+      let wasChecked = false;
       const scrubberId = await (async (): Promise<string> => {
         const page = await first.context.newPage();
         await openOptions(page, first.extensionId);
@@ -62,8 +63,15 @@ test.describe('S3-16 settings persistence (Chromium)', () => {
         const toggle = page.locator('[data-testid^="scrubber-toggle-"]').first();
         const testId = (await toggle.getAttribute('data-testid')) ?? '';
         expect(testId).not.toBe('');
-        expect(await toggle.isChecked()).toBe(true); // scrubbers default on
-        await toggle.uncheck();
+        // Flip whichever way this rule currently sits: scrubber defaults are per-rule since BUG-04
+        // (the DOM all-input / script-strip rules are opt-in), so "everything defaults on" no longer
+        // holds. What matters here is that the *change* survives a service-worker restart.
+        wasChecked = await toggle.isChecked();
+        if (wasChecked) {
+          await toggle.uncheck();
+        } else {
+          await toggle.check();
+        }
 
         const ring = page.locator('[data-testid="ring-buffer-size"]');
         await ring.fill('1234');
@@ -95,7 +103,7 @@ test.describe('S3-16 settings persistence (Chromium)', () => {
         const page = await second.context.newPage();
         await openOptions(page, second.extensionId);
 
-        expect(await page.locator(`[data-testid="${scrubberId}"]`).isChecked()).toBe(false);
+        expect(await page.locator(`[data-testid="${scrubberId}"]`).isChecked()).toBe(!wasChecked);
         expect(await page.locator('[data-testid="ring-buffer-size"]').inputValue()).toBe('1234');
       } finally {
         await second.context.close();

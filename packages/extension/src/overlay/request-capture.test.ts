@@ -285,7 +285,7 @@ describe('requestFinalize', () => {
       type: FINALIZE_REPORT,
       reportId: 'r1',
       removedIds: [],
-      annotation,
+      annotations: [annotation],
     });
   });
 
@@ -312,7 +312,44 @@ describe('requestFinalize', () => {
       type: FINALIZE_REPORT,
       reportId: 'r1',
       removedIds: ['console'],
-      annotation: { konvaJson: '{"k":1}' },
+      annotations: [{ konvaJson: '{"k":1}' }],
+    });
+  });
+
+  it('streams each annotated image under its own path so buffers cannot collide (BUG-05)', async () => {
+    const send = vi.fn((_m: FinalizeReportRequest) => Promise.resolve({ ok: true }));
+    const sendChunk = vi.fn((_m: FinalizeAnnotationChunkRequest) => Promise.resolve({ ok: true }));
+
+    await requestFinalize(
+      'r1',
+      [],
+      [
+        { konvaJson: '{"a":1}', screenshotDataUrl: 'ABCDEF' },
+        {
+          konvaJson: '{"b":2}',
+          screenshotDataUrl: 'UVWXYZ',
+          screenshotPath: 'screenshots/element-1.png',
+        },
+      ],
+      { send, sendChunk, inlineMax: 2, chunkSize: 3 },
+    );
+
+    // Slices for the element crop carry its path; the primary screenshot's do not.
+    const paths = sendChunk.mock.calls.map((c) => c[0].screenshotPath);
+    expect(paths).toEqual([
+      undefined,
+      undefined,
+      'screenshots/element-1.png',
+      'screenshots/element-1.png',
+    ]);
+    expect(send.mock.calls[0]?.[0]).toEqual({
+      type: FINALIZE_REPORT,
+      reportId: 'r1',
+      removedIds: [],
+      annotations: [
+        { konvaJson: '{"a":1}' },
+        { konvaJson: '{"b":2}', screenshotPath: 'screenshots/element-1.png' },
+      ],
     });
   });
 

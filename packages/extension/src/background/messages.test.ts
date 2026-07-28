@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  resolveFinalizeAnnotations,
   CAPTURE_REPORT,
   CAPTURE_VISIBLE_TAB,
   FINALIZE_REPORT,
@@ -97,5 +98,31 @@ describe('isPeekReportAssetRequest', () => {
     expect(isPeekReportAssetRequest({ type: FINALIZE_REPORT })).toBe(false);
     expect(isPeekReportAssetRequest(null)).toBe(false);
     expect(isPeekReportAssetRequest('peek')).toBe(false);
+  });
+});
+
+describe('resolveFinalizeAnnotations (BUG-05)', () => {
+  const one = { konvaJson: '{}', screenshotDataUrl: 'data:image/png;base64,AAA' };
+
+  it('returns the annotations array when present', () => {
+    expect(resolveFinalizeAnnotations({ annotations: [one] })).toEqual([one]);
+  });
+
+  it('accepts the deprecated single-annotation field rather than dropping it', () => {
+    // A dropped annotation zips the ORIGINAL screenshot and still reports ok:true — a silent leak.
+    expect(resolveFinalizeAnnotations({ annotation: one })).toEqual([one]);
+  });
+
+  it('prefers the array when both are somehow present', () => {
+    const other = { konvaJson: '{"b":1}', screenshotDataUrl: 'data:image/png;base64,BBB' };
+    expect(resolveFinalizeAnnotations({ annotations: [other], annotation: one })).toEqual([other]);
+  });
+
+  it('returns an empty list when neither is present', () => {
+    expect(resolveFinalizeAnnotations({})).toEqual([]);
+  });
+
+  it('falls back to the single field when the array is empty', () => {
+    expect(resolveFinalizeAnnotations({ annotations: [], annotation: one })).toEqual([one]);
   });
 });

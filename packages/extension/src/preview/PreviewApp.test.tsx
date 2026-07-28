@@ -233,7 +233,8 @@ describe('PreviewApp', () => {
       await dl;
     });
 
-    expect(finalize).toHaveBeenCalledWith('r1', ['console'], undefined);
+    // Annotations are a list and inspection removals ride alongside them now (BUG-05).
+    expect(finalize).toHaveBeenCalledWith('r1', ['console'], undefined, undefined, undefined);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
@@ -614,10 +615,20 @@ describe('PreviewApp', () => {
       await Promise.resolve();
     });
 
-    expect(finalize).toHaveBeenCalledWith('r1', [], {
-      konvaJson: '{"m":1}',
-      screenshotDataUrl: 'data:image/png;base64,PNG',
-    });
+    // Each annotation is tagged with the screenshot it covers, so crops can be annotated too (BUG-05).
+    expect(finalize).toHaveBeenCalledWith(
+      'r1',
+      [],
+      [
+        {
+          konvaJson: '{"m":1}',
+          screenshotDataUrl: 'data:image/png;base64,PNG',
+          screenshotPath: 'raw/screenshot-viewport.png',
+        },
+      ],
+      undefined,
+      undefined,
+    );
   });
 
   it('reloads prior marks into the canvas on Re-annotate (BUG-02)', async () => {
@@ -750,5 +761,186 @@ describe('PreviewApp', () => {
     // View shows the flattened redacted image, and the SW peek is bypassed (the annotated preview is used).
     expect(q('lightbox-image')?.getAttribute('src')).toBe('data:image/png;base64,REDACTED');
     expect(peekAsset).not.toHaveBeenCalled();
+  });
+});
+
+describe('PreviewApp — per-element-crop annotate/remove (BUG-05)', () => {
+  /** A report with two inspected elements, each with its own crop image. */
+  function reportWithInspections() {
+    const crop = (n: number) =>
+      ({
+        path: `raw/element-crop-${n}.png`,
+        width: 100,
+        height: 40,
+        devicePixelRatio: 1,
+        captureMethod: 'visibleTab',
+        hasAnnotations: false,
+      }) as const;
+    return makeReport({
+      screenshots: { schemaVersion: 'v1', elementCrops: [crop(1), crop(2)] },
+      elementInspections: {
+        schemaVersion: 'v1',
+        inspections: [
+          {
+            id: 'i1',
+            outerHtml: '<input id="password" type="text" value="[scrubbed]">',
+            computedStyles: {},
+            boundingClientRect: { x: 0, y: 0, width: 100, height: 40 },
+            ancestors: [],
+            screenshotCropPath: 'raw/element-crop-1.png',
+          },
+          {
+            id: 'i2',
+            outerHtml: '<button class="submit-btn">Go</button>',
+            computedStyles: {},
+            boundingClientRect: { x: 0, y: 0, width: 100, height: 40 },
+            ancestors: [],
+            screenshotCropPath: 'raw/element-crop-2.png',
+          },
+        ],
+      },
+    });
+  }
+
+  function renderWith(props: Record<string, unknown> = {}) {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={reportWithInspections()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+          {...props}
+        />,
+      );
+    });
+  }
+
+  it('lists one row per inspected element with View, Annotate and Remove', () => {
+    renderWith();
+    expect(q('element-inspection-rows')).not.toBeNull();
+    for (const id of ['i1', 'i2']) {
+      expect(q(`inspection-view-${id}`)).not.toBeNull();
+      expect(q(`inspection-annotate-${id}`)).not.toBeNull();
+      expect(q(`inspection-remove-${id}`)).not.toBeNull();
+    }
+  });
+
+  it('labels each row with the element it came from', () => {
+    renderWith();
+    expect(q('inspection-label-i1')?.textContent).toContain('input#password');
+    expect(q('inspection-label-i2')?.textContent).toContain('button.submit-btn');
+  });
+
+  it('annotates the crop, not the primary screenshot', async () => {
+    const annotate = vi.fn((_request: { reportId: string; screenshot: { path: string } }) =>
+      Promise.resolve({
+        konvaJson: '{"m":1}',
+        pngDataUrl: 'data:image/png;base64,CROP',
+        shapes: [{}] as unknown as Annotation[],
+      }),
+    );
+    renderWith({ annotate });
+    act(() => {
+      q('inspection-annotate-i1')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(annotate.mock.calls[0]?.[0]).toMatchObject({
+      reportId: 'r1',
+      screenshot: { path: 'raw/element-crop-1.png' },
+    });
+    expect(q('inspection-annotated-i1')).not.toBeNull();
+    expect(q('inspection-annotated-i2')).toBeNull();
+  });
+
+  it('sends the crop annotation tagged with its own path on download', async () => {
+    const annotate = vi.fn((_request: { reportId: string; screenshot: { path: string } }) =>
+      Promise.resolve({
+        konvaJson: '{"m":1}',
+        pngDataUrl: 'data:image/png;base64,CROP',
+        shapes: [{}] as unknown as Annotation[],
+      }),
+    );
+    const finalize = vi.fn(
+      (
+        _reportId: string,
+        _removedIds: readonly string[],
+        _annotations?: readonly { screenshotPath?: string }[],
+        _deps?: unknown,
+        _removedInspectionIds?: readonly string[],
+      ) => Promise.resolve({ ok: true, filename: 'f.zip' }),
+    );
+    renderWith({ annotate, finalize, saveHistory: () => Promise.resolve() });
+    act(() => {
+      q('inspection-annotate-i1')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => {
+      q('preview-download')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('privacy-understand')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('privacy-confirm')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const sent = finalize.mock.calls[0]?.[2];
+    expect(sent).toHaveLength(1);
+    expect(sent?.[0]?.screenshotPath).toBe('raw/element-crop-1.png');
+  });
+
+  it('marks an inspection removed and sends its id on download', async () => {
+    const finalize = vi.fn(
+      (
+        _reportId: string,
+        _removedIds: readonly string[],
+        _annotations?: readonly { screenshotPath?: string }[],
+        _deps?: unknown,
+        _removedInspectionIds?: readonly string[],
+      ) => Promise.resolve({ ok: true, filename: 'f.zip' }),
+    );
+    renderWith({ finalize, saveHistory: () => Promise.resolve() });
+    act(() => {
+      q('inspection-remove-i2')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(q('inspection-remove-i2')?.textContent).toBe('Restore');
+    act(() => {
+      q('preview-download')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('privacy-understand')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      q('privacy-confirm')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(finalize.mock.calls[0]?.[4]).toEqual(['i2']);
+  });
+
+  it('renders no inspection rows when nothing was inspected', () => {
+    act(() => {
+      root.render(
+        <PreviewApp
+          reportId="r1"
+          report={makeReport()}
+          onCancel={() => {}}
+          onComplete={() => {}}
+        />,
+      );
+    });
+    expect(q('element-inspection-rows')).toBeNull();
   });
 });

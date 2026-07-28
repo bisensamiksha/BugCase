@@ -19,6 +19,7 @@ import type { CapturedScreenshot } from '../capture/screenshot-strategy';
 import {
   applyAnnotations,
   applyArtifactRemovals,
+  applyInspectionRemovals,
   captureReport,
   finalizeReport,
   runCaptureFlow,
@@ -894,5 +895,58 @@ describe('finalizeReport — annotation', () => {
     const [, assets] = writeZip.mock.calls[0] ?? [];
     expect(assets?.files.has(VIEWPORT)).toBe(false);
     expect(assets?.files.has('annotations/viewport.konva.json')).toBe(false);
+  });
+});
+
+describe('applyInspectionRemovals (BUG-05)', () => {
+  const base = {
+    schemaVersion: 'v1',
+    elementInspections: {
+      schemaVersion: 'v1',
+      inspections: [
+        { id: 'i1', screenshotCropPath: 'screenshots/element-1.png' },
+        { id: 'i2', screenshotCropPath: 'screenshots/element-2.png' },
+      ],
+    },
+    screenshots: {
+      schemaVersion: 'v1',
+      elementCrops: [{ path: 'screenshots/element-1.png' }, { path: 'screenshots/element-2.png' }],
+    },
+  } as unknown as BugReportV1;
+
+  const assets = () => ({
+    files: new Map<string, Blob | string | Uint8Array>([
+      ['screenshots/element-1.png', new Uint8Array([1])],
+      ['screenshots/element-2.png', new Uint8Array([2])],
+    ]),
+  });
+
+  it('drops the named inspection, its manifest entry, and its crop file', () => {
+    const result = applyInspectionRemovals(base, assets(), ['i1']);
+    expect(result.report.elementInspections?.inspections.map((i) => i.id)).toEqual(['i2']);
+    expect(result.report.screenshots.elementCrops.map((c) => c.path)).toEqual([
+      'screenshots/element-2.png',
+    ]);
+    expect(result.assets.files.has('screenshots/element-1.png')).toBe(false);
+    expect(result.assets.files.has('screenshots/element-2.png')).toBe(true);
+  });
+
+  it('nulls the manifest when every inspection is removed', () => {
+    const result = applyInspectionRemovals(base, assets(), ['i1', 'i2']);
+    expect(result.report.elementInspections).toBeNull();
+    expect(result.report.screenshots.elementCrops).toEqual([]);
+    expect(result.assets.files.size).toBe(0);
+  });
+
+  it('is a no-op for an empty list or an unknown id', () => {
+    expect(applyInspectionRemovals(base, assets(), []).report).toBe(base);
+    expect(applyInspectionRemovals(base, assets(), ['nope']).report).toBe(base);
+  });
+
+  it('does not mutate the input report or assets', () => {
+    const a = assets();
+    applyInspectionRemovals(base, a, ['i1']);
+    expect(base.elementInspections?.inspections).toHaveLength(2);
+    expect(a.files.size).toBe(2);
   });
 });

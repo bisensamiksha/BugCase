@@ -1,4 +1,10 @@
-import { SENSITIVE_HEADER_NAMES } from '@bugcase/schema';
+import {
+  COOKIE_VALUE_MASK_RULE_ID,
+  DOM_ALL_INPUT_MASK_RULE_ID,
+  DOM_SCRIPT_STRIP_RULE_ID,
+  HEADER_SECRET_MASK_RULE_ID,
+  SENSITIVE_HEADER_NAMES,
+} from '@bugcase/schema';
 import { describe, expect, it, vi } from 'vitest';
 
 // The module transitively imports lib/browser; stub the polyfill so the import succeeds in node.
@@ -43,10 +49,16 @@ describe('settings defaults', () => {
     expect(DEFAULT_SETTINGS.defaultCaptureOptions).toEqual(DEFAULT_USER_OPTIONS);
     expect(DEFAULT_SETTINGS.maxRingBufferSize).toBe(DEFAULT_RING_BUFFER_SIZE);
     expect(DEFAULT_SETTINGS.blockedHeaders).toEqual(SENSITIVE_HEADER_NAMES);
-    // every known scrubber toggle defaults to on
+    // Every toggle has an explicit default. The two DOM rules are opt-in (BUG-04): now that the
+    // toggles actually reach capture, defaulting them on would mask every field / strip every
+    // script in every report. The rest default on.
     for (const def of SCRUBBER_TOGGLE_DEFS) {
-      expect(DEFAULT_SETTINGS.scrubbers[def.id]).toBe(true);
+      expect(typeof DEFAULT_SETTINGS.scrubbers[def.id]).toBe('boolean');
     }
+    expect(DEFAULT_SETTINGS.scrubbers[DOM_ALL_INPUT_MASK_RULE_ID]).toBe(false);
+    expect(DEFAULT_SETTINGS.scrubbers[DOM_SCRIPT_STRIP_RULE_ID]).toBe(false);
+    expect(DEFAULT_SETTINGS.scrubbers[HEADER_SECRET_MASK_RULE_ID]).toBe(true);
+    expect(DEFAULT_SETTINGS.scrubbers[COOKIE_VALUE_MASK_RULE_ID]).toBe(true);
   });
 });
 

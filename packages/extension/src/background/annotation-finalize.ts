@@ -14,6 +14,11 @@ import type { AnnotationExport } from './capture-flow';
 export interface ResolvedAnnotationPayload {
   readonly konvaJson: string;
   readonly screenshotDataUrl: string;
+  /**
+   * ZIP path of the screenshot the marks cover. Omitted falls back to the primary screenshot, so
+   * single-screenshot callers are unchanged; element crops pass their own path (BUG-05).
+   */
+  readonly screenshotPath?: string;
 }
 
 /** The ZIP path of the report's primary screenshot (viewport preferred, else full-page); `null` if none. */
@@ -31,7 +36,7 @@ export function buildAnnotationExport(
   payload: ResolvedAnnotationPayload,
   toBlob: (dataUrl: string) => Blob = dataUrlToBlob,
 ): AnnotationExport | null {
-  const screenshotPath = resolveScreenshotPath(report);
+  const screenshotPath = payload.screenshotPath ?? resolveScreenshotPath(report);
   if (!screenshotPath) {
     return null;
   }

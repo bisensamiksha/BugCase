@@ -56,3 +56,32 @@ describe('createReportHold', () => {
     expect(hold.peek('id-1')).toBeUndefined();
   });
 });
+
+describe('update (BUG-04 manual text redaction)', () => {
+  const redacted = {
+    report: { schemaVersion: 'v1', userInput: { notes: '[redacted]' } } as unknown as BugReportV1,
+    assets: {
+      files: new Map([['raw/dom-snapshot.html', '<p>[redacted]</p>']]),
+    } as BugReportZipAssets,
+  };
+
+  it('replaces a held report in place, keeping the same reportId', () => {
+    const hold = createReportHold(() => 'id-1');
+    const id = hold.put(held);
+    expect(hold.update(id, redacted)).toBe(true);
+    expect(hold.peek(id)).toBe(redacted);
+  });
+
+  it('returns false for an unknown id and stores nothing', () => {
+    const hold = createReportHold(() => 'id-1');
+    expect(hold.update('missing', redacted)).toBe(false);
+    expect(hold.peek('missing')).toBeUndefined();
+  });
+
+  it('returns false once the report has been taken', () => {
+    const hold = createReportHold(() => 'id-1');
+    const id = hold.put(held);
+    hold.take(id);
+    expect(hold.update(id, redacted)).toBe(false);
+  });
+});

@@ -52,3 +52,66 @@ describe('withHostHidden', () => {
     expect(result).toBe('ok');
   });
 });
+
+describe('withHostHidden — skipIfClearOf (BUG-04: stop the picker pill flickering)', () => {
+  /** Give the mounted host a real bounding box in jsdom. */
+  function boxHost(
+    host: HTMLElement,
+    rect: { x: number; y: number; width: number; height: number },
+  ) {
+    host.getBoundingClientRect = () => ({
+      x: rect.x,
+      y: rect.y,
+      left: rect.x,
+      top: rect.y,
+      width: rect.width,
+      height: rect.height,
+      right: rect.x + rect.width,
+      bottom: rect.y + rect.height,
+      toJSON: () => ({}),
+    });
+  }
+
+  it('does NOT hide the host when it sits clear of the cropped element', async () => {
+    const host = mountHost('visible');
+    boxHost(host, { x: 400, y: 400, width: 180, height: 60 });
+    let visibilityDuring = '';
+    await withHostHidden(
+      () => {
+        visibilityDuring = host.style.visibility;
+        return Promise.resolve('shot');
+      },
+      document,
+      { skipIfClearOf: { x: 0, y: 0, width: 100, height: 100 } },
+    );
+    expect(visibilityDuring).toBe('visible');
+    expect(host.style.visibility).toBe('visible');
+  });
+
+  it('still hides the host when it overlaps the cropped element', async () => {
+    const host = mountHost('visible');
+    boxHost(host, { x: 50, y: 50, width: 180, height: 60 });
+    let visibilityDuring = '';
+    await withHostHidden(
+      () => {
+        visibilityDuring = host.style.visibility;
+        return Promise.resolve('shot');
+      },
+      document,
+      { skipIfClearOf: { x: 0, y: 0, width: 100, height: 100 } },
+    );
+    expect(visibilityDuring).toBe('hidden');
+    expect(host.style.visibility).toBe('visible');
+  });
+
+  it('hides unconditionally when no crop rect is supplied (full-viewport capture)', async () => {
+    const host = mountHost('visible');
+    boxHost(host, { x: 400, y: 400, width: 180, height: 60 });
+    let visibilityDuring = '';
+    await withHostHidden(() => {
+      visibilityDuring = host.style.visibility;
+      return Promise.resolve('shot');
+    });
+    expect(visibilityDuring).toBe('hidden');
+  });
+});

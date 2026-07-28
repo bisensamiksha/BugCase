@@ -107,10 +107,11 @@ describe('dom-password-input-mask fixtures', () => {
       unchanged: true,
     },
     {
-      name: 'text input merely named "password"',
+      // BUG-04: a site's "Show password" control flips type=password -> type=text. Before this rule
+      // broadened, the revealed value reached the report verbatim (seen on wordpress.com/log-in).
+      name: 'revealed password input (type=text but named "password")',
       input: '<input type="text" name="password" value="shown">',
-      hits: 0,
-      unchanged: true,
+      hits: 1,
     },
     {
       name: 'prose mentioning password, no input',

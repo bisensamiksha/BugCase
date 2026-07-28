@@ -174,6 +174,12 @@ export const FINALIZE_REPORT = 'bugcase/finalize-report';
 export interface FinalizeAnnotationPayload {
   readonly konvaJson: string;
   /**
+   * ZIP path of the screenshot these marks cover — a viewport/full-page shot or an element crop
+   * (BUG-05). Omitted means the report's primary screenshot, so older single-screenshot callers keep
+   * working unchanged.
+   */
+  readonly screenshotPath?: string;
+  /**
    * The flattened annotated PNG as a data URL. Omitted when it's too large for a single message — it's
    * streamed first via FINALIZE_ANNOTATION_CHUNK and the worker reassembles it (BUG-03).
    */
@@ -190,6 +196,8 @@ export const FINALIZE_ANNOTATION_CHUNK = 'bugcase/finalize-annotation-chunk';
 export interface FinalizeAnnotationChunkRequest {
   readonly type: typeof FINALIZE_ANNOTATION_CHUNK;
   readonly reportId: string;
+  /** Which screenshot these slices belong to; omitted means the primary screenshot (BUG-05). */
+  readonly screenshotPath?: string;
   /** 0-based index of this slice. */
   readonly seq: number;
   /** Total number of slices that make up the screenshot. */
@@ -210,7 +218,19 @@ export interface FinalizeReportRequest {
   /** Artifacts the user chose to exclude; their sections + files are dropped before zipping. */
   readonly removedIds: readonly ArtifactId[];
   /** Present when the user annotated the screenshot; folded into the ZIP at finalize. */
+  /**
+   * Annotations to bake in, one per annotated screenshot. Element crops are annotatable too, so a
+   * report can carry several (BUG-05).
+   */
+  readonly annotations?: readonly FinalizeAnnotationPayload[];
+  /**
+   * @deprecated Single-annotation form kept so a caller built against the older contract cannot have
+   * its redaction silently dropped (which would ship an unredacted screenshot with `ok: true`).
+   * Normalized into {@link FinalizeReportRequest.annotations} by the handler. Prefer `annotations`.
+   */
   readonly annotation?: FinalizeAnnotationPayload;
+  /** Ids of individual element inspections to drop, along with their crop images (BUG-05). */
+  readonly removedInspectionIds?: readonly string[];
 }
 
 /** Serializable finalize result; `ok` is false on a handled failure (including `expired`). */
@@ -257,6 +277,53 @@ export interface PeekReportAssetResponse {
   readonly ok: boolean;
   readonly dataUrl?: string;
   readonly reason?: string;
+}
+
+/**
+ * Runtime message: preview → service worker, asking it to destructively remove an exact string from
+ * a held report before download (BUG-04). The text counterpart to Annotate's image redaction.
+ */
+export const REDACT_TEXT = 'bugcase/redact-text';
+
+export interface RedactTextRequest {
+  readonly type: typeof REDACT_TEXT;
+  /** The `reportId` returned by CAPTURE_REPORT. */
+  readonly reportId: string;
+  /** Exact, case-sensitive string to remove everywhere. Never logged or persisted. */
+  readonly secret: string;
+}
+
+/** Serializable redaction result; `ok` is false on a handled failure (`expired` / empty secret). */
+export interface RedactTextResponse {
+  readonly ok: boolean;
+  /** Occurrences replaced inside `report.json`. */
+  readonly reportHits?: number;
+  /** Occurrences replaced inside text assets (the DOM snapshot html). */
+  readonly assetHits?: number;
+  readonly reason?: string;
+}
+
+/**
+ * Resolve the annotations a finalize message carries, accepting the deprecated single-annotation
+ * field. Reading only `annotations` would silently drop an older-shaped payload — and a dropped
+ * annotation zips the ORIGINAL screenshot while still reporting `ok: true`, i.e. an unredacted image
+ * ships and nothing says so. Normalizing is the difference between a loud bug and a silent leak.
+ */
+export function resolveFinalizeAnnotations(
+  message: Pick<FinalizeReportRequest, 'annotations' | 'annotation'>,
+): readonly FinalizeAnnotationPayload[] {
+  if (message.annotations && message.annotations.length > 0) {
+    return message.annotations;
+  }
+  return message.annotation ? [message.annotation] : [];
+}
+
+export function isRedactTextRequest(value: unknown): value is RedactTextRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === REDACT_TEXT
+  );
 }
 
 /**

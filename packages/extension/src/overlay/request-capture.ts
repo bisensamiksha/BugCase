@@ -210,18 +210,28 @@ export interface RequestFinalizeDeps {
  * Ask the service worker to ZIP + download a held report, minus the removed artifacts. A large annotated
  * screenshot would exceed Chrome's 64 MiB `runtime.sendMessage` cap, so it is streamed in slices via
  * FINALIZE_ANNOTATION_CHUNK and finalized with the image omitted; the worker reassembles it (BUG-03).
+ * Accepts several annotations — the primary screenshot and/or element crops (BUG-05).
  */
 export async function requestFinalize(
   reportId: string,
   removedIds: readonly ArtifactId[],
-  annotation?: FinalizeAnnotationPayload,
+  annotations?: FinalizeAnnotationPayload | readonly FinalizeAnnotationPayload[],
   deps: RequestFinalizeDeps = {},
+  removedInspectionIds?: readonly string[],
 ): Promise<FinalizeReportResponse> {
   const send = deps.send ?? defaultFinalizeSend;
-  const dataUrl = annotation?.screenshotDataUrl;
   const inlineMax = deps.inlineMax ?? FINALIZE_INLINE_MAX;
+  const list = annotations ? (Array.isArray(annotations) ? annotations : [annotations]) : [];
 
-  if (annotation && dataUrl !== undefined && dataUrl.length > inlineMax) {
+  const wire: FinalizeAnnotationPayload[] = [];
+  for (const annotation of list as readonly FinalizeAnnotationPayload[]) {
+    const dataUrl = annotation.screenshotDataUrl;
+    if (dataUrl === undefined || dataUrl.length <= inlineMax) {
+      wire.push(annotation);
+      continue;
+    }
+    // Too big for one message: stream it in slices tagged with this image's path, then finalize
+    // with the image omitted. Each target streams independently (BUG-05).
     const sendChunk = deps.sendChunk ?? defaultChunkSend;
     const chunkSize = deps.chunkSize ?? FINALIZE_CHUNK_SIZE;
     const total = Math.ceil(dataUrl.length / chunkSize);
@@ -232,17 +242,19 @@ export async function requestFinalize(
         seq,
         total,
         chunk: dataUrl.slice(seq * chunkSize, (seq + 1) * chunkSize),
+        ...(annotation.screenshotPath === undefined
+          ? {}
+          : { screenshotPath: annotation.screenshotPath }),
       });
       if (!ack.ok) {
         return { ok: false, reason: ack.reason ?? 'Failed to transfer the annotated screenshot' };
       }
     }
-    // Finalize with the image omitted; the worker pairs the streamed slices to this report by id.
-    return send({
-      type: FINALIZE_REPORT,
-      reportId,
-      removedIds,
-      annotation: { konvaJson: annotation.konvaJson },
+    wire.push({
+      konvaJson: annotation.konvaJson,
+      ...(annotation.screenshotPath === undefined
+        ? {}
+        : { screenshotPath: annotation.screenshotPath }),
     });
   }
 
@@ -250,7 +262,8 @@ export async function requestFinalize(
     type: FINALIZE_REPORT,
     reportId,
     removedIds,
-    ...(annotation ? { annotation } : {}),
+    ...(wire.length > 0 ? { annotations: wire } : {}),
+    ...(removedInspectionIds && removedInspectionIds.length > 0 ? { removedInspectionIds } : {}),
   });
 }
 

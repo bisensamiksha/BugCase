@@ -95,14 +95,18 @@ export interface ElementPickerController {
 }
 
 /** Ask the service worker to capture the viewport + crop the picked element's box; `null` on failure.
- *  The overlay host is hidden for the capture so the picker pill isn't baked into the crop (BUG-03). */
+ *  The overlay host is hidden for the capture so the picker pill isn't baked into the crop (BUG-03) —
+ *  but only when the pill actually overlaps the crop, so it no longer blinks on every pick (BUG-04). */
 function requestElementCrop(rect: CropRect, devicePixelRatio: number): Promise<string | null> {
   const message: CropElementRequest = { type: CROP_ELEMENT, rect, devicePixelRatio };
-  return withHostHidden(() =>
-    browser.runtime
-      .sendMessage<CropElementRequest, CropElementResult>(message)
-      .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
-      .catch(() => null),
+  return withHostHidden(
+    () =>
+      browser.runtime
+        .sendMessage<CropElementRequest, CropElementResult>(message)
+        .then((res) => (res.ok ? (res.dataUrl ?? null) : null))
+        .catch(() => null),
+    document,
+    { skipIfClearOf: rect },
   );
 }
 
@@ -580,6 +584,12 @@ export function OverlayApp({
       }
     : panelStyle;
 
+  // The picker pill is draggable too, so it can be moved off whatever you are trying to inspect
+  // instead of vanishing (BUG-04). Same clamped position state as the main panel.
+  const draggedPillStyle: CSSProperties = panelPos
+    ? { ...pillStyle, top: `${panelPos.top}px`, left: `${panelPos.left}px`, right: 'auto' }
+    : pillStyle;
+
   if (phase === 'preview' && preview) {
     const backToForm = (): void => {
       setPhase('form');
@@ -652,13 +662,26 @@ export function OverlayApp({
 
   if (elementSession.status === 'picking') {
     // Collapse to a small toolbar so the user can hover + click page elements; Done restores the form.
+    // Draggable by its grip, and it no longer hides itself during each crop (BUG-04).
     return (
       <div
         role="dialog"
         aria-label="BugCase element inspector"
         data-testid="bugcase-picker-pill"
-        style={pillStyle}
+        ref={panelRef}
+        style={{ ...draggedPillStyle, display: 'flex', alignItems: 'center', gap: '8px' }}
       >
+        <span
+          data-testid="bugcase-picker-pill-grip"
+          aria-label="Move the element inspector"
+          role="button"
+          tabIndex={-1}
+          title="Drag to move"
+          onMouseDown={onHeaderMouseDown}
+          style={{ cursor: 'move', color: '#94a3b8', userSelect: 'none', lineHeight: 1 }}
+        >
+          ⠿
+        </span>
         <ElementPickerControls
           status="picking"
           count={elementSession.inspections.length}
