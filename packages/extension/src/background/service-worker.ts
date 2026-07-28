@@ -37,6 +37,7 @@ import {
   isInjectAnnotationRequest,
   isOverlayInjectRequest,
   isOverlayStateRequest,
+  isQueryOverlayStateRequest,
   isPassiveErrorRequest,
   isPeekReportAssetRequest,
   isRedactTextRequest,
@@ -372,6 +373,15 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
     return (message.mounted ? setOverlayOpen(tabId) : clearOverlayOpen(tabId)).then(
       () => undefined,
     );
+  }
+  if (isQueryOverlayStateRequest(message)) {
+    // BUG-05: a page restored from the back/forward cache still carries whatever overlay host it had
+    // when it was cached, so it re-checks the authoritative flag and reconciles itself.
+    const tabId = sender.tab?.id;
+    if (typeof tabId !== 'number') {
+      return Promise.resolve({ open: false });
+    }
+    return isOverlayOpen(tabId).then((open) => ({ open }));
   }
   if (isInjectAnnotationRequest(message)) {
     // On-demand annotation surface (TD-03): inject into the sending tab only.

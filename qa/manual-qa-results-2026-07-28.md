@@ -42,7 +42,7 @@ Build provenance was checked before the run: the loaded profile contains the BUG
 | --------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `pnpm -r typecheck`               | ✅ 0 errors                                                                                            |
 | `pnpm lint`                       | ✅ 0                                                                                                   |
-| `pnpm -r test`                    | ✅ **1,577 passed** (ext 961 · dash 293 · schema 253 · shared-ui 32 · report-tpl 25 · privacy-site 13) |
+| `pnpm -r test`                    | ✅ **1,587 passed** (ext 971 · dash 293 · schema 253 · shared-ui 32 · report-tpl 25 · privacy-site 13) |
 | `build:chrome` / `build:firefox`  | ✅ both emit                                                                                           |
 | `check:permission-justifications` | ✅ 10/10 match built manifest 1:1                                                                      |
 | `verify:edge-brave`               | ✅ MV3 valid, no `.map`, icons present, sha256 `cdb0d0e2…`                                             |
@@ -98,6 +98,12 @@ Identical set to the 2026-07-27 run. These need a manual pass.
 exactly (32 ✅ / 6 ⚠️ / 1 ❌), confirming BUG-04 introduced no site-level regression. The BUG-05 fix
 was then implemented and the sweep re-run: **`wordpress.com/log-in` now passes end-to-end**, taking
 the suite to 33 ✅ / 0 ❌. Every other site is unchanged. The numbers below are the post-fix run.
+
+⚠️ **Scope caveat:** this 39-site sweep predates the bfcache follow-up described in F-2. That
+follow-up adds a `pageshow` listener and a restore-time query and touches no capture code, so the
+site results stand — but they were **not** re-run against the final build. The final build is
+covered by the full unit suite, the gap tests, the bfcache behavioural matrix, and a manual pass.
+A full sweep under the corrected (bfcache-enabled) harness has not been completed.
 
 ## Per-archetype coverage (release gate)
 
@@ -178,19 +184,49 @@ navigated out from under the overlay" from "the overlay was never opened".
 re-mount on completed navigation while open (`background/overlay-navigation.ts`). State is cleared on
 explicit close and on `tabs.onRemoved`. **No new permissions** (`tabs` was already held).
 
-Behaviour is _sticky until dismissed_, matching the recording path. Verified in a real browser:
+Behaviour is _sticky until dismissed_, matching the recording path.
 
-| Behaviour                                                     | Result |
-| ------------------------------------------------------------- | ------ |
-| Survives a self-navigation right after opening (the F-2 case) | ✅     |
-| Survives a user link navigation                               | ✅     |
-| Closes on the × button                                        | ✅     |
-| **Stays closed after a navigation** (no zombie overlay)       | ✅     |
-| Re-opens when asked again, and is sticky again                | ✅     |
-| Toggles off on a second inject                                | ✅     |
-| **Stays closed after toggle-off + navigation**                | ✅     |
+**Follow-up defect found by the user during manual testing on `smhi.se`:** after closing the overlay
+with ×, pressing **Back** brought it back. Root cause was _not_ re-injection — the stored flag was
+correctly cleared. The back/forward cache restores a document **verbatim, overlay host included**;
+closing the overlay on a later page cannot reach a cached earlier document. Latent before this fix
+(any page navigated away from was cached with its overlay), but this fix made it far more reachable
+because the overlay is now present on every page the user passes through.
 
-23 new unit tests (extension 938 → 961), all written test-first and watched fail.
+Fixed by reconciling on restore: `mountOverlay` registers a `pageshow` listener, and on
+`event.persisted` the page asks the worker for the authoritative flag (`QUERY_OVERLAY_STATE`) and
+removes or mounts itself to match. An unreachable worker returns `null` and the page is left alone,
+so a transient messaging failure cannot rip away a working overlay. The listener is guarded by a
+window flag because the content entry re-executes on every inject.
+
+**Harness gap this exposed:** Playwright launches Chromium with `--disable-back-forward-cache` by
+default, so every sweep and gap test run before this was structurally incapable of exercising
+bfcache. `runner.mjs` now passes `ignoreDefaultArgs: ['--disable-back-forward-cache']`. Any bfcache
+result from a run before 2026-07-28 21:00 is meaningless.
+
+Verified with bfcache confirmed active (same document object restored across Back):
+
+| Behaviour                                                      | Result |
+| -------------------------------------------------------------- | ------ |
+| Survives a self-navigation right after opening (the F-2 case)  | ✅     |
+| Survives a user link navigation, twice                         | ✅     |
+| Still open going **Back** to a cached page while open          | ✅     |
+| Still open going **Forward** again                             | ✅     |
+| Closes on the × button                                         | ✅     |
+| **Stays closed going Back to a cached page** (no zombie)       | ✅     |
+| **Stays closed going Back a second cached page**               | ✅     |
+| **Stays closed going Forward to a cached page**                | ✅     |
+| Re-opens when asked again                                      | ✅     |
+| Sticky again going Back after re-opening                       | ✅     |
+| Toggles off on a second inject, stays closed across navigation | ✅     |
+
+Also re-verified on `smhi.se`, the site where the defect was reported.
+
+33 new unit tests (extension 938 → 971), all written test-first and watched fail.
+
+🟡 **Not machine-verified:** the literal browser **Back button** in a real Chrome profile. The
+automation now genuinely exercises bfcache, but a hand-check is still the authoritative confirmation
+— this defect was found by hand and missed by automation.
 
 ### F-3 — Stale artifacts in `dist/` (submission hazard, still open)
 

@@ -9,12 +9,20 @@
  * when `sendMessage` throws synchronously and when it rejects.
  */
 
-import { OVERLAY_STATE, type OverlayStateRequest } from '../background/messages';
+import {
+  OVERLAY_STATE,
+  QUERY_OVERLAY_STATE,
+  type OverlayStateRequest,
+  type QueryOverlayStateRequest,
+} from '../background/messages';
 import browser from '../lib/browser';
 
 export type SendOverlayState = (message: OverlayStateRequest) => Promise<unknown>;
+export type SendOverlayQuery = (message: QueryOverlayStateRequest) => Promise<unknown>;
 
 const defaultSend: SendOverlayState = (message) => browser.runtime.sendMessage(message);
+
+const defaultQuery: SendOverlayQuery = (message) => browser.runtime.sendMessage(message);
 
 export function reportOverlayState(mounted: boolean, send: SendOverlayState = defaultSend): void {
   try {
@@ -23,5 +31,28 @@ export function reportOverlayState(mounted: boolean, send: SendOverlayState = de
     });
   } catch {
     // sendMessage threw synchronously (context invalidated); nothing to do.
+  }
+}
+
+/**
+ * Ask the worker whether the overlay should be open in this tab.
+ *
+ * `null` means "don't know" (worker unreachable or a malformed reply) — callers must leave the page
+ * as-is rather than guess, so a transient messaging failure can't rip away a working overlay.
+ */
+export async function queryOverlayOpen(
+  send: SendOverlayQuery = defaultQuery,
+): Promise<boolean | null> {
+  try {
+    const reply: unknown = await send({ type: QUERY_OVERLAY_STATE });
+    if (typeof reply === 'object' && reply !== null) {
+      const open = (reply as { open?: unknown }).open;
+      if (typeof open === 'boolean') {
+        return open;
+      }
+    }
+    return null;
+  } catch {
+    return null;
   }
 }

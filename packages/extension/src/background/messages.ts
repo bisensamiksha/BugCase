@@ -65,6 +65,24 @@ export interface OverlayStateRequest {
 }
 
 /**
+ * Runtime message: overlay → service worker, asking whether the overlay should currently be open
+ * in the sending tab (BUG-05).
+ *
+ * Needed because the back/forward cache restores a whole document verbatim — overlay host included.
+ * A page closed on a *different* document is still cached with its own overlay, so on a bfcache
+ * restore the page must re-check the worker's authoritative flag and reconcile itself.
+ */
+export const QUERY_OVERLAY_STATE = 'bugcase/query-overlay-state';
+
+export interface QueryOverlayStateRequest {
+  readonly type: typeof QUERY_OVERLAY_STATE;
+}
+
+export interface QueryOverlayStateResponse {
+  readonly open: boolean;
+}
+
+/**
  * Runtime message: overlay → service worker, asking it to inject the on-demand annotation surface
  * (TD-03). Only the service worker can `executeScript` a packaged file, so the overlay routes the
  * inject through it; the reply reuses {@link OverlayInjectResponse}.
@@ -386,6 +404,14 @@ export function isOverlayStateRequest(value: unknown): value is OverlayStateRequ
     value !== null &&
     (value as { type?: unknown }).type === OVERLAY_STATE &&
     typeof (value as { mounted?: unknown }).mounted === 'boolean'
+  );
+}
+
+export function isQueryOverlayStateRequest(value: unknown): value is QueryOverlayStateRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === QUERY_OVERLAY_STATE
   );
 }
 

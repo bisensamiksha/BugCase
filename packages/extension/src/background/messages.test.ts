@@ -8,6 +8,7 @@ import {
   INJECT_ANNOTATION,
   OVERLAY_INJECT,
   OVERLAY_STATE,
+  QUERY_OVERLAY_STATE,
   PEEK_REPORT_ASSET,
   finalizeResponseFrom,
   isCaptureReportRequest,
@@ -15,6 +16,7 @@ import {
   isInjectAnnotationRequest,
   isOverlayInjectRequest,
   isOverlayStateRequest,
+  isQueryOverlayStateRequest,
   isPeekReportAssetRequest,
 } from './messages';
 
@@ -67,6 +69,18 @@ describe('isOverlayStateRequest', () => {
     expect(isOverlayStateRequest({ type: OVERLAY_INJECT })).toBe(false);
     expect(isOverlayStateRequest(null)).toBe(false);
     expect(isOverlayStateRequest('overlay')).toBe(false);
+  });
+});
+
+describe('isQueryOverlayStateRequest', () => {
+  it('accepts a well-formed overlay-state query', () => {
+    expect(isQueryOverlayStateRequest({ type: QUERY_OVERLAY_STATE })).toBe(true);
+  });
+
+  it('rejects other message types and non-objects', () => {
+    expect(isQueryOverlayStateRequest({ type: OVERLAY_STATE, mounted: true })).toBe(false);
+    expect(isQueryOverlayStateRequest(null)).toBe(false);
+    expect(isQueryOverlayStateRequest('overlay')).toBe(false);
   });
 });
 

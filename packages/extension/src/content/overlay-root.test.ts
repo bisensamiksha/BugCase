@@ -7,10 +7,12 @@ vi.mock('webextension-polyfill', () => ({ default: {} }));
 
 // BUG-05: the worker tracks overlay-open state from these reports; assert them without a real port.
 const reportOverlayState = vi.fn<(mounted: boolean) => void>();
+const queryOverlayOpen = vi.fn<() => Promise<boolean | null>>(() => Promise.resolve(null));
 vi.mock('./overlay-state-report', () => ({
   reportOverlayState: (mounted: boolean) => {
     reportOverlayState(mounted);
   },
+  queryOverlayOpen: () => queryOverlayOpen(),
 }));
 
 import {
@@ -131,5 +133,75 @@ describe('OverlayApp close affordance', () => {
       closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(reportOverlayState).toHaveBeenCalledWith(false);
+  });
+});
+
+// BUG-05 follow-up: the back/forward cache restores a whole document verbatim, overlay host and all.
+// A page closed on a *different* document is still cached with its own overlay, so on restore the
+// page must reconcile itself against the worker's authoritative flag.
+describe('back/forward cache restore', () => {
+  function firePageshow(persisted: boolean): void {
+    const event = new Event('pageshow') as Event & { persisted?: boolean };
+    Object.defineProperty(event, 'persisted', { value: persisted });
+    window.dispatchEvent(event);
+  }
+
+  it('removes a restored overlay the user had already dismissed', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    expect(isOverlayMounted(document)).toBe(true);
+    queryOverlayOpen.mockResolvedValue(false);
+
+    firePageshow(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(isOverlayMounted(document)).toBe(false);
+  });
+
+  it('keeps a restored overlay the user still has open', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    queryOverlayOpen.mockResolvedValue(true);
+
+    firePageshow(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(isOverlayMounted(document)).toBe(true);
+  });
+
+  it('leaves the page alone when the worker cannot be reached', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    queryOverlayOpen.mockResolvedValue(null);
+
+    firePageshow(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(isOverlayMounted(document)).toBe(true);
+  });
+
+  it('ignores an ordinary page load, which is not a cache restore', async () => {
+    act(() => {
+      mountOverlay(document);
+    });
+    queryOverlayOpen.mockClear();
+    queryOverlayOpen.mockResolvedValue(false);
+
+    firePageshow(false);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(queryOverlayOpen).not.toHaveBeenCalled();
+    expect(isOverlayMounted(document)).toBe(true);
   });
 });
