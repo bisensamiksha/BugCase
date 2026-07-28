@@ -187,7 +187,7 @@ test.describe('destructive redaction integrity (Chromium)', () => {
             type: 'bugcase/finalize-report',
             reportId: captured.reportId,
             removedIds: [],
-            annotation: { konvaJson: '{"attrs":{}}', screenshotDataUrl: redactedDataUrl },
+            annotations: [{ konvaJson: '{"attrs":{}}', screenshotDataUrl: redactedDataUrl }],
           });
           return {
             ok: Boolean(finalized.ok),

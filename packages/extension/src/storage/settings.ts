@@ -1,7 +1,6 @@
 import {
   COOKIE_VALUE_MASK_RULE_ID,
   DOM_ALL_INPUT_MASK_RULE_ID,
-  DOM_PASSWORD_INPUT_MASK_RULE_ID,
   DOM_SCRIPT_STRIP_RULE_ID,
   HEADER_SECRET_MASK_RULE_ID,
   PASSWORD_PLACEHOLDER_RULE_ID,
@@ -23,7 +22,9 @@ export interface ScrubberToggleDef {
 
 /** Every user-togglable scrubber, referencing the schema's stable rule ids so they never drift. */
 export const SCRUBBER_TOGGLE_DEFS: readonly ScrubberToggleDef[] = [
-  { id: DOM_PASSWORD_INPUT_MASK_RULE_ID, label: 'Mask password input values in DOM snapshots' },
+  // The credential mask (DOM_PASSWORD_INPUT_MASK_RULE_ID) is intentionally NOT here: it is
+  // unconditional in `createDomScrubberRules`, so a switch for it would either do nothing or, if
+  // wired, let a password reach the report and falsify the published "text is scrubbed" claim.
   { id: DOM_ALL_INPUT_MASK_RULE_ID, label: 'Mask all input values in DOM snapshots' },
   { id: DOM_SCRIPT_STRIP_RULE_ID, label: 'Strip <script> tags from DOM snapshots' },
   { id: PASSWORD_PLACEHOLDER_RULE_ID, label: 'Replace password field contents with a placeholder' },
@@ -51,8 +52,20 @@ export interface BugCaseSettings {
   readonly blockedHeaders: readonly string[];
 }
 
+/**
+ * Rules that default OFF. Everything else defaults on. `dom-all-input-mask` and `dom-script-strip`
+ * are opt-in so the default stays "sensitive only" — masking every field or stripping every script
+ * would gut the debugging value of a report (BUG-04).
+ */
+const DEFAULT_OFF_RULE_IDS: readonly string[] = [
+  DOM_ALL_INPUT_MASK_RULE_ID,
+  DOM_SCRIPT_STRIP_RULE_ID,
+];
+
 export const DEFAULT_SCRUBBER_TOGGLES: ScrubberToggles = Object.freeze(
-  Object.fromEntries(SCRUBBER_TOGGLE_DEFS.map((def) => [def.id, true])),
+  Object.fromEntries(
+    SCRUBBER_TOGGLE_DEFS.map((def) => [def.id, !DEFAULT_OFF_RULE_IDS.includes(def.id)]),
+  ),
 );
 
 export const DEFAULT_SETTINGS: BugCaseSettings = {
@@ -107,7 +120,7 @@ function normalizeScrubbers(value: unknown): ScrubberToggles {
   const next: Record<string, boolean> = {};
   for (const def of SCRUBBER_TOGGLE_DEFS) {
     const stored = value[def.id];
-    next[def.id] = typeof stored === 'boolean' ? stored : true;
+    next[def.id] = typeof stored === 'boolean' ? stored : DEFAULT_SCRUBBER_TOGGLES[def.id] === true;
   }
   return next;
 }

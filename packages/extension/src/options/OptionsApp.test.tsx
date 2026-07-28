@@ -144,11 +144,14 @@ describe('OptionsApp', () => {
     const persistSettings = passingPersist();
     await renderApp({ persistSettings });
     const id = SCRUBBER_TOGGLE_DEFS[0]!.id;
+    // Toggles no longer all default on (BUG-04: the two DOM rules are opt-in), so flip whatever
+    // this rule's default happens to be rather than assuming it was enabled.
+    const toggled = !DEFAULT_SETTINGS.scrubbers[id];
     act(() => {
       (q(`scrubber-toggle-${id}`) as HTMLInputElement).click();
     });
     expect(persistSettings).toHaveBeenCalledWith({
-      scrubbers: { ...DEFAULT_SETTINGS.scrubbers, [id]: false },
+      scrubbers: { ...DEFAULT_SETTINGS.scrubbers, [id]: toggled },
     });
   });
 

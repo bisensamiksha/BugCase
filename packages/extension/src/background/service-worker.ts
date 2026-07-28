@@ -10,6 +10,8 @@ import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 import { openOnboardingOnInstall } from '../onboarding/open-on-install';
 import { getRecordingSession } from '../storage/recording-session';
+import { toDomScrubberOptions } from '../storage/scrubber-options';
+import { getSettings } from '../storage/settings';
 
 import { AnnotationChunkBuffer } from './annotation-chunk-buffer';
 import { buildAnnotationExport } from './annotation-finalize';
@@ -35,6 +37,8 @@ import {
   isOverlayInjectRequest,
   isPassiveErrorRequest,
   isPeekReportAssetRequest,
+  isRedactTextRequest,
+  resolveFinalizeAnnotations,
   type CaptureReportRequest,
   type CaptureReportResponse,
   type CaptureVisibleTabRequest,
@@ -61,6 +65,7 @@ import {
 } from './permissions-handler';
 import { handleRecordingRequest, isRecordingRequest } from './recording-handler';
 import { createRecordingNavigationHandler } from './recording-navigation';
+import { handleRedactText } from './redact-text-handler';
 import { handlePeekReportAsset } from './report-asset-handler';
 import { createReportHold } from './report-hold';
 import { reportTemplateHtml } from './report-template-html';
@@ -192,8 +197,11 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
   // Read the page's outerHTML in-page (executeScript), then scrub + package it as report.dom.
   const collectDom =
     typeof tabId === 'number'
-      ? () =>
-          collectDomSnapshot({
+      ? async () => {
+          // The user's scrubber toggles reach the DOM scrubber here (BUG-04). Before this, no
+          // options were passed, so every switch in Settings was silently ignored at capture.
+          const { scrubbers } = await getSettings();
+          return collectDomSnapshot({
             readOuterHtml: async () => {
               const [injection] = await browser.scripting.executeScript({
                 target: { tabId },
@@ -202,7 +210,9 @@ function handleCaptureReport(message: CaptureReportRequest, sender: Runtime.Mess
               const html: unknown = injection?.result;
               return typeof html === 'string' ? html : '';
             },
-          })
+            scrubberOptions: toDomScrubberOptions(scrubbers),
+          });
+        }
       : undefined;
 
   // Local/session storage (S2-18): read in the page (executeScript, MAIN world), then mask +
@@ -277,7 +287,13 @@ async function captureAndHold(
 function handleFinalizeAnnotationChunk(
   message: FinalizeAnnotationChunkRequest,
 ): FinalizeAnnotationChunkResponse {
-  annotationChunks.add(message.reportId, message.seq, message.total, message.chunk);
+  annotationChunks.add(
+    message.reportId,
+    message.seq,
+    message.total,
+    message.chunk,
+    message.screenshotPath,
+  );
   return { ok: true };
 }
 
@@ -286,24 +302,36 @@ async function handleFinalizeReport(
   message: FinalizeReportRequest,
 ): Promise<FinalizeReportResponse> {
   const held = reportHold.take(message.reportId);
-  // Always drain any streamed slices so a buffer never lingers, even on the expired/no-annotation paths.
-  const streamed = annotationChunks.take(message.reportId);
+  const payloads = resolveFinalizeAnnotations(message);
+  // Drain every buffered stream for this report so nothing lingers, even on the expired path.
+  const streamed = new Map<string, string>();
+  for (const payload of payloads) {
+    streamed.set(
+      payload.screenshotPath ?? '',
+      annotationChunks.take(message.reportId, payload.screenshotPath),
+    );
+  }
+  annotationChunks.clear(message.reportId);
   if (!held) {
     return { ok: false, reason: 'expired' };
   }
-  const annotation = message.annotation
-    ? (buildAnnotationExport(held.report, {
-        konvaJson: message.annotation.konvaJson,
-        // Inline when small enough to ride the message; otherwise the reassembled streamed slices.
-        screenshotDataUrl: message.annotation.screenshotDataUrl ?? streamed,
-      }) ?? undefined)
-    : undefined;
+  const annotations = payloads.flatMap((payload) => {
+    const built = buildAnnotationExport(held.report, {
+      konvaJson: payload.konvaJson,
+      // Inline when small enough to ride the message; otherwise the reassembled streamed slices.
+      screenshotDataUrl:
+        payload.screenshotDataUrl ?? streamed.get(payload.screenshotPath ?? '') ?? '',
+      ...(payload.screenshotPath === undefined ? {} : { screenshotPath: payload.screenshotPath }),
+    });
+    return built ? [built] : [];
+  });
   const result = await finalizeReport(
     held.report,
     held.assets,
     message.removedIds,
     { writeZip: writeBugReportZip, download: downloadBlob, reportTemplateHtml },
-    annotation,
+    annotations,
+    message.removedInspectionIds,
   );
   return finalizeResponseFrom(result);
 }
@@ -333,6 +361,13 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
   }
   if (isPeekReportAssetRequest(message)) {
     return handlePeekReportAsset(message, { peek: (id) => reportHold.peek(id) });
+  }
+  if (isRedactTextRequest(message)) {
+    // Destructively strip a user-supplied string from the held report before it is zipped (BUG-04).
+    return handleRedactText(message, {
+      peek: (id) => reportHold.peek(id),
+      update: (id, held) => reportHold.update(id, held),
+    });
   }
   if (isRecordingRequest(message)) {
     return handleRecordingRequest(message, sender.tab?.id);

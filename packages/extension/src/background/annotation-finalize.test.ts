@@ -51,3 +51,68 @@ describe('buildAnnotationExport', () => {
     expect(buildAnnotationExport(report, payload, () => new Blob(['z']))).toBeNull();
   });
 });
+
+describe('buildAnnotationExport — explicit target path (BUG-05)', () => {
+  it('annotates the element crop when a screenshotPath is supplied', () => {
+    const report = {
+      screenshots: {
+        schemaVersion: 'v1',
+        viewport: {
+          path: 'screenshots/viewport.png',
+          width: 1,
+          height: 1,
+          devicePixelRatio: 1,
+          captureMethod: 'visibleTab',
+          hasAnnotations: false,
+        },
+        elementCrops: [
+          {
+            path: 'screenshots/element-1.png',
+            width: 1,
+            height: 1,
+            devicePixelRatio: 1,
+            captureMethod: 'visibleTab',
+            hasAnnotations: false,
+          },
+        ],
+      },
+    } as unknown as BugReportV1;
+
+    const result = buildAnnotationExport(
+      report,
+      {
+        konvaJson: '{}',
+        screenshotDataUrl: 'data:image/png;base64,AAAA',
+        screenshotPath: 'screenshots/element-1.png',
+      },
+      () => new Blob(),
+    );
+
+    expect(result?.screenshotPath).toBe('screenshots/element-1.png');
+  });
+
+  it('falls back to the primary screenshot when no path is supplied', () => {
+    const report = {
+      screenshots: {
+        schemaVersion: 'v1',
+        viewport: {
+          path: 'screenshots/viewport.png',
+          width: 1,
+          height: 1,
+          devicePixelRatio: 1,
+          captureMethod: 'visibleTab',
+          hasAnnotations: false,
+        },
+        elementCrops: [],
+      },
+    } as unknown as BugReportV1;
+
+    const result = buildAnnotationExport(
+      report,
+      { konvaJson: '{}', screenshotDataUrl: 'data:image/png;base64,AAAA' },
+      () => new Blob(),
+    );
+
+    expect(result?.screenshotPath).toBe('screenshots/viewport.png');
+  });
+});

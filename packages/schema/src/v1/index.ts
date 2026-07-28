@@ -21,6 +21,7 @@ export * from './zip-writer';
 export * from './scrubbers/types';
 export * from './scrubbers/pipeline';
 export * from './scrubbers/password-placeholder';
+export * from './scrubbers/redact-text';
 export * from './scrubbers/dom';
 export * from './scrubbers/secrets';
 

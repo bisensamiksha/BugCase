@@ -38,3 +38,38 @@ describe('AnnotationChunkBuffer', () => {
     expect(buf.take('b')).toBe('BB');
   });
 });
+
+describe('per-target keying (BUG-05: element crops are annotatable too)', () => {
+  it('keeps slices for two screenshots of the same report separate', () => {
+    const buffer = new AnnotationChunkBuffer();
+    buffer.add('r1', 0, 2, 'AA');
+    buffer.add('r1', 1, 2, 'BB');
+    buffer.add('r1', 0, 2, 'XX', 'screenshots/element-1.png');
+    buffer.add('r1', 1, 2, 'YY', 'screenshots/element-1.png');
+
+    expect(buffer.take('r1')).toBe('AABB');
+    expect(buffer.take('r1', 'screenshots/element-1.png')).toBe('XXYY');
+  });
+
+  it('take drains only the requested target', () => {
+    const buffer = new AnnotationChunkBuffer();
+    buffer.add('r1', 0, 1, 'AA');
+    buffer.add('r1', 0, 1, 'XX', 'screenshots/element-1.png');
+
+    expect(buffer.take('r1', 'screenshots/element-1.png')).toBe('XX');
+    expect(buffer.take('r1')).toBe('AA');
+  });
+
+  it('clear discards every target for the report', () => {
+    const buffer = new AnnotationChunkBuffer();
+    buffer.add('r1', 0, 1, 'AA');
+    buffer.add('r1', 0, 1, 'XX', 'screenshots/element-1.png');
+    buffer.add('r2', 0, 1, 'ZZ');
+
+    buffer.clear('r1');
+
+    expect(buffer.take('r1')).toBe('');
+    expect(buffer.take('r1', 'screenshots/element-1.png')).toBe('');
+    expect(buffer.take('r2')).toBe('ZZ');
+  });
+});

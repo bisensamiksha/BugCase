@@ -174,6 +174,63 @@ describe('createDomScrubberRules', () => {
   });
 });
 
+describe('createPasswordInputMaskRule — credential detection beyond type=password (BUG-04)', () => {
+  // A site's "Show password" control flips type=password -> type=text. Keying only off the live
+  // `type` let the revealed value through into DOM snapshots and element inspections.
+  const rule = createPasswordInputMaskRule();
+
+  it('masks a revealed password field (the exact wordpress.com/log-in tag)', () => {
+    const tag =
+      '<input autocomplete="current-password" autocapitalize="off" ' +
+      'class="form-text-input form-text-input-core-styles" id="password" tabindex="-1" ' +
+      'type="text" value="SUPERSECRET123" name="password">';
+    const result = rule.apply(tag);
+    expect(result.value).not.toContain('SUPERSECRET123');
+    expect(result.value).toContain(`value="${SCRUBBED_VALUE_PLACEHOLDER}"`);
+    expect(result.hits).toBe(1);
+  });
+
+  it.each([
+    [
+      'autocomplete=current-password',
+      '<input type="text" autocomplete="current-password" value="s">',
+    ],
+    ['autocomplete=new-password', '<input type="text" autocomplete="new-password" value="s">'],
+    ['autocomplete=one-time-code', '<input type="text" autocomplete="one-time-code" value="s">'],
+    ['name=password', '<input type="text" name="password" value="s">'],
+    ['name=pwd', '<input type="text" name="pwd" value="s">'],
+    ['id=user_secret', '<input type="text" id="user_secret" value="s">'],
+    ['name=apiToken', '<input type="text" name="apiToken" value="s">'],
+    ['name=otp', '<input type="text" name="otp" value="s">'],
+    ['name=cvv', '<input type="text" name="cvv" value="s">'],
+    ['name=ssn', '<input type="text" name="ssn" value="s">'],
+    ['name=security-code', '<input type="text" name="security-code" value="s">'],
+    ['class contains password', '<input type="text" class="a password-field b" value="s">'],
+  ])('masks a credential-looking input: %s', (_label, tag) => {
+    const result = rule.apply(tag);
+    expect(result.value).not.toContain('"s"');
+    expect(result.hits).toBe(1);
+  });
+
+  it.each([
+    ['plain text', '<input type="text" name="nickname" value="ada">'],
+    ['email', '<input type="email" name="email" value="a@b.c">'],
+    ['search', '<input type="search" name="q" value="query">'],
+    ['username', '<input type="text" name="username" value="ada">'],
+    ['passenger (not a credential)', '<input type="text" name="passenger" value="ada">'],
+  ])('leaves an ordinary input untouched: %s', (_label, tag) => {
+    const result = rule.apply(tag);
+    expect(result.value).toBe(tag);
+    expect(result.hits).toBe(0);
+  });
+
+  it('still masks a classic type=password field', () => {
+    const result = rule.apply('<input type="password" value="hunter2">');
+    expect(result.value).not.toContain('hunter2');
+    expect(result.hits).toBe(1);
+  });
+});
+
 describe('scrubDom', () => {
   it('masks passwords but does not touch other inputs or scripts by default', () => {
     const result = scrubDom(

@@ -12,6 +12,8 @@ export interface ReportHold {
   take(reportId: string): HeldReport | undefined;
   /** Retrieve a held report without removing it; `undefined` if absent/evicted. */
   peek(reportId: string): HeldReport | undefined;
+  /** Replace a held report in place (manual text redaction); `false` if absent/evicted. */
+  update(reportId: string, held: HeldReport): boolean;
 }
 
 /**
@@ -36,6 +38,13 @@ export function createReportHold(generateId: () => string = () => crypto.randomU
     },
     peek(reportId) {
       return store.get(reportId);
+    },
+    update(reportId, value) {
+      if (!store.has(reportId)) {
+        return false;
+      }
+      store.set(reportId, value);
+      return true;
     },
   };
 }

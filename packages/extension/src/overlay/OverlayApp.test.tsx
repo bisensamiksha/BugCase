@@ -650,6 +650,19 @@ describe('OverlayApp element inspector', () => {
     expect(queryTestId('element-picker-start')).not.toBeNull();
   });
 
+  it('gives the picker pill a drag grip so it can be moved instead of hidden (BUG-04)', async () => {
+    const picker = fakePicker();
+    await renderPicker(picker.controller);
+    act(() => {
+      queryTestId('element-picker-start')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    const grip = queryTestId('bugcase-picker-pill-grip');
+    expect(grip).not.toBeNull();
+    expect(grip!.getAttribute('aria-label')).toBe('Move the element inspector');
+  });
+
   it('collapses to a picker toolbar on Start and counts a pick', async () => {
     const picker = fakePicker();
     await renderPicker(picker.controller);

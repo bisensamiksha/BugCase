@@ -300,6 +300,47 @@ export function applyArtifactRemovals(
   return { report: next, assets: { files } };
 }
 
+/**
+ * Drop individual element inspections and their crop images (BUG-05). Element crops are raw pixels
+ * like any screenshot, so the user needs a way to discard one whose image shows something sensitive
+ * without losing every inspection. Pure; inputs are not mutated.
+ */
+export function applyInspectionRemovals(
+  report: BugReportV1,
+  assets: BugReportZipAssets,
+  removedInspectionIds: readonly string[],
+): { report: BugReportV1; assets: BugReportZipAssets } {
+  if (removedInspectionIds.length === 0 || !report.elementInspections) {
+    return { report, assets };
+  }
+  const removed = new Set(removedInspectionIds);
+  const kept = report.elementInspections.inspections.filter((i) => !removed.has(i.id));
+  if (kept.length === report.elementInspections.inspections.length) {
+    return { report, assets };
+  }
+  const droppedPaths = new Set(
+    report.elementInspections.inspections
+      .filter((i) => removed.has(i.id))
+      .map((i) => i.screenshotCropPath),
+  );
+  const files = new Map(assets.files);
+  for (const path of droppedPaths) {
+    files.delete(path);
+  }
+  return {
+    report: {
+      ...report,
+      elementInspections:
+        kept.length > 0 ? { ...report.elementInspections, inspections: kept } : null,
+      screenshots: {
+        ...report.screenshots,
+        elementCrops: report.screenshots.elementCrops.filter((c) => !droppedPaths.has(c.path)),
+      },
+    },
+    assets: { files },
+  };
+}
+
 /** A flattened annotated screenshot + its Konva JSON, produced in the overlay and applied at finalize. */
 export interface AnnotationExport {
   /** ZIP path of the screenshot the annotations cover (e.g. `screenshots/viewport.png`). */
@@ -363,7 +404,7 @@ export function applyAnnotations(
 }
 
 /**
- * Finalize phase: apply removals → apply annotations (if any) → ZIP via the schema writer → download
+ * Finalize phase: apply removals → apply every annotation (if any) → ZIP via the schema writer → download
  * with a timestamped filename. Runs in the service worker. Any failure resolves to `{ ok: false, reason }`.
  */
 export async function finalizeReport(
@@ -371,11 +412,17 @@ export async function finalizeReport(
   assets: BugReportZipAssets,
   removedIds: readonly ArtifactId[],
   deps: FinalizeReportDeps,
-  annotation?: AnnotationExport,
+  annotations?: AnnotationExport | readonly AnnotationExport[],
+  removedInspectionIds?: readonly string[],
 ): Promise<CaptureFlowResult> {
   try {
     let trimmed = applyArtifactRemovals(report, assets, removedIds);
-    if (annotation) {
+    trimmed = applyInspectionRemovals(trimmed.report, trimmed.assets, removedInspectionIds ?? []);
+    // One entry per annotated screenshot — the primary shot and/or any element crops (BUG-05).
+    // `applyAnnotations` is path-keyed and appends to the manifest, so folding them in sequence
+    // accumulates correctly.
+    const list = annotations ? (Array.isArray(annotations) ? annotations : [annotations]) : [];
+    for (const annotation of list as readonly AnnotationExport[]) {
       trimmed = applyAnnotations(trimmed.report, trimmed.assets, annotation);
     }
     // Build the self-contained report.html from the final (trimmed + annotated) report + assets, so
