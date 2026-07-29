@@ -34,15 +34,17 @@ These are true because BugCase has no server and no telemetry (see the Privacy P
 
 ## Image assets
 
-| Asset              | Required size                     | Status                  | Source                                                                     |
-| ------------------ | --------------------------------- | ----------------------- | -------------------------------------------------------------------------- |
-| Store icon         | 128×128 PNG                       | ✅ ships in the package | `packages/extension/public/icons/icon-128.png` (S4-17)                     |
-| Small promo tile   | 440×280 PNG                       | ✅ generated            | [`assets/promo-tile-440x280.png`](./assets/promo-tile-440x280.png)         |
-| Marquee promo tile | 1400×560 PNG                      | ✅ generated (optional) | [`assets/promo-marquee-1400x560.png`](./assets/promo-marquee-1400x560.png) |
-| Screenshots        | 1280×800 or 640×400 PNG/JPEG, 1–5 | 🟡 capture by hand      | see [`screenshots/README.md`](./screenshots/README.md)                     |
+| Asset              | Required size                     | Status                     | Source                                                                      |
+| ------------------ | --------------------------------- | -------------------------- | --------------------------------------------------------------------------- |
+| Store icon         | 128×128 PNG                       | ✅ ships in the package    | `packages/extension/public/icons/icon-128.png` (S4-17)                      |
+| Small promo tile   | 440×280 PNG                       | ✅ generated               | [`assets/promo-tile-440x280.png`](./assets/promo-tile-440x280.png)          |
+| Marquee promo tile | 1400×560 PNG                      | ✅ generated (optional)    | [`assets/promo-marquee-1400x560.png`](./assets/promo-marquee-1400x560.png)  |
+| Screenshots        | 1280×800 or 640×400 PNG/JPEG, 1–5 | ✅ captured (6 × 1280×800) | [`screenshots/`](./screenshots/README.md) — upload **1–5**; #6 is Edge-only |
 
-Regenerate the promo tiles with `pnpm store:assets`. The screenshots need a real capture (see their
-README) — do **not** fake them; every marketing image must reflect the shipped build.
+Regenerate the promo tiles with `pnpm store:assets`. The screenshots are real captures of the shipped
+build — see [`screenshots/README.md`](./screenshots/README.md) for the set, their captions, and how to
+reproduce them. Do **not** fake them; every marketing image must reflect the shipped build, and
+**re-shoot whenever the UI changes**.
 
 ## Pre-submission checklist (Chrome)
 
@@ -52,5 +54,5 @@ README) — do **not** fake them; every marketing image must reflect the shipped
 - [ ] Summary ≤ 132 chars; single-purpose statement filled from shared copy.
 - [ ] Every requested permission has a justification pasted from `permission-justifications.md`.
 - [ ] Privacy policy URL set to the hosted policy; data-usage disclosures certified as "no collection".
-- [ ] Promo tiles uploaded; at least one screenshot uploaded (1280×800).
+- [ ] Promo tiles uploaded; screenshots **1–5** uploaded in order (1280×800) with their captions.
 - [ ] (Filing + review tracking happens in **S4-24**.)

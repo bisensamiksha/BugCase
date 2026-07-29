@@ -9,11 +9,29 @@
 
 ## v1.0.0
 
-| Store                  | Artifact                   | SHA-256               | Submitted    | Review state         | Reviewer feedback | Resolution |
-| ---------------------- | -------------------------- | --------------------- | ------------ | -------------------- | ----------------- | ---------- |
-| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | _paste from verifier_ | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
-| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | _paste from verifier_ | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
-| Firefox AMO            | —                          | —                     | —            | ⬜ S4-32             | —                 | —          |
+| Store                  | Artifact                   | SHA-256         | Submitted    | Review state         | Reviewer feedback | Resolution |
+| ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | ---------- |
+| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `271a43a6…1bb9` | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
+| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `271a43a6…1bb9` | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
+| Firefox AMO            | —                          | —               | —            | ⬜ S4-32             | —                 | —          |
+
+**Upload candidate — built 2026-07-29 from `main` (BUG-05 merged, PR #187):**
+
+```
+sha256  271a43a6141863895938d87a36ea95577e2be1f739b4bd096d6fe7ce45eb1bb9
+size    584,501 bytes · 24 entries · 9 sourcemaps excluded
+```
+
+Verified before recording: `verify:edge-brave` passes (MV3 valid, manifest at root, service worker and
+all declared icons present, no `.map` files); `check:permission-justifications` matches 10/10; the
+build is **reproducible** (byte-identical hash across two runs separated by a wall-clock boundary);
+and the BUG-05 fix is present in the artifact (`content/overlay.js` + the shared `messages` chunk the
+service worker imports).
+
+⚠️ **Re-package before submitting if `main` has moved.** This hash pins one specific build — a
+mismatch between what you upload and what is recorded here makes the trail worthless. Re-run
+`rm dist/*.zip && pnpm build:chrome && pnpm package:chrome && pnpm verify:edge-brave` and update the
+rows above.
 
 ### Review states
 
