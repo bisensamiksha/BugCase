@@ -7,6 +7,8 @@ export interface ElementPickerControlsProps {
   readonly count: number;
   readonly onStartPicking: () => void;
   readonly onStopPicking: () => void;
+  /** Set when the last pick's image was dropped for the crop budget (BUG-06); shown while picking. */
+  readonly budgetNotice?: string | null;
 }
 
 // Inline styles keep the controls self-contained inside the Shadow DOM, matching the rest of the overlay.
@@ -34,6 +36,11 @@ const buttonStyle: CSSProperties = {
   color: '#0f172a',
   cursor: 'pointer',
 };
+const noticeStyle: CSSProperties = {
+  fontSize: '11px',
+  color: '#b45309',
+  margin: '0 0 8px',
+};
 
 function inspectedLine(count: number): string {
   return `✓ ${count} element${count === 1 ? '' : 's'} inspected`;
@@ -48,6 +55,7 @@ export function ElementPickerControls({
   count,
   onStartPicking,
   onStopPicking,
+  budgetNotice,
 }: ElementPickerControlsProps) {
   if (status === 'picking') {
     return (
@@ -55,6 +63,11 @@ export function ElementPickerControls({
         <p data-testid="element-picker-status" style={statusStyle}>
           ◎ Click elements to inspect — {count} so far (Esc to cancel)
         </p>
+        {budgetNotice ? (
+          <p data-testid="element-picker-budget-notice" role="status" style={noticeStyle}>
+            {budgetNotice}
+          </p>
+        ) : null}
         <button
           type="button"
           data-testid="element-picker-done"

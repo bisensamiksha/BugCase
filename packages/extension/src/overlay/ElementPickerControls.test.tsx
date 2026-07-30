@@ -25,13 +25,18 @@ afterEach(() => {
 function render(
   status: ElementPickerStatus,
   count: number,
-  handlers: { onStartPicking?: () => void; onStopPicking?: () => void } = {},
+  handlers: {
+    onStartPicking?: () => void;
+    onStopPicking?: () => void;
+    budgetNotice?: string | null;
+  } = {},
 ): void {
   act(() => {
     root.render(
       <ElementPickerControls
         status={status}
         count={count}
+        budgetNotice={handlers.budgetNotice ?? null}
         onStartPicking={handlers.onStartPicking ?? (() => {})}
         onStopPicking={handlers.onStopPicking ?? (() => {})}
       />,
@@ -70,5 +75,20 @@ describe('ElementPickerControls', () => {
   it('reports how many elements were inspected when idle', () => {
     render('idle', 3);
     expect(query('element-picker-status')?.textContent).toMatch(/3/);
+  });
+});
+
+describe('ElementPickerControls budget notice (BUG-06)', () => {
+  it('shows the notice while picking when a crop was dropped', () => {
+    render('picking', 4, {
+      budgetNotice:
+        'Added without its image: the crop was 1.4 MB and only 0.2 MB is left of the 8.0 MB limit. Structure and CSS were saved.',
+    });
+    expect(query('element-picker-budget-notice')?.textContent).toContain('Added without its image');
+  });
+
+  it('renders no notice element when nothing was dropped', () => {
+    render('picking', 2);
+    expect(query('element-picker-budget-notice')).toBeNull();
   });
 });
