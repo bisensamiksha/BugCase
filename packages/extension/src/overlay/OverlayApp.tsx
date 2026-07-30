@@ -258,13 +258,37 @@ async function isOriginAllowedViaBridge(origin: string): Promise<boolean> {
   return result.ok && result.allowed === true;
 }
 
+/** Panel width; shared with the restore clamp below so the two cannot drift apart. */
+const PANEL_WIDTH_PX = 320;
+
+/**
+ * Clamp a position restored from the draft against the *live* viewport (BUG-06).
+ *
+ * `clampPanelPosition` runs during a drag, but a stored position is applied without one — and the
+ * viewport can have shrunk since it was saved (docking DevTools to the right is the everyday case).
+ * Because the restored position is persisted again straight away, an off-screen restore is sticky:
+ * closing and reopening brings the panel back to the same unreachable spot. Clamping only needs the
+ * panel's width (the vertical clamp is width- and height-independent), so the real measured size is
+ * not required before layout.
+ */
+function clampRestoredPanelPosition(pos: PanelPosition | null): PanelPosition | null {
+  if (pos === null || typeof window === 'undefined') {
+    return pos;
+  }
+  return clampPanelPosition(
+    pos,
+    { width: PANEL_WIDTH_PX, height: 0 },
+    { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
+  );
+}
+
 // Inline styles keep the overlay self-contained inside the Shadow DOM; a Tailwind-in-shadow
 // stylesheet is deferred to a later UI ticket. The host element handles positioning/z-index.
 const panelStyle: CSSProperties = {
   position: 'fixed',
   top: '16px',
   right: '16px',
-  width: '320px',
+  width: `${PANEL_WIDTH_PX}px`,
   // A flex column: the header stays pinned (drag handle + close) while the body scrolls, so the
   // controls below the fold (notes, capture button) are always reachable. Capped to the viewport.
   display: 'flex',
@@ -369,6 +393,14 @@ export function OverlayApp({
   // review-1 defect: on a first open there is no draft, draftLoadedRef never flips, so the persist
   // effect would return early forever and nothing would ever get saved. Do not merge these back.
   const draftCheckedRef = useRef(false);
+  // BUG-06: the live debounce timer, so a clear can cancel a write that is still pending instead of
+  // letting it land after the remove.
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // BUG-06: flipped the moment the draft is discarded (explicit close, or a completed download).
+  // From then on nothing may write it again: `set` and `remove` are independent service-worker
+  // promises, so a save that slipped through would resurrect the draft the user just discarded —
+  // their report text and raw element crops would reappear on the next open.
+  const draftDiscardedRef = useRef(false);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
@@ -558,7 +590,7 @@ export function OverlayApp({
           setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
           dispatchElement({ type: 'restore', inspections: draft.inspections });
           setMinimized(draft.ui.minimized);
-          setPanelPos(draft.ui.panelPos);
+          setPanelPos(clampRestoredPanelPosition(draft.ui.panelPos));
           // Only a real restored draft blocks the stored-defaults seed below — a null draft (the
           // common first-open-on-a-tab case) must never suppress it, or the user's configured
           // defaults (S3-06) would be silently skipped whenever this relay just happens to resolve
@@ -587,10 +619,16 @@ export function OverlayApp({
   // draftLoadedRef — see its declaration above) so the empty initial state cannot overwrite a
   // stored draft, while a first-open session with no existing draft can still start saving.
   useEffect(() => {
-    if (!draftCheckedRef.current) {
+    if (!draftCheckedRef.current || draftDiscardedRef.current) {
       return;
     }
     const timer = setTimeout(() => {
+      persistTimerRef.current = null;
+      // A clear can be requested while this timer is pending; it cancels the timer, but re-check here
+      // so no path can write the draft back after it has been discarded.
+      if (draftDiscardedRef.current) {
+        return;
+      }
       void draftClient.save({
         captureOptions,
         userReport,
@@ -598,12 +636,32 @@ export function OverlayApp({
         ui: { minimized, panelPos },
       });
     }, 300);
-    return () => clearTimeout(timer);
+    persistTimerRef.current = timer;
+    return () => {
+      clearTimeout(timer);
+      if (persistTimerRef.current === timer) {
+        persistTimerRef.current = null;
+      }
+    };
   }, [draftClient, captureOptions, userReport, elementSession.inspections, minimized, panelPos]);
+
+  /**
+   * Discard the draft for good: cancel any pending debounced write, latch the guard so no later
+   * render can re-arm one, then remove it. Without the cancel + latch, closing shortly after an edit
+   * would let the debounced `set` land after the `remove` and restore what the user just discarded.
+   */
+  const discardDraft = (): void => {
+    draftDiscardedRef.current = true;
+    if (persistTimerRef.current !== null) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    void draftClient.clear();
+  };
 
   // BUG-06: an explicit close discards the draft, so reopening always starts from a clean form.
   const handleClose = (): void => {
-    void draftClient.clear();
+    discardDraft();
     onClose();
   };
 
@@ -739,7 +797,7 @@ export function OverlayApp({
             // The recording has been folded into the downloaded report; drop the durable session.
             void recordingClient.clear();
             // BUG-06: the draft has been captured and downloaded; drop it too.
-            void draftClient.clear();
+            discardDraft();
             onClose();
           }}
         />
@@ -915,6 +973,11 @@ export function OverlayApp({
             status={reproSession.status}
             onStart={handleStartRecording}
             onStop={handleStopRecording}
+            // The hint below the Track button describes the screenshot's timing; it would be a false
+            // promise with every screenshot option turned off. Gates the copy only — never capture.
+            screenshotEnabled={
+              captureOptions.viewportScreenshot || captureOptions.fullPageScreenshot
+            }
           />
         ) : null}
         {captureOptions.elementInspections ? (

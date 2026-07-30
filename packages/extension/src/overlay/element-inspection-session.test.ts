@@ -65,14 +65,17 @@ describe('elementInspectionSessionReducer', () => {
 });
 
 describe('element inspection budget (BUG-06)', () => {
+  const DATA_URL_PREFIX = 'data:image/png;base64,';
+
+  /** An inspection whose crop data URL is exactly `bytes` characters long when stored. */
   function inspectionOfSize(bytes: number): CaptureElementInspection {
-    const base64 = 'A'.repeat(Math.ceil(bytes / 3) * 4);
+    const base64 = 'A'.repeat(Math.max(0, bytes - DATA_URL_PREFIX.length));
     return {
       outerHtml: '<button>Pay</button>',
       computedStyles: {},
       boundingClientRect: { x: 0, y: 0, width: 10, height: 10 },
       ancestors: [],
-      cropDataUrl: `data:image/png;base64,${base64}`,
+      cropDataUrl: `${DATA_URL_PREFIX}${base64}`,
     };
   }
 
@@ -113,6 +116,20 @@ describe('element inspection budget (BUG-06)', () => {
       inspection: inspectionOfSize(30),
     });
     expect(next.budgetNotice).toBeNull();
+  });
+
+  it('clears a stale notice when the picker is re-entered, before any pick is made', () => {
+    // Otherwise reopening the picker greets the user with the *previous* session's
+    // "Added without its image…", describing an action they did not just take.
+    const withNotice = {
+      ...ELEMENT_INSPECTION_SESSION_INITIAL,
+      inspections: [inspection('<a/>')],
+      budgetNotice: 'Added without its image: …',
+    };
+    const next = elementInspectionSessionReducer(withNotice, { type: 'startPicking' });
+    expect(next.budgetNotice).toBeNull();
+    expect(next.status).toBe('picking');
+    expect(next.inspections).toHaveLength(1);
   });
 
   it('restores inspections from a persisted draft', () => {

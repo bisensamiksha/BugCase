@@ -1,9 +1,10 @@
 /**
- * Element-crop size budget for the durable overlay draft (BUG-06).
+ * Element-inspection size budget for the durable overlay draft (BUG-06).
  *
- * Crops are base64 PNG data URLs and are the only unbounded part of the draft; everything else is
- * small text. `chrome.storage.session` has a ~10 MB quota shared with the step-tracking session
- * (text-only, capped at 500 steps), so crops are budgeted at 8 MB.
+ * Inspections are the only unbounded part of the draft: a crop is a base64 PNG data URL, and
+ * `outerHtml` can serialize megabytes when the user picks a container on a modern SPA.
+ * `chrome.storage.session` has a ~10 MB quota shared with the step-tracking session (text-only,
+ * capped at 500 steps), so inspections are budgeted at 8 MB.
  *
  * Nothing is ever evicted. A crop's size is only knowable after it exists — PNG size depends on
  * image content, not the element's box — so the budget is applied to each incoming pick: it keeps
@@ -13,29 +14,40 @@
 
 import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 
-/** Bytes of crop image data retained across all inspections in the draft. */
+/** Bytes of inspection data retained across all inspections in the draft. */
 export const CROP_BUDGET_BYTES = 8 * 1024 * 1024;
 
-const BASE64_PREFIX = /^data:[^;,]*;base64,/;
-
-/** Approximate decoded byte size of a base64 data URL; 0 when it isn't one. */
-export function dataUrlBytes(dataUrl: string): number {
-  if (!BASE64_PREFIX.test(dataUrl)) {
-    return 0;
-  }
-  const base64 = dataUrl.replace(BASE64_PREFIX, '');
-  if (base64.length === 0) {
-    return 0;
-  }
-  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+/**
+ * Bytes a data URL costs once stored.
+ *
+ * `chrome.storage.session` charges the *serialized* value, not the decoded image, and a base64 data
+ * URL is ASCII — one character costs one stored byte. Measuring the decoded PNG size instead would
+ * under-count by ~4/3: 8 MB decoded is ~11.2 million stored characters, over the whole quota on its
+ * own. A draft the budget then called "in limits" would be rejected by `storage.set`, the rejection
+ * is swallowed by `saveOverlayDraft`, and the draft would silently freeze at its last good write —
+ * BUG-06 recurring invisibly at the very ceiling meant to prevent it.
+ */
+export function dataUrlStoredBytes(dataUrl: string): number {
+  return dataUrl.length;
 }
 
-/** Total crop bytes currently held across `inspections`. */
-export function usedCropBytes(inspections: readonly CaptureElementInspection[]): number {
+/**
+ * Bytes the given inspections cost in the draft: each one's crop image plus its `outerHtml`.
+ *
+ * `outerHtml` is counted because it is not "small text" — picking a container on a modern SPA can
+ * serialize 0.5–3 MB, so a few such picks would exhaust the quota with almost no crop bytes and the
+ * budget would never fire. It reduces the space left for images; only an *image* is ever dropped,
+ * never the structural data, which is what makes an inspection actionable.
+ *
+ * The remaining fields are bounded per inspection — a curated computed-style set, a bounding box and
+ * at most five ancestors — so they are left out of the measure rather than tracked field by field.
+ */
+export function usedDraftBytes(inspections: readonly CaptureElementInspection[]): number {
   return inspections.reduce(
     (total, inspection) =>
-      total + (inspection.cropDataUrl === null ? 0 : dataUrlBytes(inspection.cropDataUrl)),
+      total +
+      inspection.outerHtml.length +
+      (inspection.cropDataUrl === null ? 0 : dataUrlStoredBytes(inspection.cropDataUrl)),
     0,
   );
 }
@@ -45,9 +57,9 @@ export interface CropFitResult {
   readonly inspection: CaptureElementInspection;
   /** True when the image was dropped because it did not fit. */
   readonly dropped: boolean;
-  /** Decoded size of the incoming crop, in bytes. */
+  /** Stored size of the incoming crop, in bytes. */
   readonly cropBytes: number;
-  /** Bytes that were free before this pick. */
+  /** Bytes left for this pick's image once its structural data is charged. */
   readonly remainingBytes: number;
   /** The budget applied, in bytes. */
   readonly budgetBytes: number;
@@ -64,8 +76,14 @@ export function fitInspectionToBudget(
   incoming: CaptureElementInspection,
   budgetBytes: number = CROP_BUDGET_BYTES,
 ): CropFitResult {
-  const remainingBytes = Math.max(0, budgetBytes - usedCropBytes(existing));
-  const cropBytes = incoming.cropDataUrl === null ? 0 : dataUrlBytes(incoming.cropDataUrl);
+  // The incoming pick's structural data is stored either way — only its image can be dropped — so it
+  // is charged first and `remainingBytes` is the space genuinely left for the image. That also keeps
+  // the user-facing notice honest when it is a big `outerHtml`, not earlier crops, that used the budget.
+  const remainingBytes = Math.max(
+    0,
+    budgetBytes - usedDraftBytes(existing) - incoming.outerHtml.length,
+  );
+  const cropBytes = incoming.cropDataUrl === null ? 0 : dataUrlStoredBytes(incoming.cropDataUrl);
   if (incoming.cropDataUrl === null || cropBytes <= remainingBytes) {
     return { inspection: incoming, dropped: false, cropBytes, remainingBytes, budgetBytes };
   }

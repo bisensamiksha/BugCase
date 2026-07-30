@@ -46,7 +46,9 @@ export function elementInspectionSessionReducer(
 ): ElementInspectionSessionState {
   switch (action.type) {
     case 'startPicking':
-      return { ...state, status: 'picking' };
+      // The notice always describes the latest pick, so re-entering the picker must not greet the
+      // user with the previous session's "Added without its image…" before they have picked anything.
+      return { ...state, status: 'picking', budgetNotice: null };
     case 'add': {
       // BUG-06: the crop's size is only knowable once it exists, so the budget is applied here —
       // the inspection keeps its structural data and loses only its image when it does not fit.

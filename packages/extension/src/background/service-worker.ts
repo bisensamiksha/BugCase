@@ -9,6 +9,7 @@ import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 import { openOnboardingOnInstall } from '../onboarding/open-on-install';
+import { clearOverlayDraft } from '../storage/overlay-draft';
 import { clearOverlayOpen, isOverlayOpen, setOverlayOpen } from '../storage/overlay-session';
 import { getRecordingSession } from '../storage/recording-session';
 import { toDomScrubberOptions } from '../storage/scrubber-options';
@@ -105,9 +106,13 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Don't leak per-tab overlay state when the tab goes away (BUG-05); ids are reused.
+// Don't leak per-tab overlay state when the tab goes away (BUG-05) — the open flag and the durable
+// draft (BUG-06). Tab ids are reused, so a surviving draft would resurface in an unrelated tab; and
+// the draft holds the user's bug title/notes plus raw element crops, which the scrubbers do not cover
+// (BUG-01), so keeping it for the rest of the browser session is a privacy cost with no upside.
 browser.tabs.onRemoved.addListener((tabId) => {
   void clearOverlayOpen(tabId);
+  void clearOverlayDraft(tabId);
 });
 
 // Holds the assembled report + assets between CAPTURE_REPORT (assemble) and FINALIZE_REPORT

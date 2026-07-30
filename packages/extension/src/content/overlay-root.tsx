@@ -1,6 +1,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 
 import { OverlayApp } from '../overlay/OverlayApp';
+import { clearDraft } from '../overlay/draft-sync';
 import { OVERLAY_HOST_ID } from '../shared/overlay-host';
 
 import { queryOverlayOpen, reportOverlayState } from './overlay-state-report';
@@ -100,6 +101,13 @@ export function removeOverlay(doc: Document = document): boolean {
   active = null;
   // BUG-05: an explicit close must stop the worker re-mounting the overlay on the next navigation.
   reportOverlayState(false);
+  // BUG-06: the same "explicit close" signal must discard the durable draft. This path unmounts React
+  // directly — the toolbar icon toggles the overlay through here — so `OverlayApp`'s own clear on its ×
+  // buttons never runs, and without this the draft (bug title, notes, and raw unredacted element crops)
+  // would survive the close and reappear in the next capture, possibly on a different site.
+  // `reconcileWithWorker` also lands here, but only when the worker already says the overlay is closed,
+  // so the draft is gone by then and the extra clear is a no-op (`storage.remove` on a missing key).
+  void clearDraft();
   return true;
 }
 

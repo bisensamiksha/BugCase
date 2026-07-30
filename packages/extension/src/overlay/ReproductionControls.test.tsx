@@ -24,7 +24,12 @@ afterEach(() => {
 
 function render(
   status: ReproductionSessionStatus,
-  handlers: { onStart?: () => void; onStop?: () => void; interrupted?: boolean } = {},
+  handlers: {
+    onStart?: () => void;
+    onStop?: () => void;
+    interrupted?: boolean;
+    screenshotEnabled?: boolean;
+  } = {},
 ): void {
   act(() => {
     root.render(
@@ -33,6 +38,9 @@ function render(
         interrupted={handlers.interrupted ?? false}
         onStart={handlers.onStart ?? (() => {})}
         onStop={handlers.onStop ?? (() => {})}
+        {...(handlers.screenshotEnabled === undefined
+          ? {}
+          : { screenshotEnabled: handlers.screenshotEnabled })}
       />,
     );
   });
@@ -66,10 +74,10 @@ describe('ReproductionControls', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a recorded summary with a re-record button that starts a new session', () => {
+  it('shows a completed summary with a re-run button that starts a new session', () => {
     const onStart = vi.fn();
     render('recorded', { onStart });
-    expect(query('reproduction-status')?.textContent).toMatch(/recorded/i);
+    expect(query('reproduction-status')?.textContent).toMatch(/tracked/i);
     click(query('reproduction-start'));
     expect(onStart).toHaveBeenCalledTimes(1);
   });
@@ -104,5 +112,41 @@ describe('ReproductionControls wording (BUG-06)', () => {
   it('names the finished state without the word recording', () => {
     render('recorded', { interrupted: true });
     expect(query('reproduction-status')?.textContent).toContain('Step tracking ended');
+  });
+
+  it('names the normal completed state as tracked, matching its interrupted sibling', () => {
+    render('recorded');
+    expect(query('reproduction-status')?.textContent).toBe(
+      '✓ Reproduction steps tracked — included on capture',
+    );
+  });
+
+  it('gives screen-reader users the new vocabulary too, in every state', () => {
+    // aria-label is user-facing copy: "recorder" is read aloud, and reads as video recording.
+    for (const status of ['idle', 'recording', 'recorded'] as const) {
+      render(status);
+      expect(query('reproduction-controls')?.getAttribute('aria-label')).toBe(
+        'Reproduction step tracker',
+      );
+    }
+  });
+});
+
+describe('ReproductionControls screenshot hint (BUG-06)', () => {
+  it('is shown when a screenshot will be taken', () => {
+    render('idle', { screenshotEnabled: true });
+    expect(query('reproduction-screenshot-hint')).not.toBeNull();
+  });
+
+  it('defaults to shown, so callers that do not care keep the hint', () => {
+    render('idle');
+    expect(query('reproduction-screenshot-hint')).not.toBeNull();
+  });
+
+  it('is hidden when no screenshot option is enabled, so the hint cannot be false', () => {
+    render('idle', { screenshotEnabled: false });
+    expect(query('reproduction-screenshot-hint')).toBeNull();
+    // The rest of the section is unaffected — only the hint is gated.
+    expect(query('reproduction-start')).not.toBeNull();
   });
 });

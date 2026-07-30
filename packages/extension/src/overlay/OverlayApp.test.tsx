@@ -8,12 +8,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // check is injected in every test, so the real runtime bridge is never invoked.
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
+// The preview's download runs the real `requestFinalize`, which needs a live service-worker bridge.
+// Stub only that export (the rest of the module — `requestCapture`, `requestPeekAsset` — stays real)
+// so a *completed* download can be driven end-to-end here.
+vi.mock('./request-capture', async (importOriginal) => {
+  const actual = await importOriginal<typeof RequestCaptureModule>();
+  return {
+    ...actual,
+    requestFinalize: () =>
+      Promise.resolve({ ok: true, filename: 'bugcase-report.zip', byteSize: 10, downloadId: 1 }),
+  };
+});
+
 import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import { OVERLAY_HOST_ID } from '../shared/overlay-host';
 import type { RecordingSession } from '../storage/recording-session';
 
 import { OverlayApp, type ElementPickerController, type RecordingClient } from './OverlayApp';
+import { MIN_VISIBLE } from './draggable-panel';
+import type * as RequestCaptureModule from './request-capture';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -490,8 +504,8 @@ describe('OverlayApp reproduction recorder', () => {
       recordingClient: fakeRecordingClient(session),
       currentUrl: 'https://example.com/page1',
     });
-    // Recovered as a recorded session.
-    expect(queryTestId('reproduction-status')?.textContent).toMatch(/recorded/i);
+    // Recovered as a completed session.
+    expect(queryTestId('reproduction-status')?.textContent).toMatch(/tracked/i);
 
     await act(async () => {
       queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -502,6 +516,41 @@ describe('OverlayApp reproduction recorder', () => {
       reproduction?: { steps?: Array<{ selector?: unknown }> };
     };
     expect(arg.reproduction?.steps?.[0]?.selector).toBe('#save');
+  });
+
+  it('shows the screenshot-timing hint while a screenshot is part of the capture', async () => {
+    await renderWithRecorder();
+    expect(queryTestId('reproduction-screenshot-hint')).not.toBeNull();
+  });
+
+  it('hides the screenshot-timing hint when every screenshot option is off', async () => {
+    // The hint would otherwise promise a screenshot the user has explicitly turned off.
+    const noScreenshots = () =>
+      Promise.resolve({
+        ...DEFAULT_USER_OPTIONS,
+        reproductionSteps: true,
+        viewportScreenshot: false,
+        fullPageScreenshot: false,
+      });
+    act(() => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          origin="https://example.com"
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          subscribeDebuggerActivity={() => () => {}}
+          loadDefaultCaptureOptions={noScreenshots}
+          onCapture={() => Promise.resolve({ ok: true })}
+        />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(queryTestId('reproduction-controls')).not.toBeNull();
+    expect(queryTestId('reproduction-screenshot-hint')).toBeNull();
   });
 
   it('resumes a recording that is still in progress (re-injected after a navigation)', async () => {
@@ -845,6 +894,48 @@ describe('OverlayApp draft restore (BUG-06)', () => {
     expect(queryTestId('element-picker-status')?.textContent).toContain('1 element');
   });
 
+  it('clamps a restored panel position to the live viewport', async () => {
+    // The viewport can shrink while the draft is stored (docking DevTools right is the everyday
+    // case), and the restored position is itself persisted — so an unclamped restore puts the panel
+    // off-screen and *keeps* it there through every close/reopen. The overlay is then unreachable.
+    const draft = {
+      captureOptions: DEFAULT_USER_OPTIONS,
+      userReport: {
+        schemaVersion: 'v1' as const,
+        title: '',
+        stepsToReproduce: '',
+        severity: 'minor' as const,
+        notes: '',
+      },
+      inspections: [],
+      ui: { minimized: false, panelPos: { top: 5000, left: 5000 } },
+    };
+    const draftClient = {
+      get: () => Promise.resolve(draft),
+      save: () => Promise.resolve(),
+      clear: () => Promise.resolve(),
+    };
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const panel = queryTestId('bugcase-overlay');
+    expect(panel?.style.left).toBe(`${window.innerWidth - MIN_VISIBLE}px`);
+    expect(panel?.style.top).toBe(`${window.innerHeight - MIN_VISIBLE}px`);
+  });
+
   it('opens with defaults when there is no stored draft', async () => {
     const draftClient = {
       get: () => Promise.resolve(null),
@@ -1024,6 +1115,140 @@ describe('OverlayApp draft persistence (BUG-06)', () => {
       (queryTestId('bugcase-overlay-close') as HTMLButtonElement).click();
     });
     expect(cleared).toBe(1);
+  });
+
+  it('clears the draft after a completed download', async () => {
+    // Spec §7 test 3. Without this, deleting the clear in the preview's `onComplete` keeps the suite
+    // green while the user's report text and raw element crops survive the download indefinitely.
+    let cleared = 0;
+    const draftClient = {
+      get: () => Promise.resolve(null),
+      save: () => Promise.resolve(),
+      clear: () => {
+        cleared += 1;
+        return Promise.resolve();
+      },
+    };
+    const report = {
+      schemaVersion: 'v1',
+      metadata: { page: { origin: 'https://example.com' } },
+      userInput: {
+        schemaVersion: 'v1',
+        title: '',
+        stepsToReproduce: '',
+        severity: 'minor',
+        notes: '',
+      },
+      screenshots: { schemaVersion: 'v1', elementCrops: [] },
+      browser: null,
+      console: null,
+      network: null,
+      dom: null,
+      storage: null,
+      cookies: null,
+      navigation: null,
+      reproduction: null,
+      elementInspections: null,
+    } as unknown as BugReportV1;
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+          onCapture={() => Promise.resolve({ ok: true, reportId: 'r1', report })}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      queryTestId('capture-button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(queryTestId('preview-download')).not.toBeNull();
+    expect(cleared).toBe(0);
+
+    act(() => {
+      queryTestId('preview-download')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      (queryTestId('privacy-understand') as HTMLInputElement).click();
+    });
+    await act(async () => {
+      queryTestId('privacy-confirm')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(cleared).toBe(1);
+  });
+
+  it('never writes the draft again once it has been cleared', async () => {
+    // The debounce means a close ~300 ms after the last edit races an in-flight save. If the save
+    // lands after the remove, the draft is resurrected *after* an explicit close — the user's report
+    // text and raw element crops come back on the next open, defeating the clear entirely.
+    vi.useFakeTimers();
+    const events: string[] = [];
+    const draftClient = {
+      get: () => Promise.resolve(null),
+      save: () => {
+        events.push('save');
+        return Promise.resolve();
+      },
+      clear: () => {
+        events.push('clear');
+        return Promise.resolve();
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          // Deliberately does not unmount, so the guard itself is under test rather than React's
+          // effect cleanup (which the real close path happens to also provide).
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const severity = queryTestId('user-report-severity') as HTMLSelectElement;
+    act(() => {
+      severity.value = 'critical';
+      severity.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    // Close while that write is still pending.
+    act(() => {
+      (queryTestId('bugcase-overlay-close') as HTMLButtonElement).click();
+    });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(events).toEqual(['clear']);
+
+    // And a later edit must not resurrect it either.
+    act(() => {
+      severity.value = 'major';
+      severity.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(events).toEqual(['clear']);
+    vi.useRealTimers();
   });
 });
 

@@ -15,6 +15,14 @@ vi.mock('./overlay-state-report', () => ({
   queryOverlayOpen: () => queryOverlayOpen(),
 }));
 
+// BUG-06: closing the overlay must discard its durable draft. Assert the relay without a worker.
+const clearDraft = vi.fn<() => Promise<void>>(() => Promise.resolve());
+vi.mock('../overlay/draft-sync', () => ({
+  getDraft: () => Promise.resolve(null),
+  saveDraft: () => Promise.resolve(),
+  clearDraft: () => clearDraft(),
+}));
+
 import {
   OVERLAY_HOST_ID,
   isOverlayMounted,
@@ -119,6 +127,29 @@ describe('OverlayApp close affordance', () => {
       closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(isOverlayMounted(document)).toBe(false);
+  });
+
+  it('discards the durable draft when the overlay is dismissed from the toolbar icon (BUG-06)', () => {
+    // The toolbar icon calls toggleOverlay → removeOverlay, which unmounts React directly and never
+    // reaches OverlayApp's onClose. Without a clear here the draft outlives the close, so reopening
+    // on a *different* site restores the previous site's severity, notes and raw element crops.
+    act(() => {
+      mountOverlay(document);
+    });
+    clearDraft.mockClear();
+    act(() => {
+      toggleOverlay(document);
+    });
+    expect(isOverlayMounted(document)).toBe(false);
+    expect(clearDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not clear the draft when there was no overlay to remove', () => {
+    clearDraft.mockClear();
+    act(() => {
+      removeOverlay(document);
+    });
+    expect(clearDraft).not.toHaveBeenCalled();
   });
 
   it('reports the overlay as closed so the worker stops re-mounting it after navigations', () => {

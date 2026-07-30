@@ -8,6 +8,12 @@ export interface ReproductionControlsProps {
   readonly onStop: () => void;
   /** When a recorded session was cut short by a navigation, surface that in the summary (Part B). */
   readonly interrupted?: boolean;
+  /**
+   * Whether any screenshot option is enabled. Gates the screenshot-timing hint only — it must not
+   * claim "the screenshot is taken when you press Capture" when the user has turned every screenshot
+   * off. Defaults to `true` so callers that don't track capture options keep the hint.
+   */
+  readonly screenshotEnabled?: boolean;
 }
 
 // Inline styles keep the controls self-contained inside the Shadow DOM, matching the rest of the
@@ -53,10 +59,11 @@ export function ReproductionControls({
   onStart,
   onStop,
   interrupted,
+  screenshotEnabled = true,
 }: ReproductionControlsProps) {
   if (status === 'recording') {
     return (
-      <section data-testid="reproduction-controls" aria-label="Reproduction recorder">
+      <section data-testid="reproduction-controls" aria-label="Reproduction step tracker">
         <p data-testid="reproduction-status" style={statusStyle}>
           ● Tracking steps — interact with the page, then Stop
         </p>
@@ -73,14 +80,14 @@ export function ReproductionControls({
   }
 
   return (
-    <section data-testid="reproduction-controls" aria-label="Reproduction recorder">
+    <section data-testid="reproduction-controls" aria-label="Reproduction step tracker">
       <fieldset style={sectionStyle}>
         <legend style={legendStyle}>Reproduction steps</legend>
         {status === 'recorded' ? (
           <p data-testid="reproduction-status" style={statusStyle}>
             {interrupted
               ? '✓ Step tracking ended (page changed) — steps included on capture'
-              : '✓ Reproduction steps recorded — included on capture'}
+              : '✓ Reproduction steps tracked — included on capture'}
           </p>
         ) : (
           <p style={hintStyle}>
@@ -95,9 +102,14 @@ export function ReproductionControls({
         >
           {status === 'recorded' ? 'Track again' : '▸ Track reproduction steps'}
         </button>
-        <p data-testid="reproduction-screenshot-hint" style={hintStyle}>
-          The screenshot is taken when you press Capture — make sure the bug is on screen then.
-        </p>
+        {/* Only true when a screenshot is actually part of the capture; with every screenshot option
+            off, this would promise something that never happens. Copy only — the capture flow that
+            takes the shot on Capture is untouched. */}
+        {screenshotEnabled ? (
+          <p data-testid="reproduction-screenshot-hint" style={hintStyle}>
+            The screenshot is taken when you press Capture — make sure the bug is on screen then.
+          </p>
+        ) : null}
       </fieldset>
     </section>
   );
