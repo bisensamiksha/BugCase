@@ -951,3 +951,78 @@ describe('OverlayApp draft-restore / stored-defaults ordering guard (BUG-06 revi
     },
   );
 });
+
+describe('OverlayApp draft persistence (BUG-06)', () => {
+  it('saves the draft after a change, debounced', async () => {
+    vi.useFakeTimers();
+    const saved: unknown[] = [];
+    const draftClient = {
+      get: () => Promise.resolve(null),
+      save: (draft: unknown) => {
+        saved.push(draft);
+        return Promise.resolve();
+      },
+      clear: () => Promise.resolve(),
+    };
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const severity = queryTestId('user-report-severity') as HTMLSelectElement;
+    act(() => {
+      severity.value = 'critical';
+      severity.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(saved).toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(saved.length).toBeGreaterThan(0);
+    vi.useRealTimers();
+  });
+
+  it('clears the draft when the overlay is closed', async () => {
+    let cleared = 0;
+    const draftClient = {
+      get: () => Promise.resolve(null),
+      save: () => Promise.resolve(),
+      clear: () => {
+        cleared += 1;
+        return Promise.resolve();
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      (queryTestId('bugcase-overlay-close') as HTMLButtonElement).click();
+    });
+    expect(cleared).toBe(1);
+  });
+});

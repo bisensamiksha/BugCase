@@ -562,6 +562,31 @@ export function OverlayApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // BUG-06: persist the draft so a navigation cannot discard it. Debounced rather than deferred to
+  // an unload hook: `pagehide` cannot be relied on, because an async sendMessage is not guaranteed
+  // to flush during unload. Suppressed until the restore has run so the empty initial state cannot
+  // overwrite a stored draft.
+  useEffect(() => {
+    if (!draftLoadedRef.current) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void draftClient.save({
+        captureOptions,
+        userReport,
+        inspections: elementSession.inspections,
+        ui: { minimized, panelPos },
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [draftClient, captureOptions, userReport, elementSession.inspections, minimized, panelPos]);
+
+  // BUG-06: an explicit close discards the draft, so reopening always starts from a clean form.
+  const handleClose = (): void => {
+    void draftClient.clear();
+    onClose();
+  };
+
   /** Assemble the reproduction recording from the durable session for a capture (S3-12 Part B). */
   const buildReproduction = async (): Promise<ReproductionRecording | null> => {
     const session = await recordingClient.get();
@@ -693,6 +718,8 @@ export function OverlayApp({
           onComplete={() => {
             // The recording has been folded into the downloaded report; drop the durable session.
             void recordingClient.clear();
+            // BUG-06: the draft has been captured and downloaded; drop it too.
+            void draftClient.clear();
             onClose();
           }}
         />
@@ -746,6 +773,7 @@ export function OverlayApp({
           count={elementSession.inspections.length}
           onStartPicking={handleStartPicking}
           onStopPicking={handleStopPicking}
+          budgetNotice={elementSession.budgetNotice}
         />
       </div>
     );
@@ -777,7 +805,7 @@ export function OverlayApp({
               type="button"
               aria-label="Close overlay"
               data-testid="bugcase-overlay-close-min"
-              onClick={onClose}
+              onClick={handleClose}
               style={closeStyle}
             >
               ×
@@ -817,7 +845,7 @@ export function OverlayApp({
             type="button"
             aria-label="Close overlay"
             data-testid="bugcase-overlay-close"
-            onClick={onClose}
+            onClick={handleClose}
             onMouseDown={(event) => event.stopPropagation()}
             style={closeStyle}
           >
@@ -875,6 +903,7 @@ export function OverlayApp({
             count={elementSession.inspections.length}
             onStartPicking={handleStartPicking}
             onStopPicking={handleStopPicking}
+            budgetNotice={elementSession.budgetNotice}
           />
         ) : null}
         <div style={{ marginTop: '12px' }}>
