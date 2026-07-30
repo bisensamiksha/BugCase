@@ -61,7 +61,7 @@ describe('ReproductionControls', () => {
     const onStop = vi.fn();
     render('recording', { onStop });
     expect(query('reproduction-start')).toBeNull();
-    expect(query('reproduction-status')?.textContent).toMatch(/recording/i);
+    expect(query('reproduction-status')?.textContent).toMatch(/tracking/i);
     click(query('reproduction-stop'));
     expect(onStop).toHaveBeenCalledTimes(1);
   });
@@ -77,5 +77,32 @@ describe('ReproductionControls', () => {
   it('notes when a recording ended because the page changed', () => {
     render('recorded', { interrupted: true });
     expect(query('reproduction-status')?.textContent).toMatch(/page changed/i);
+  });
+});
+
+describe('ReproductionControls wording (BUG-06)', () => {
+  it('offers to track steps and says it is not video', () => {
+    render('idle');
+    expect(query('reproduction-start')?.textContent).toContain('Track reproduction steps');
+    expect(container.textContent).toContain('never video or audio');
+    expect(container.textContent).not.toContain('Record');
+  });
+
+  it('says the screenshot is taken at Capture, below the start button', () => {
+    render('idle');
+    expect(query('reproduction-screenshot-hint')?.textContent).toContain(
+      'taken when you press Capture',
+    );
+  });
+
+  it('names the running state as tracking steps', () => {
+    render('recording');
+    expect(query('reproduction-status')?.textContent).toContain('Tracking steps');
+    expect(query('reproduction-stop')?.textContent).toContain('Stop tracking');
+  });
+
+  it('names the finished state without the word recording', () => {
+    render('recorded', { interrupted: true });
+    expect(query('reproduction-status')?.textContent).toContain('Step tracking ended');
   });
 });

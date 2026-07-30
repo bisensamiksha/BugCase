@@ -116,4 +116,10 @@ describe('buildArtifactList', () => {
     );
     expect(shot).toMatchObject({ present: true, removable: true, sizeBytes: 4096 });
   });
+
+  it('labels the reproduction artifact as steps, not a recording (BUG-06)', () => {
+    const artifacts = buildArtifactList({ report: makeReport() });
+    const reproduction = artifacts.find((artifact) => artifact.id === 'reproduction');
+    expect(reproduction?.label).toBe('Reproduction steps');
+  });
 });

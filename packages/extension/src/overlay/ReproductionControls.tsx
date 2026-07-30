@@ -58,7 +58,7 @@ export function ReproductionControls({
     return (
       <section data-testid="reproduction-controls" aria-label="Reproduction recorder">
         <p data-testid="reproduction-status" style={statusStyle}>
-          ● Recording — interact with the page, then Stop
+          ● Tracking steps — interact with the page, then Stop
         </p>
         <button
           type="button"
@@ -66,7 +66,7 @@ export function ReproductionControls({
           style={stopButtonStyle}
           onClick={onStop}
         >
-          ■ Stop recording
+          ■ Stop tracking
         </button>
       </section>
     );
@@ -79,11 +79,13 @@ export function ReproductionControls({
         {status === 'recorded' ? (
           <p data-testid="reproduction-status" style={statusStyle}>
             {interrupted
-              ? '✓ Recording ended (page changed) — steps included on capture'
+              ? '✓ Step tracking ended (page changed) — steps included on capture'
               : '✓ Reproduction steps recorded — included on capture'}
           </p>
         ) : (
-          <p style={hintStyle}>Records where you click, type, and scroll — never what you type.</p>
+          <p style={hintStyle}>
+            Logs where you click, type, and scroll — never what you type, and never video or audio.
+          </p>
         )}
         <button
           type="button"
@@ -91,8 +93,11 @@ export function ReproductionControls({
           style={buttonStyle}
           onClick={onStart}
         >
-          {status === 'recorded' ? 'Record again' : '▸ Record reproduction steps'}
+          {status === 'recorded' ? 'Track again' : '▸ Track reproduction steps'}
         </button>
+        <p data-testid="reproduction-screenshot-hint" style={hintStyle}>
+          The screenshot is taken when you press Capture — make sure the bug is on screen then.
+        </p>
       </fieldset>
     </section>
   );

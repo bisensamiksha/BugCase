@@ -42,7 +42,7 @@ const LABELS: Record<ArtifactId, string> = {
   cookies: 'Cookies',
   navigation: 'Navigation history',
   metadata: 'Capture metadata',
-  reproduction: 'Reproduction recording',
+  reproduction: 'Reproduction steps',
   elementInspections: 'Element inspections',
 };
 

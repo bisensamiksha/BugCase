@@ -753,7 +753,7 @@ export function OverlayApp({
     return (
       <div
         role="dialog"
-        aria-label="BugCase recording"
+        aria-label="BugCase step tracking"
         data-testid="bugcase-recording-pill"
         style={pillStyle}
       >
