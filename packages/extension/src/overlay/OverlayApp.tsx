@@ -659,7 +659,12 @@ export function OverlayApp({
     void draftClient.clear();
   };
 
-  // BUG-06: an explicit close discards the draft, so reopening always starts from a clean form.
+  // BUG-06: an explicit close discards the draft, so reopening always starts from a clean form. This is
+  // the component-level half only — `onClose` (content/overlay-root.tsx's `removeOverlay`) is the real
+  // choke point and performs the full wipe (draft + recording + passive errors) for every close path,
+  // including the ones that never reach this component (toolbar icon, post-download). Keeping this call
+  // here too is a harmless no-op (`storage.remove` on an already-cleared key) that keeps the React-level
+  // contract explicit and its own test coverage intact.
   const handleClose = (): void => {
     discardDraft();
     onClose();

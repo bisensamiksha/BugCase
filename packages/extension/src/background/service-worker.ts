@@ -9,7 +9,6 @@ import { readDomOuterHtml } from '../content/dom-snapshot-runner';
 import { runDebuggerNetworkCapture } from '../debugger';
 import { readPageStorage, type RawPageStorage } from '../injected/storage-reader';
 import { openOnboardingOnInstall } from '../onboarding/open-on-install';
-import { clearOverlayDraft } from '../storage/overlay-draft';
 import { clearOverlayOpen, isOverlayOpen, setOverlayOpen } from '../storage/overlay-session';
 import { getRecordingSession } from '../storage/recording-session';
 import { toDomScrubberOptions } from '../storage/scrubber-options';
@@ -18,6 +17,11 @@ import { getSettings } from '../storage/settings';
 import { AnnotationChunkBuffer } from './annotation-chunk-buffer';
 import { buildAnnotationExport } from './annotation-finalize';
 import { captureReport, finalizeReport } from './capture-flow';
+import { clearTabCaptureData } from './clear-tab-capture-data';
+import {
+  handleClearTabCaptureDataRequest,
+  isClearTabCaptureDataRequest,
+} from './clear-tab-capture-data-handler';
 import { syncPassiveContentScripts } from './content-script-registration';
 import { createCookiesCollector } from './cookies-handler';
 import { downloadBlob } from './downloads';
@@ -106,13 +110,15 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Don't leak per-tab overlay state when the tab goes away (BUG-05) — the open flag and the durable
-// draft (BUG-06). Tab ids are reused, so a surviving draft would resurface in an unrelated tab; and
-// the draft holds the user's bug title/notes plus raw element crops, which the scrubbers do not cover
-// (BUG-01), so keeping it for the rest of the browser session is a privacy cost with no upside.
+// Don't leak per-tab state when the tab goes away: the overlay-open flag (BUG-05, lifecycle only) and
+// every captured-data store (BUG-06 follow-up) — the draft, the reproduction recording, and the passive
+// error badge. Tab ids are reused, so surviving data would resurface in an unrelated tab; and the draft
+// and recording hold the user's bug title/notes, tracked click targets/URLs, and raw element crops,
+// which the scrubbers do not cover (BUG-01), so keeping them for the rest of the browser session is a
+// privacy cost with no upside.
 browser.tabs.onRemoved.addListener((tabId) => {
   void clearOverlayOpen(tabId);
-  void clearOverlayDraft(tabId);
+  void clearTabCaptureData(tabId);
 });
 
 // Holds the assembled report + assets between CAPTURE_REPORT (assemble) and FINALIZE_REPORT
@@ -393,6 +399,12 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
     // BUG-06: the overlay's form state is destroyed with the document on every navigation; persist
     // it per tab so options, bug details and inspections survive.
     return handleOverlayDraftRequest(message, sender.tab?.id);
+  }
+  if (isClearTabCaptureDataRequest(message)) {
+    // BUG-06 follow-up: an explicit overlay close (× buttons, toolbar icon, post-download) wipes the
+    // draft, the reproduction recording, and the passive error badge for the sending tab, so reopening
+    // is always a fresh canvas. See clear-tab-capture-data.ts for what this does and does not touch.
+    return handleClearTabCaptureDataRequest(message, sender.tab?.id);
   }
   if (isInjectAnnotationRequest(message)) {
     // On-demand annotation surface (TD-03): inject into the sending tab only.
