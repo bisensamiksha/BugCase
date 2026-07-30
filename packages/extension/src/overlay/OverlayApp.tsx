@@ -360,6 +360,15 @@ export function OverlayApp({
   // knows to yield to it. Left false when there is no draft, so that (far more common) first-open
   // case still lets the user's configured defaults (S3-06) apply normally.
   const draftLoadedRef = useRef(false);
+  // BUG-06: flipped true once the draft lookup below has settled, regardless of whether a draft
+  // existed. This is deliberately a *different* ref from draftLoadedRef above — that one means "a
+  // draft was found and applied" (gating the stored-defaults seed so a restore always wins);
+  // this one means "the lookup is done, draft or not" (gating the persist effect below, so the
+  // still-empty initial render can't stomp a stored draft, but a first-open-with-no-draft session
+  // can still start saving). Reusing draftLoadedRef for the persist gate was the BUG-06 Task 8
+  // review-1 defect: on a first open there is no draft, draftLoadedRef never flips, so the persist
+  // effect would return early forever and nothing would ever get saved. Do not merge these back.
+  const draftCheckedRef = useRef(false);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
@@ -538,23 +547,33 @@ export function OverlayApp({
   // leave a field undefined.
   useEffect(() => {
     let cancelled = false;
-    void draftClient.get().then((draft) => {
-      if (cancelled) {
-        return;
-      }
-      if (draft) {
-        setCaptureOptions({ ...CAPTURE_OPTION_DEFAULTS, ...draft.captureOptions });
-        setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
-        dispatchElement({ type: 'restore', inspections: draft.inspections });
-        setMinimized(draft.ui.minimized);
-        setPanelPos(draft.ui.panelPos);
-        // Only a real restored draft blocks the stored-defaults seed below — a null draft (the
-        // common first-open-on-a-tab case) must never suppress it, or the user's configured
-        // defaults (S3-06) would be silently skipped whenever this relay just happens to resolve
-        // before that settings read.
-        draftLoadedRef.current = true;
-      }
-    });
+    void draftClient
+      .get()
+      .then((draft) => {
+        if (cancelled) {
+          return;
+        }
+        if (draft) {
+          setCaptureOptions({ ...CAPTURE_OPTION_DEFAULTS, ...draft.captureOptions });
+          setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
+          dispatchElement({ type: 'restore', inspections: draft.inspections });
+          setMinimized(draft.ui.minimized);
+          setPanelPos(draft.ui.panelPos);
+          // Only a real restored draft blocks the stored-defaults seed below — a null draft (the
+          // common first-open-on-a-tab case) must never suppress it, or the user's configured
+          // defaults (S3-06) would be silently skipped whenever this relay just happens to resolve
+          // before that settings read.
+          draftLoadedRef.current = true;
+        }
+      })
+      .finally(() => {
+        // Unconditional: the persist effect below just needs to know the lookup is done, draft or
+        // not, so it can distinguish "still waiting on the initial read" from "genuinely nothing
+        // to type yet" — see the draftCheckedRef comment above.
+        if (!cancelled) {
+          draftCheckedRef.current = true;
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -564,10 +583,11 @@ export function OverlayApp({
 
   // BUG-06: persist the draft so a navigation cannot discard it. Debounced rather than deferred to
   // an unload hook: `pagehide` cannot be relied on, because an async sendMessage is not guaranteed
-  // to flush during unload. Suppressed until the restore has run so the empty initial state cannot
-  // overwrite a stored draft.
+  // to flush during unload. Suppressed until the restore lookup has settled (draftCheckedRef, not
+  // draftLoadedRef — see its declaration above) so the empty initial state cannot overwrite a
+  // stored draft, while a first-open session with no existing draft can still start saving.
   useEffect(() => {
-    if (!draftLoadedRef.current) {
+    if (!draftCheckedRef.current) {
       return;
     }
     const timer = setTimeout(() => {

@@ -1026,3 +1026,63 @@ describe('OverlayApp draft persistence (BUG-06)', () => {
     expect(cleared).toBe(1);
   });
 });
+
+describe('OverlayApp draft persistence — draftCheckedRef vs draftLoadedRef guard (BUG-06 review fix)', () => {
+  it(
+    'saves a new draft on a first-time open with no existing draft (regression guard: gating ' +
+      'the persist effect on draftLoadedRef — "a draft was found" — instead of draftCheckedRef — ' +
+      '"the lookup settled, draft or not" — would leave the guard permanently closed whenever ' +
+      'there is nothing to restore, so a first-open session could never create the first draft)',
+    async () => {
+      vi.useFakeTimers();
+      const saved: unknown[] = [];
+      const draftClient = {
+        get: () => Promise.resolve(null),
+        save: (draft: unknown) => {
+          saved.push(draft);
+          return Promise.resolve();
+        },
+        clear: () => Promise.resolve(),
+      };
+
+      await act(async () => {
+        root.render(
+          <OverlayApp
+            onClose={() => {}}
+            checkAllowed={() => Promise.resolve(true)}
+            checkCookiesGranted={() => Promise.resolve(false)}
+            loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+            loadPassiveErrorCount={() => Promise.resolve(0)}
+            draftClient={draftClient}
+          />,
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const notes = queryTestId('user-report-notes') as HTMLTextAreaElement;
+      act(() => {
+        // React installs a value tracker on a controlled <textarea> that swallows a plain
+        // `.value` assignment, so set through the native prototype setter to make React
+        // register the change (same helper as UserReportForm.test.tsx's `typeInto`), then
+        // dispatch the native "input" event React listens for on text controls (unlike the
+        // <select> used in the sibling test above, which reacts to "change").
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+        // eslint-disable-next-line @typescript-eslint/unbound-method -- plain value setter, invoked below via .call with an explicit receiver
+        const setNativeValue = descriptor?.set;
+        setNativeValue?.call(notes, 'first note ever typed on this tab');
+        notes.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+
+      expect(saved.length).toBeGreaterThan(0);
+      expect((saved[saved.length - 1] as { userReport: { notes: string } }).userReport.notes).toBe(
+        'first note ever typed on this tab',
+      );
+      vi.useRealTimers();
+    },
+  );
+});
