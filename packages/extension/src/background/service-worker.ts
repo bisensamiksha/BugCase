@@ -55,6 +55,7 @@ import {
 } from './messages';
 import { handleOriginAllowlist, isOriginAllowlistRequest } from './origin-allowlist-handler';
 import { createOverlayController } from './overlay-controller';
+import { handleOverlayDraftRequest, isOverlayDraftRequest } from './overlay-draft-handler';
 import { createOverlayNavigationHandler } from './overlay-navigation';
 import {
   clearPassiveErrorBadge,
@@ -382,6 +383,11 @@ browser.runtime.onMessage.addListener((message: unknown, sender: Runtime.Message
       return Promise.resolve({ open: false });
     }
     return isOverlayOpen(tabId).then((open) => ({ open }));
+  }
+  if (isOverlayDraftRequest(message)) {
+    // BUG-06: the overlay's form state is destroyed with the document on every navigation; persist
+    // it per tab so options, bug details and inspections survive.
+    return handleOverlayDraftRequest(message, sender.tab?.id);
   }
   if (isInjectAnnotationRequest(message)) {
     // On-demand annotation surface (TD-03): inject into the sending tab only.
