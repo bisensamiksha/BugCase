@@ -43,19 +43,12 @@ export interface OverlayInjectResult {
 export interface OverlayController {
   /** Inject (toggle) the overlay into a specific tab. */
   inject(tabId: number): Promise<OverlayInjectResult>;
-  /** Force-remove the overlay from a specific tab. */
-  remove(tabId: number): Promise<OverlayInjectResult>;
   /** Resolve the active tab in the current window and inject into it only. */
   injectActiveTab(): Promise<OverlayInjectResult>;
   /** Re-inject the recorder + overlay to continue a recording across a navigation (mount, not toggle). */
   reinject(tabId: number): Promise<OverlayInjectResult>;
   /** Inject the on-demand annotation surface into a specific tab (TD-03). */
   injectAnnotation(tabId: number): Promise<OverlayInjectResult>;
-}
-
-/** Runs in the page; removes the overlay host. Must stay self-contained (serialized for injection). */
-function removeOverlayInPage(): void {
-  document.getElementById('bugcase-overlay-root')?.remove();
 }
 
 /**
@@ -107,18 +100,6 @@ export function createOverlayController(): OverlayController {
     }
   }
 
-  async function remove(tabId: number): Promise<OverlayInjectResult> {
-    if (!isValidTabId(tabId)) {
-      return { ok: false, reason: `invalid tab id: ${String(tabId)}` };
-    }
-    try {
-      await browser.scripting.executeScript({ target: { tabId }, func: removeOverlayInPage });
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, reason: toReason(error) };
-    }
-  }
-
   async function injectActiveTab(): Promise<OverlayInjectResult> {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (tab?.id === undefined) {
@@ -156,5 +137,5 @@ export function createOverlayController(): OverlayController {
     }
   }
 
-  return { inject, remove, injectActiveTab, reinject, injectAnnotation };
+  return { inject, injectActiveTab, reinject, injectAnnotation };
 }

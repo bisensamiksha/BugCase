@@ -159,17 +159,4 @@ describe('createOverlayController', () => {
       expect(result).toEqual({ ok: false, reason: 'restricted page' });
     });
   });
-
-  describe('remove', () => {
-    it('removes the overlay from the given tab via an injected function', async () => {
-      const result = await createOverlayController().remove(7);
-      expect(result).toEqual({ ok: true });
-      expect(executeScript).toHaveBeenCalledTimes(1);
-      const injection = executeScript.mock.calls[0]?.[0] as
-        | { target?: { tabId?: number }; func?: unknown }
-        | undefined;
-      expect(injection?.target).toEqual({ tabId: 7 });
-      expect(typeof injection?.func).toBe('function');
-    });
-  });
 });
