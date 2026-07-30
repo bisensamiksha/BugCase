@@ -36,6 +36,7 @@ import { PreviewApp } from '../preview/PreviewApp';
 import type { ArtifactId } from '../preview/artifact-list';
 import { createVerifierToken, isRecorderStep } from '../shared/bridge-protocol';
 import { normalizeOrigin } from '../storage/origin-allowlist';
+import type { OverlayDraft } from '../storage/overlay-draft';
 import type { RecordedStep, RecordingSession } from '../storage/recording-session';
 import { getSettings } from '../storage/settings';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
@@ -50,6 +51,7 @@ import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+import { clearDraft, getDraft, saveDraft } from './draft-sync';
 import { clampPanelPosition, type PanelPosition } from './draggable-panel';
 import {
   ELEMENT_INSPECTION_SESSION_INITIAL,
@@ -83,6 +85,19 @@ const DEFAULT_RECORDING_CLIENT: RecordingClient = {
   stop: (endedAt) => stopRecording(endedAt),
   get: () => getRecording(),
   clear: () => clearRecording(),
+};
+
+/** Durable overlay-draft operations (BUG-06); injectable for tests. */
+export interface DraftClient {
+  readonly get: () => Promise<OverlayDraft | null>;
+  readonly save: (draft: OverlayDraft) => Promise<void>;
+  readonly clear: () => Promise<void>;
+}
+
+const DEFAULT_DRAFT_CLIENT: DraftClient = {
+  get: () => getDraft(),
+  save: (draft) => saveDraft(draft),
+  clear: () => clearDraft(),
 };
 
 /** Drives the element inspector picker (S3-13); injectable for tests. */
@@ -204,6 +219,8 @@ export interface OverlayAppProps {
   readonly dismissPassiveErrors?: () => Promise<void>;
   /** The page url used to detect a navigation-interrupted recording; defaults to the live location. */
   readonly currentUrl?: string;
+  /** Durable overlay-draft operations (BUG-06); defaults to the real service-worker relay. */
+  readonly draftClient?: DraftClient;
 }
 
 type OverlayPhase = 'form' | 'preview';
@@ -317,6 +334,7 @@ export function OverlayApp({
   loadPassiveErrorCount = requestPassiveErrorCount,
   dismissPassiveErrors = requestDismissPassiveErrors,
   currentUrl,
+  draftClient = DEFAULT_DRAFT_CLIENT,
 }: OverlayAppProps) {
   const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
@@ -338,6 +356,9 @@ export function OverlayApp({
   );
   const pickerHandleRef = useRef<{ stop: () => void } | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // BUG-06: set once the draft-restore effect below has resolved (whether or not a draft existed),
+  // so the stored-defaults effect can tell "not yet checked" from "checked, nothing to restore".
+  const draftLoadedRef = useRef(false);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
@@ -403,7 +424,14 @@ export function OverlayApp({
         // Only touch state when the stored defaults actually differ from the static ones — this
         // keeps a no-op read from scheduling a needless re-render. The overlay has only just
         // mounted, so there is no user selection to clobber.
-        if (!cancelled && !optionsEqual(loaded, CAPTURE_OPTION_DEFAULTS)) {
+        // BUG-06: also bail out once a draft has been restored — this effect and the draft-restore
+        // effect below both call setCaptureOptions, and without this guard whichever resolves last
+        // wins, so a restored draft could be silently overwritten by the stored defaults.
+        if (
+          !cancelled &&
+          !draftLoadedRef.current &&
+          !optionsEqual(loaded, CAPTURE_OPTION_DEFAULTS)
+        ) {
           setCaptureOptions(loaded);
         }
       })
@@ -500,6 +528,38 @@ export function OverlayApp({
       cancelled = true;
     };
     // Run once on mount; recordingClient/pageWindow are stable for the overlay's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // BUG-06: restore the draft persisted on a prior page load. The overlay's state lives in this
+  // document, which every navigation destroys; without this the form silently reopens with defaults
+  // and the capture ships them. Merged over the canonical defaults so a partial stored blob cannot
+  // leave a field undefined.
+  useEffect(() => {
+    let cancelled = false;
+    void draftClient
+      .get()
+      .then((draft) => {
+        if (cancelled) {
+          return;
+        }
+        if (draft) {
+          setCaptureOptions({ ...CAPTURE_OPTION_DEFAULTS, ...draft.captureOptions });
+          setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
+          dispatchElement({ type: 'restore', inspections: draft.inspections });
+          setMinimized(draft.ui.minimized);
+          setPanelPos(draft.ui.panelPos);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          draftLoadedRef.current = true;
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; draftClient is stable for the overlay's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -796,3 +796,78 @@ describe('OverlayApp capture hygiene (BUG-03)', () => {
     expect(queryTestId('capture-button')).not.toBeNull();
   });
 });
+
+describe('OverlayApp draft restore (BUG-06)', () => {
+  it('restores severity and inspections saved before a navigation', async () => {
+    const draft = {
+      captureOptions: { ...DEFAULT_USER_OPTIONS, elementInspections: true },
+      userReport: {
+        schemaVersion: 'v1' as const,
+        title: '',
+        stepsToReproduce: '',
+        severity: 'major' as const,
+        notes: 'nearly there',
+      },
+      inspections: [
+        {
+          outerHtml: '<button>Pay</button>',
+          computedStyles: {},
+          boundingClientRect: { x: 0, y: 0, width: 1, height: 1 },
+          ancestors: [],
+          cropDataUrl: null,
+        },
+      ],
+      ui: { minimized: false, panelPos: null },
+    };
+    const draftClient = {
+      get: () => Promise.resolve(draft),
+      save: () => Promise.resolve(),
+      clear: () => Promise.resolve(),
+    };
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const severity = queryTestId('user-report-severity') as HTMLSelectElement | null;
+    expect(severity?.value).toBe('major');
+    expect(queryTestId('element-picker-status')?.textContent).toContain('1 element');
+  });
+
+  it('opens with defaults when there is no stored draft', async () => {
+    const draftClient = {
+      get: () => Promise.resolve(null),
+      save: () => Promise.resolve(),
+      clear: () => Promise.resolve(),
+    };
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          draftClient={draftClient}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const severity = queryTestId('user-report-severity') as HTMLSelectElement | null;
+    expect(severity?.value).toBe('minor');
+  });
+});
