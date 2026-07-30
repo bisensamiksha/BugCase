@@ -871,3 +871,83 @@ describe('OverlayApp draft restore (BUG-06)', () => {
     expect(severity?.value).toBe('minor');
   });
 });
+
+/** Resolves to `value` after `hops` extra microtask turns, so a promise can be made to settle
+ *  deliberately later than another otherwise-immediate promise (used to pin down ordering below). */
+function delayedResolve<T>(value: T, hops: number): Promise<T> {
+  let p: Promise<T> = Promise.resolve(value);
+  for (let i = 0; i < hops; i += 1) {
+    p = p.then((v) => v);
+  }
+  return p;
+}
+
+describe('OverlayApp draft-restore / stored-defaults ordering guard (BUG-06 review fix)', () => {
+  it(
+    'still seeds the stored capture-option defaults when there is no draft, even if the ' +
+      'no-draft check settles before the stored-defaults read resolves (regression guard: a ' +
+      'draftLoadedRef that flips on a null draft would silently block this seed)',
+    async () => {
+      const nonDefaultOptions = { ...DEFAULT_USER_OPTIONS, consoleLogs: true };
+      const draftClient = {
+        // Resolves immediately — settles (and, on the old buggy code, would flip the ref) well
+        // before the deliberately-delayed stored-defaults read below.
+        get: () => Promise.resolve(null),
+        save: () => Promise.resolve(),
+        clear: () => Promise.resolve(),
+      };
+      const loadDefaultCaptureOptions = (): Promise<typeof nonDefaultOptions> =>
+        delayedResolve(nonDefaultOptions, 6);
+
+      await act(async () => {
+        root.render(
+          <OverlayApp
+            onClose={() => {}}
+            checkAllowed={() => Promise.resolve(true)}
+            checkCookiesGranted={() => Promise.resolve(false)}
+            loadDefaultCaptureOptions={loadDefaultCaptureOptions}
+            loadPassiveErrorCount={() => Promise.resolve(0)}
+            draftClient={draftClient}
+          />,
+        );
+        for (let i = 0; i < 12; i += 1) {
+          await Promise.resolve();
+        }
+      });
+
+      // The stored (non-default) capture option must still be applied — a null draft must never
+      // permanently suppress the stored-defaults seed, no matter which promise settles first.
+      expect((queryTestId('capture-option-consoleLogs') as HTMLInputElement).checked).toBe(true);
+    },
+  );
+
+  it(
+    'applies the stored capture-option defaults under ordinary (non-adversarial) timing when ' +
+      'there is no draft',
+    async () => {
+      const nonDefaultOptions = { ...DEFAULT_USER_OPTIONS, consoleLogs: true };
+      const draftClient = {
+        get: () => Promise.resolve(null),
+        save: () => Promise.resolve(),
+        clear: () => Promise.resolve(),
+      };
+
+      await act(async () => {
+        root.render(
+          <OverlayApp
+            onClose={() => {}}
+            checkAllowed={() => Promise.resolve(true)}
+            checkCookiesGranted={() => Promise.resolve(false)}
+            loadDefaultCaptureOptions={() => Promise.resolve(nonDefaultOptions)}
+            loadPassiveErrorCount={() => Promise.resolve(0)}
+            draftClient={draftClient}
+          />,
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect((queryTestId('capture-option-consoleLogs') as HTMLInputElement).checked).toBe(true);
+    },
+  );
+});

@@ -356,8 +356,9 @@ export function OverlayApp({
   );
   const pickerHandleRef = useRef<{ stop: () => void } | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  // BUG-06: set once the draft-restore effect below has resolved (whether or not a draft existed),
-  // so the stored-defaults effect can tell "not yet checked" from "checked, nothing to restore".
+  // BUG-06: flipped true only when a real draft was restored below, so the stored-defaults effect
+  // knows to yield to it. Left false when there is no draft, so that (far more common) first-open
+  // case still lets the user's configured defaults (S3-06) apply normally.
   const draftLoadedRef = useRef(false);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
@@ -537,25 +538,23 @@ export function OverlayApp({
   // leave a field undefined.
   useEffect(() => {
     let cancelled = false;
-    void draftClient
-      .get()
-      .then((draft) => {
-        if (cancelled) {
-          return;
-        }
-        if (draft) {
-          setCaptureOptions({ ...CAPTURE_OPTION_DEFAULTS, ...draft.captureOptions });
-          setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
-          dispatchElement({ type: 'restore', inspections: draft.inspections });
-          setMinimized(draft.ui.minimized);
-          setPanelPos(draft.ui.panelPos);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          draftLoadedRef.current = true;
-        }
-      });
+    void draftClient.get().then((draft) => {
+      if (cancelled) {
+        return;
+      }
+      if (draft) {
+        setCaptureOptions({ ...CAPTURE_OPTION_DEFAULTS, ...draft.captureOptions });
+        setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
+        dispatchElement({ type: 'restore', inspections: draft.inspections });
+        setMinimized(draft.ui.minimized);
+        setPanelPos(draft.ui.panelPos);
+        // Only a real restored draft blocks the stored-defaults seed below — a null draft (the
+        // common first-open-on-a-tab case) must never suppress it, or the user's configured
+        // defaults (S3-06) would be silently skipped whenever this relay just happens to resolve
+        // before that settings read.
+        draftLoadedRef.current = true;
+      }
+    });
     return () => {
       cancelled = true;
     };
