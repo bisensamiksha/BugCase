@@ -3,6 +3,10 @@ import { useEffect, useState, type CSSProperties } from 'react';
 
 import { OnboardingTour } from '../onboarding/OnboardingTour';
 import { CaptureOptions } from '../overlay/CaptureOptions';
+import {
+  hasOptionalPermissions,
+  type OptionalPermissionName,
+} from '../permissions/optional-permissions';
 import { getOnboardingSeen } from '../storage/onboarding';
 import {
   addAllowedOrigin,
@@ -37,6 +41,23 @@ export interface OptionsAppProps {
   readonly loadHistory?: () => Promise<ReportHistoryEntry[]>;
   /** Whether the first-install tour has been seen; defaults to `getOnboardingSeen`. Injectable for tests. */
   readonly loadOnboardingSeen?: () => Promise<boolean>;
+  /** Checks one optional permission; defaults to `permissions.contains`. Injectable for tests. */
+  readonly checkPermission?: (permission: OptionalPermissionName) => Promise<boolean>;
+}
+
+/** The optional permissions that gate a capture option. */
+const GATED_PERMISSIONS: readonly OptionalPermissionName[] = ['cookies', 'management', 'history'];
+
+/**
+ * Default permission check. `OptionsApp` is a privileged extension page, so — unlike the overlay,
+ * a content script that has to bridge through the service worker — it can call `permissions.contains`
+ * directly via `hasOptionalPermissions` (which already treats a rejection, or a synchronous throw off
+ * an unguarded `browser.*` access, as "not granted"). Declared at module scope, not inline as the
+ * prop default, so the reference stays stable across renders: an inline arrow default is a fresh
+ * function every render, which would retrigger the `[checkPermission]` effect below forever.
+ */
+function checkPermissionDirect(permission: OptionalPermissionName): Promise<boolean> {
+  return hasOptionalPermissions({ permissions: [permission] });
 }
 
 const pageStyle: CSSProperties = {
@@ -85,6 +106,7 @@ export function OptionsApp({
   removeOrigin,
   loadHistory,
   loadOnboardingSeen,
+  checkPermission = checkPermissionDirect,
 }: OptionsAppProps) {
   const persist = persistSettings ?? ((update) => saveSettings(update));
   const addOne = addOrigin ?? ((origin) => addAllowedOrigin(origin));
@@ -98,6 +120,13 @@ export function OptionsApp({
   const [ringText, setRingText] = useState('');
   // First-install tour (S3-18): overlay it on first run, until it's completed or skipped.
   const [showTour, setShowTour] = useState(false);
+  // Which gated permissions are actually granted right now (BUG-06 permission-grant reconcile).
+  // Settings does NOT reconcile against this — it only feeds CaptureOptions so a still-ticked,
+  // now-ungranted option renders the amber "permission revoked" label. The stored default is left
+  // untouched, so re-granting the permission restores the behaviour with no re-ticking needed.
+  const [grantedPermissions, setGrantedPermissions] = useState<
+    ReadonlySet<OptionalPermissionName> | undefined
+  >(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +142,29 @@ export function OptionsApp({
       cancelled = true;
     };
   }, [loadOnboardingSeen]);
+
+  // Read which optional permissions are actually granted, so the amber revoked label can render
+  // next to a still-ticked option. A rejected check counts as not granted (the safe direction) and
+  // can never crash the page — checkPermission always returns a promise even when its underlying
+  // browser.* access throws synchronously (the default wraps hasOptionalPermissions, which already
+  // catches that internally).
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      GATED_PERMISSIONS.map((permission) =>
+        checkPermission(permission)
+          .then((granted) => ({ permission, granted }))
+          .catch(() => ({ permission, granted: false })),
+      ),
+    ).then((results) => {
+      if (!cancelled) {
+        setGrantedPermissions(new Set(results.filter((r) => r.granted).map((r) => r.permission)));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkPermission]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,6 +226,7 @@ export function OptionsApp({
               value={settings.defaultCaptureOptions}
               onChange={(next: UserOptions) => applyUpdate({ defaultCaptureOptions: next })}
               checkPermission={() => Promise.resolve(true)}
+              {...(grantedPermissions ? { grantedPermissions } : {})}
             />
           </fieldset>
 
