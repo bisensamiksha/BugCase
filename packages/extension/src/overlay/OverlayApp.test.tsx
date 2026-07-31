@@ -20,10 +20,21 @@ vi.mock('./request-capture', async (importOriginal) => {
   };
 });
 
+// Keep the real settings module (OverlayApp's stored-defaults seed calls the real `getSettings`),
+// but wrap `saveSettings` in a spy so a test can prove the overlay never rewrites the user's durable
+// Settings default while reconciling — design §9 test 14.
+vi.mock('../storage/settings', async (importOriginal) => {
+  const actual = await importOriginal<typeof SettingsModule>();
+  return { ...actual, saveSettings: vi.fn(actual.saveSettings) };
+});
+
 import type { CaptureElementInspection } from '../background/element-inspection-finalize';
 import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import { OVERLAY_HOST_ID } from '../shared/overlay-host';
+import type { OverlayDraft } from '../storage/overlay-draft';
 import type { RecordingSession } from '../storage/recording-session';
+import type * as SettingsModule from '../storage/settings';
+import { saveSettings } from '../storage/settings';
 
 import { OverlayApp, type ElementPickerController, type RecordingClient } from './OverlayApp';
 import { MIN_VISIBLE } from './draggable-panel';
@@ -1431,5 +1442,174 @@ describe('OverlayApp permission reconcile', () => {
 
     const cookies = queryTestId('capture-option-cookies') as HTMLInputElement | null;
     expect(cookies?.checked).toBe(false);
+  });
+
+  it('lets a mid-session grant stick: a live check feeds the snapshot instead of fighting it', async () => {
+    // Final-review CRITICAL 1. The grant set is read once per mount, but the reconcile re-runs on
+    // every captureOptions change. Without feeding a successful live check back into that snapshot,
+    // the exact journey the notice instructs — "Enable it from the toolbar popup", user grants,
+    // user re-ticks — unticks the box again and re-renders the notice, trapping the user until the
+    // overlay is re-mounted.
+    let grantedNow = false;
+    const checkPermission = vi.fn(() => Promise.resolve(grantedNow));
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({ ...DEFAULT_USER_OPTIONS, cookies: true })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={checkPermission}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cookies = queryTestId('capture-option-cookies') as HTMLInputElement;
+    expect(cookies.checked).toBe(false);
+    expect(queryTestId('permission-reconcile-notice')).not.toBeNull();
+
+    // The user does exactly what the notice says: grants Cookies in the toolbar popup. Nothing
+    // notifies the content script, so only the next live check can learn about it.
+    grantedNow = true;
+
+    await act(async () => {
+      cookies.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect((queryTestId('capture-option-cookies') as HTMLInputElement).checked).toBe(true);
+    expect(queryTestId('permission-reconcile-notice')).toBeNull();
+    // Loop guard: three mount-time checks (one per gated permission) plus the single live check the
+    // toggle made. Anything more means the grant-fetch effect's dependency stopped being stable, or
+    // that feeding a live answer back into the snapshot re-entered the reconcile.
+    expect(checkPermission).toHaveBeenCalledTimes(4);
+  });
+
+  it('names every blocked option with plural wording, and lets a mixed grant set through', async () => {
+    // MINOR 1 + the mixed-grant blind spot: `history` granted, `cookies`/`management` not, so only
+    // the right two options are switched off and the copy has to agree in number.
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({
+              ...DEFAULT_USER_OPTIONS,
+              cookies: true,
+              installedExtensions: true,
+              navigationHistory: true,
+            })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={(permission) => Promise.resolve(permission === 'history')}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect((queryTestId('capture-option-navigationHistory') as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect((queryTestId('capture-option-cookies') as HTMLInputElement).checked).toBe(false);
+    expect((queryTestId('capture-option-installedExtensions') as HTMLInputElement).checked).toBe(
+      false,
+    );
+    expect(queryTestId('permission-reconcile-notice')?.textContent).toBe(
+      'Installed extensions, Cookies were switched off for this capture — their permissions aren’t ' +
+        'granted. Enable them from the toolbar popup.',
+    );
+  });
+
+  it('names a single blocked option with singular wording', async () => {
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({ ...DEFAULT_USER_OPTIONS, cookies: true })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={() => Promise.resolve(false)}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(queryTestId('permission-reconcile-notice')?.textContent).toBe(
+      'Cookies was switched off for this capture — the permission isn’t granted. Enable it from ' +
+        'the toolbar popup.',
+    );
+  });
+
+  it('persists the reconciled (unticked) value to the draft, and never writes the stored default', async () => {
+    // Design §9 test 14. The reconcile feeds BUG-06's debounced persist, so the draft must hold the
+    // unticked value — while the durable Settings default (a different key) stays untouched, which
+    // is what makes re-granting restore the behaviour with no re-ticking.
+    vi.useFakeTimers();
+    vi.mocked(saveSettings).mockClear();
+    const saved: OverlayDraft[] = [];
+
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({ ...DEFAULT_USER_OPTIONS, cookies: true })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={() => Promise.resolve(false)}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: (draft) => {
+              saved.push(draft);
+              return Promise.resolve();
+            },
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(saved.length).toBeGreaterThan(0);
+    expect(saved[saved.length - 1]?.captureOptions.cookies).toBe(false);
+    expect(vi.mocked(saveSettings)).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

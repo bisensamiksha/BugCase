@@ -3,6 +3,8 @@ import { useEffect, useState, type CSSProperties } from 'react';
 
 import { OnboardingTour } from '../onboarding/OnboardingTour';
 import { CaptureOptions } from '../overlay/CaptureOptions';
+import { GATED_PERMISSIONS } from '../overlay/capture-options-state';
+import { samePermissionSet } from '../overlay/permission-reconcile';
 import {
   hasOptionalPermissions,
   type OptionalPermissionName,
@@ -44,9 +46,6 @@ export interface OptionsAppProps {
   /** Checks one optional permission; defaults to `permissions.contains`. Injectable for tests. */
   readonly checkPermission?: (permission: OptionalPermissionName) => Promise<boolean>;
 }
-
-/** The optional permissions that gate a capture option. */
-const GATED_PERMISSIONS: readonly OptionalPermissionName[] = ['cookies', 'management', 'history'];
 
 /**
  * Default permission check. `OptionsApp` is a privileged extension page, so — unlike the overlay,
@@ -158,7 +157,12 @@ export function OptionsApp({
       ),
     ).then((results) => {
       if (!cancelled) {
-        setGrantedPermissions(new Set(results.filter((r) => r.granted).map((r) => r.permission)));
+        const next = new Set(results.filter((r) => r.granted).map((r) => r.permission));
+        // Keep the previous reference when the membership is identical, so a re-run that confirms
+        // the status quo cannot schedule a needless render even if a future caller passes an
+        // inline-arrow `checkPermission` prop. (Settings still never reconciles — this set only
+        // feeds the labels; the stored default is never rewritten from here.)
+        setGrantedPermissions((prev) => (prev && samePermissionSet(prev, next) ? prev : next));
       }
     });
     return () => {

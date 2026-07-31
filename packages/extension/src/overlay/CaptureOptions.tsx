@@ -36,20 +36,28 @@ export interface CaptureOptionsProps {
   readonly grantedPermissions?: ReadonlySet<OptionalPermissionName>;
 }
 
-/** Gesture-free "is this granted?" check via the service worker (`permissions.contains`). */
-async function checkPermissionViaBridge(permission: OptionalPermissionName): Promise<boolean> {
-  const message: ContainsPermissionsRequest = {
-    type: CONTAINS_PERMISSIONS,
-    permissions: [permission],
-  };
+/**
+ * Gesture-free "is this granted?" check via the service worker (`permissions.contains`).
+ *
+ * The component's documented default; in production both call sites now inject their own (the
+ * overlay a snapshot-tracking wrapper, Settings a stub), so this runs only if a future caller omits
+ * the prop. Guard shape deliberately matches `OverlayApp`'s copy: the whole body is inside
+ * `try`/`catch`, not just a trailing `.catch()`, because `browser.runtime` can itself be undefined
+ * outside a real extension context and that property access throws *synchronously*, before there is
+ * any promise chain to reject.
+ */
+function checkPermissionViaBridge(permission: OptionalPermissionName): Promise<boolean> {
   try {
-    const result = await browser.runtime.sendMessage<
-      ContainsPermissionsRequest,
-      RequestPermissionsResponse
-    >(message);
-    return result.granted === true;
+    const message: ContainsPermissionsRequest = {
+      type: CONTAINS_PERMISSIONS,
+      permissions: [permission],
+    };
+    return browser.runtime
+      .sendMessage<ContainsPermissionsRequest, RequestPermissionsResponse>(message)
+      .then((result) => result.granted === true)
+      .catch(() => false);
   } catch {
-    return false;
+    return Promise.resolve(false);
   }
 }
 
@@ -68,8 +76,8 @@ const rowStyle: CSSProperties = {
 };
 const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', flex: 1 };
 const hintStyle: CSSProperties = { fontSize: '11px', color: '#94a3b8' };
+/** Amber: something the user has to act on (grant in the popup). Shared by both grant notices. */
 const needsGrantStyle: CSSProperties = { fontSize: '11px', color: '#b45309' };
-const revokedStyle: CSSProperties = { fontSize: '11px', color: '#b45309' };
 
 export function CaptureOptions({
   value,
@@ -96,15 +104,23 @@ export function CaptureOptions({
     // toolbar popup). Granting can't happen here — the overlay is a content script with no
     // gesture-bound permissions.request — so just reflect the current grant.
     setPending(key);
+    let granted = false;
     try {
-      const granted = await check(permission);
-      if (granted) {
-        onChange(captureOptionsReducer(value, { type: 'set', key, value: true }));
-      } else {
-        setNeedsGrant(key);
-      }
+      granted = await check(permission);
+    } catch {
+      // `check` is an injectable prop. Both production implementations swallow their own errors, but
+      // a future one (or a test double) may reject or throw synchronously — an unhandled rejection
+      // out of a click handler is not acceptable, and "not granted" is the safe reading anyway: it
+      // only declines to switch on something the capture could not have collected.
+      granted = false;
     } finally {
       setPending(null);
+    }
+
+    if (granted) {
+      onChange(captureOptionsReducer(value, { type: 'set', key, value: true }));
+    } else {
+      setNeedsGrant(key);
     }
   }
 
@@ -115,6 +131,13 @@ export function CaptureOptions({
           <legend style={legendStyle}>{group.label}</legend>
           {group.options.map((option) => {
             const isPending = pending === option.key;
+            const permission = optionPermission(option.key);
+            // `undefined` grants mean "not yet known" — render nothing rather than flash a label
+            // before the check resolves.
+            const ungranted =
+              permission !== undefined &&
+              grantedPermissions !== undefined &&
+              !grantedPermissions.has(permission);
             return (
               <div key={option.key} style={rowStyle}>
                 <label style={labelStyle}>
@@ -129,20 +152,16 @@ export function CaptureOptions({
                   />
                   <span>{option.label}</span>
                 </label>
-                {(() => {
-                  const permission = optionPermission(option.key);
-                  if (permission === undefined || grantedPermissions === undefined) {
-                    return null;
-                  }
-                  if (grantedPermissions.has(permission)) {
-                    return null;
-                  }
-                  return value[option.key] ? (
+                {ungranted ? (
+                  value[option.key] ? (
+                    // Ticked but ungranted. Reachable in Settings, which records intent and never
+                    // reconciles — so the permission was very often never granted at all, not
+                    // revoked. The wording has to be true in both cases.
                     <span
                       data-testid={`capture-option-permission-revoked-${option.key}`}
-                      style={revokedStyle}
+                      style={needsGrantStyle}
                     >
-                      permission revoked — grant it in the toolbar popup to use this
+                      permission not granted — grant it in the toolbar popup to use this
                     </span>
                   ) : (
                     <span
@@ -151,10 +170,15 @@ export function CaptureOptions({
                     >
                       needs permission — enable in the toolbar popup
                     </span>
-                  );
-                })()}
+                  )
+                ) : null}
                 {isPending ? <span style={hintStyle}>Checking…</span> : null}
-                {needsGrant === option.key ? (
+                {/*
+                  Only when the label above is absent: a failed toggle on a row that already reads
+                  "needs permission — enable in the toolbar popup" would otherwise stack a second,
+                  near-identical instruction beside it.
+                */}
+                {needsGrant === option.key && !ungranted ? (
                   <span
                     data-testid={`capture-option-needs-grant-${option.key}`}
                     style={needsGrantStyle}

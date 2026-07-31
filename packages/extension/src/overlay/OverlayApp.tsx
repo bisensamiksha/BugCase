@@ -1,5 +1,6 @@
 import type { BugReportV1, ReproductionRecording, UserInput, UserOptions } from '@bugcase/schema';
 import {
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -57,7 +58,9 @@ import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
 import {
   CAPTURE_OPTION_DEFAULTS,
+  GATED_PERMISSIONS,
   optionLabel,
+  optionPermission,
   type CaptureOptionKey,
 } from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
@@ -70,7 +73,11 @@ import {
   elementInspectionSessionReducer,
 } from './element-inspection-session';
 import { withHostHidden } from './hide-host-during-capture';
-import { blockedGatedOptions, reconcileOptionsToGrants } from './permission-reconcile';
+import {
+  blockedGatedOptions,
+  reconcileOptionsToGrants,
+  samePermissionSet,
+} from './permission-reconcile';
 import {
   appendRecordingStep,
   clearRecording,
@@ -164,9 +171,6 @@ function requestDismissPassiveErrors(): Promise<void> {
     return Promise.resolve();
   }
 }
-
-/** The optional permissions that gate a capture option; checked together on mount. */
-const GATED_PERMISSIONS: readonly OptionalPermissionName[] = ['cookies', 'management', 'history'];
 
 /**
  * Gesture-free "is this granted?" check via the service worker, mirroring CaptureOptions'. Wrapped
@@ -513,12 +517,53 @@ export function OverlayApp({
       if (cancelled) {
         return;
       }
-      setGrantedPermissions(new Set(results.filter((r) => r.granted).map((r) => r.permission)));
+      const next = new Set(results.filter((r) => r.granted).map((r) => r.permission));
+      // Keep the previous reference when the membership is identical, so this effect is
+      // self-limiting: it feeds the reconcile effect's dependency array, and a re-run that confirms
+      // the status quo must not schedule a render (let alone a second reconcile pass) even if a
+      // future caller passes an inline-arrow `checkPermission` prop.
+      setGrantedPermissions((prev) => (prev && samePermissionSet(prev, next) ? prev : next));
     });
     return () => {
       cancelled = true;
     };
   }, [checkPermission]);
+
+  /**
+   * `checkPermission`, wrapped so a successful live check updates the mount-time snapshot above.
+   *
+   * Passed to `CaptureOptions` only — the grant-fetch effect keeps the raw prop so its dependency
+   * stays stable. Without this the two authorities disagree: the grant set is read once per mount
+   * and nothing notifies a content script when the popup grants a permission (there is no
+   * `permissions.onAdded` listener, by design — the overlay may only ever call
+   * `permissions.contains`). So the user follows the notice's own instruction, grants Cookies, ticks
+   * the box — `handleToggle`'s live check says yes and calls `onChange` — and the reconcile effect
+   * then fires on the changed options against the *stale* snapshot and unticks it again, telling the
+   * user to do the thing they just did. Feeding the live answer back keeps the snapshot honest, and
+   * also releases a user trapped by a transient bridge failure.
+   *
+   * The `prev` early-return preserves reference identity whenever membership is unchanged, so the
+   * common case (a re-check that confirms what we already knew) cannot retrigger the reconcile.
+   */
+  const checkPermissionTracked = useCallback(
+    (permission: OptionalPermissionName) =>
+      checkPermission(permission).then((granted) => {
+        setGrantedPermissions((prev) => {
+          if (!prev || prev.has(permission) === granted) {
+            return prev;
+          }
+          const next = new Set(prev);
+          if (granted) {
+            next.add(permission);
+          } else {
+            next.delete(permission);
+          }
+          return next;
+        });
+        return granted;
+      }),
+    [checkPermission],
+  );
 
   // Reconcile whenever the grants or the options change (BUG-06 permission-grant reconcile). One
   // effect covers both async entry paths — the stored-defaults seed and the BUG-06 draft restore —
@@ -534,6 +579,21 @@ export function OverlayApp({
       setCaptureOptions(next);
     }
   }, [grantedPermissions, captureOptions]);
+
+  // What the notice should still say, derived rather than stored. `reconciledOff` deliberately
+  // outlives the untick that produced it (the reconcile immediately makes the options no longer
+  // "blocked", so it cannot be recomputed from them), but the claim it makes — "the permission isn't
+  // granted" — stops being true the moment the user grants it in the popup and a live check feeds
+  // that back into `grantedPermissions`. Filtering here retires the notice exactly then, with no
+  // extra state and no setState during render.
+  const noticeOff = reconciledOff.filter((key) => {
+    const permission = optionPermission(key);
+    return (
+      permission !== undefined &&
+      grantedPermissions !== undefined &&
+      !grantedPermissions.has(permission)
+    );
+  });
 
   useEffect(() => {
     // Seed the capture options from the user's stored defaults (S3-06 settings page). A failed read
@@ -1053,21 +1113,24 @@ export function OverlayApp({
         <p style={{ margin: '0 0 8px', color: '#475569' }}>
           Choose what to capture, then download a bug report ZIP.
         </p>
-        {reconciledOff.length > 0 ? (
+        {noticeOff.length > 0 ? (
           <p
             data-testid="permission-reconcile-notice"
             role="status"
             style={{ fontSize: '11px', color: '#b45309', margin: '0 0 8px' }}
           >
-            {reconciledOff.map((key) => optionLabel(key)).join(', ')}{' '}
-            {reconciledOff.length === 1 ? 'was' : 'were'} switched off for this capture — the
-            permission isn’t granted. Enable it from the toolbar popup.
+            {`${noticeOff.map((key) => optionLabel(key)).join(', ')} ` +
+              (noticeOff.length === 1
+                ? 'was switched off for this capture — the permission isn’t granted. Enable it ' +
+                  'from the toolbar popup.'
+                : 'were switched off for this capture — their permissions aren’t granted. Enable ' +
+                  'them from the toolbar popup.')}
           </p>
         ) : null}
         <CaptureOptions
           value={captureOptions}
           onChange={setCaptureOptions}
-          checkPermission={checkPermission}
+          checkPermission={checkPermissionTracked}
           {...(grantedPermissions ? { grantedPermissions } : {})}
         />
         <UserReportForm value={userReport} onChange={setUserReport} />

@@ -17,6 +17,21 @@ import type { OptionalPermissionName } from '../permissions/optional-permissions
 
 import { optionPermission, type CaptureOptionKey } from './capture-options-state';
 
+/**
+ * Whether two grant sets hold exactly the same permissions.
+ *
+ * Used by every `setGrantedPermissions` caller to return the *previous* set when nothing actually
+ * changed. That preserved reference identity is what keeps the reconcile effect (which has the grant
+ * set in its dependency array) self-limiting: a re-fetch or a live re-check that confirms the status
+ * quo must not schedule a render, let alone a second reconcile pass.
+ */
+export function samePermissionSet(
+  a: ReadonlySet<OptionalPermissionName>,
+  b: ReadonlySet<OptionalPermissionName>,
+): boolean {
+  return a.size === b.size && [...a].every((permission) => b.has(permission));
+}
+
 /** Gated options that are switched ON but whose permission is not granted. */
 export function blockedGatedOptions(
   options: UserOptions,

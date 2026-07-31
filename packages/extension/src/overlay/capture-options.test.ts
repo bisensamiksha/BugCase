@@ -6,6 +6,7 @@ import { DEFAULT_USER_OPTIONS } from '../capture/metadata';
 import {
   CAPTURE_OPTION_DEFAULTS,
   CAPTURE_OPTION_GROUPS,
+  GATED_PERMISSIONS,
   captureOptionsReducer,
   optionLabel,
   optionPermission,
@@ -108,6 +109,26 @@ describe('optionPermission', () => {
     expect(optionPermission('navigationHistory')).toBe('history');
     expect(optionPermission('domSnapshot')).toBeUndefined();
     expect(optionPermission('viewportScreenshot')).toBeUndefined();
+  });
+});
+
+describe('GATED_PERMISSIONS', () => {
+  it('is exactly the permissions the option metadata gates on, with no duplicates', () => {
+    expect([...GATED_PERMISSIONS].sort()).toEqual(['cookies', 'history', 'management']);
+    expect(new Set(GATED_PERMISSIONS).size).toBe(GATED_PERMISSIONS.length);
+  });
+
+  it('covers every permission named in CAPTURE_OPTION_GROUPS', () => {
+    // The point of deriving it: a gated option added to the metadata but missing from this list
+    // would never be checked, would read as ungranted forever, and the overlay would permanently
+    // untick it — a silent report reduction.
+    for (const group of CAPTURE_OPTION_GROUPS) {
+      for (const option of group.options) {
+        if (option.permission) {
+          expect(GATED_PERMISSIONS).toContain(option.permission);
+        }
+      }
+    }
   });
 });
 

@@ -146,6 +146,21 @@ export function optionPermission(key: CaptureOptionKey): OptionalPermissionName 
   return PERMISSION_BY_KEY.get(key);
 }
 
+/**
+ * Every optional permission that gates at least one capture option.
+ *
+ * Derived from CAPTURE_OPTION_GROUPS rather than hand-listed, so adding a fourth gated option can
+ * never leave a surface silently checking the wrong set: an unlisted permission would read as
+ * ungranted forever and the overlay would permanently untick its option — a silent report reduction.
+ */
+export const GATED_PERMISSIONS: readonly OptionalPermissionName[] = [
+  ...new Set(
+    CAPTURE_OPTION_GROUPS.flatMap((group) =>
+      group.options.flatMap((option) => (option.permission ? [option.permission] : [])),
+    ),
+  ),
+];
+
 const LABEL_BY_KEY: ReadonlyMap<CaptureOptionKey, string> = new Map(
   CAPTURE_OPTION_GROUPS.flatMap((group) =>
     group.options.map((option) => [option.key, option.label] as const),
