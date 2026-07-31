@@ -224,3 +224,35 @@ describe('OptionsApp', () => {
     expect(hrefs).toContain('https://github.com/bisensamiksha/BugCase');
   });
 });
+
+describe('OptionsApp permission state', () => {
+  it('marks a saved default whose permission was revoked, without unticking it', async () => {
+    await renderApp({
+      loadSettings: () =>
+        Promise.resolve({
+          ...DEFAULT_SETTINGS,
+          defaultCaptureOptions: { ...DEFAULT_SETTINGS.defaultCaptureOptions, cookies: true },
+        }),
+      checkPermission: () => Promise.resolve(false),
+    });
+
+    const cookies = q('capture-option-cookies') as HTMLInputElement | null;
+    // The saved preference must survive a revoke — Settings records intent, not availability.
+    expect(cookies?.checked).toBe(true);
+    expect(q('capture-option-permission-revoked-cookies')).not.toBeNull();
+  });
+
+  it('shows no permission label when the permission is granted', async () => {
+    await renderApp({
+      loadSettings: () =>
+        Promise.resolve({
+          ...DEFAULT_SETTINGS,
+          defaultCaptureOptions: { ...DEFAULT_SETTINGS.defaultCaptureOptions, cookies: true },
+        }),
+      checkPermission: () => Promise.resolve(true),
+    });
+
+    expect(q('capture-option-permission-revoked-cookies')).toBeNull();
+    expect(q('capture-option-needs-permission-cookies')).toBeNull();
+  });
+});

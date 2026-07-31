@@ -1,5 +1,6 @@
 import type { BugReportV1, ReproductionRecording, UserInput, UserOptions } from '@bugcase/schema';
 import {
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -27,15 +28,24 @@ import {
   type OriginAllowlistRequest,
   type OriginAllowlistResponse,
 } from '../background/origin-allowlist-handler';
+import {
+  CONTAINS_PERMISSIONS,
+  type ContainsPermissionsRequest,
+  type RequestPermissionsResponse,
+} from '../background/permissions-handler';
 import { buildElementInspection } from '../capture/element-inspection';
 import { toReproductionRecording } from '../capture/reproduction-log';
 import { installElementPicker } from '../injected/element-picker';
 import browser from '../lib/browser';
-import { hasOptionalPermissions } from '../permissions/optional-permissions';
+import {
+  hasOptionalPermissions,
+  type OptionalPermissionName,
+} from '../permissions/optional-permissions';
 import { PreviewApp } from '../preview/PreviewApp';
 import type { ArtifactId } from '../preview/artifact-list';
 import { createVerifierToken, isRecorderStep } from '../shared/bridge-protocol';
 import { normalizeOrigin } from '../storage/origin-allowlist';
+import type { OverlayDraft } from '../storage/overlay-draft';
 import type { RecordedStep, RecordingSession } from '../storage/recording-session';
 import { getSettings } from '../storage/settings';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
@@ -46,16 +56,28 @@ import { DismissErrorBadgeButton } from './DismissErrorBadgeButton';
 import { ElementPickerControls } from './ElementPickerControls';
 import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
-import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
+import {
+  CAPTURE_OPTION_DEFAULTS,
+  GATED_PERMISSIONS,
+  optionLabel,
+  optionPermission,
+  type CaptureOptionKey,
+} from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
+import { clearDraft, getDraft, saveDraft } from './draft-sync';
 import { clampPanelPosition, type PanelPosition } from './draggable-panel';
 import {
   ELEMENT_INSPECTION_SESSION_INITIAL,
   elementInspectionSessionReducer,
 } from './element-inspection-session';
 import { withHostHidden } from './hide-host-during-capture';
+import {
+  blockedGatedOptions,
+  reconcileOptionsToGrants,
+  samePermissionSet,
+} from './permission-reconcile';
 import {
   appendRecordingStep,
   clearRecording,
@@ -83,6 +105,19 @@ const DEFAULT_RECORDING_CLIENT: RecordingClient = {
   stop: (endedAt) => stopRecording(endedAt),
   get: () => getRecording(),
   clear: () => clearRecording(),
+};
+
+/** Durable overlay-draft operations (BUG-06); injectable for tests. */
+export interface DraftClient {
+  readonly get: () => Promise<OverlayDraft | null>;
+  readonly save: (draft: OverlayDraft) => Promise<void>;
+  readonly clear: () => Promise<void>;
+}
+
+const DEFAULT_DRAFT_CLIENT: DraftClient = {
+  get: () => getDraft(),
+  save: (draft) => saveDraft(draft),
+  clear: () => clearDraft(),
 };
 
 /** Drives the element inspector picker (S3-13); injectable for tests. */
@@ -134,6 +169,27 @@ function requestDismissPassiveErrors(): Promise<void> {
       .catch(() => undefined);
   } catch {
     return Promise.resolve();
+  }
+}
+
+/**
+ * Gesture-free "is this granted?" check via the service worker, mirroring CaptureOptions'. Wrapped
+ * in try/catch (not just `.catch()`) like {@link requestPassiveErrorCount} above: `browser.runtime`
+ * itself can be undefined outside a real extension context, and that property access throws
+ * synchronously before a promise chain exists to catch it.
+ */
+function checkPermissionViaBridge(permission: OptionalPermissionName): Promise<boolean> {
+  try {
+    const message: ContainsPermissionsRequest = {
+      type: CONTAINS_PERMISSIONS,
+      permissions: [permission],
+    };
+    return browser.runtime
+      .sendMessage<ContainsPermissionsRequest, RequestPermissionsResponse>(message)
+      .then((result) => result.granted === true)
+      .catch(() => false);
+  } catch {
+    return Promise.resolve(false);
   }
 }
 
@@ -204,6 +260,10 @@ export interface OverlayAppProps {
   readonly dismissPassiveErrors?: () => Promise<void>;
   /** The page url used to detect a navigation-interrupted recording; defaults to the live location. */
   readonly currentUrl?: string;
+  /** Durable overlay-draft operations (BUG-06); defaults to the real service-worker relay. */
+  readonly draftClient?: DraftClient;
+  /** Checks one optional permission; defaults to the gesture-free SW bridge. Injectable for tests. */
+  readonly checkPermission?: (permission: OptionalPermissionName) => Promise<boolean>;
 }
 
 type OverlayPhase = 'form' | 'preview';
@@ -241,13 +301,37 @@ async function isOriginAllowedViaBridge(origin: string): Promise<boolean> {
   return result.ok && result.allowed === true;
 }
 
+/** Panel width; shared with the restore clamp below so the two cannot drift apart. */
+const PANEL_WIDTH_PX = 320;
+
+/**
+ * Clamp a position restored from the draft against the *live* viewport (BUG-06).
+ *
+ * `clampPanelPosition` runs during a drag, but a stored position is applied without one — and the
+ * viewport can have shrunk since it was saved (docking DevTools to the right is the everyday case).
+ * Because the restored position is persisted again straight away, an off-screen restore is sticky:
+ * closing and reopening brings the panel back to the same unreachable spot. Clamping only needs the
+ * panel's width (the vertical clamp is width- and height-independent), so the real measured size is
+ * not required before layout.
+ */
+function clampRestoredPanelPosition(pos: PanelPosition | null): PanelPosition | null {
+  if (pos === null || typeof window === 'undefined') {
+    return pos;
+  }
+  return clampPanelPosition(
+    pos,
+    { width: PANEL_WIDTH_PX, height: 0 },
+    { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
+  );
+}
+
 // Inline styles keep the overlay self-contained inside the Shadow DOM; a Tailwind-in-shadow
 // stylesheet is deferred to a later UI ticket. The host element handles positioning/z-index.
 const panelStyle: CSSProperties = {
   position: 'fixed',
   top: '16px',
   right: '16px',
-  width: '320px',
+  width: `${PANEL_WIDTH_PX}px`,
   // A flex column: the header stays pinned (drag handle + close) while the body scrolls, so the
   // controls below the fold (notes, capture button) are always reachable. Capped to the viewport.
   display: 'flex',
@@ -317,6 +401,8 @@ export function OverlayApp({
   loadPassiveErrorCount = requestPassiveErrorCount,
   dismissPassiveErrors = requestDismissPassiveErrors,
   currentUrl,
+  draftClient = DEFAULT_DRAFT_CLIENT,
+  checkPermission = checkPermissionViaBridge,
 }: OverlayAppProps) {
   const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
@@ -338,12 +424,37 @@ export function OverlayApp({
   );
   const pickerHandleRef = useRef<{ stop: () => void } | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // BUG-06: flipped true only when a real draft was restored below, so the stored-defaults effect
+  // knows to yield to it. Left false when there is no draft, so that (far more common) first-open
+  // case still lets the user's configured defaults (S3-06) apply normally.
+  const draftLoadedRef = useRef(false);
+  // BUG-06: flipped true once the draft lookup below has settled, regardless of whether a draft
+  // existed. This is deliberately a *different* ref from draftLoadedRef above — that one means "a
+  // draft was found and applied" (gating the stored-defaults seed so a restore always wins);
+  // this one means "the lookup is done, draft or not" (gating the persist effect below, so the
+  // still-empty initial render can't stomp a stored draft, but a first-open-with-no-draft session
+  // can still start saving). Reusing draftLoadedRef for the persist gate was the BUG-06 Task 8
+  // review-1 defect: on a first open there is no draft, draftLoadedRef never flips, so the persist
+  // effect would return early forever and nothing would ever get saved. Do not merge these back.
+  const draftCheckedRef = useRef(false);
+  // BUG-06: the live debounce timer, so a clear can cancel a write that is still pending instead of
+  // letting it land after the remove.
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // BUG-06: flipped the moment the draft is discarded (explicit close, or a completed download).
+  // From then on nothing may write it again: `set` and `remove` are independent service-worker
+  // promises, so a save that slipped through would resurrect the draft the user just discarded —
+  // their report text and raw element crops would reappear on the next open.
+  const draftDiscardedRef = useRef(false);
   const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const [debuggerActivity, setDebuggerActivity] = useState<{
     active: boolean;
     hostName?: string;
   }>({ active: false });
   const [passiveErrorCount, setPassiveErrorCount] = useState(0);
+  const [grantedPermissions, setGrantedPermissions] = useState<
+    ReadonlySet<OptionalPermissionName> | undefined
+  >(undefined);
+  const [reconciledOff, setReconciledOff] = useState<readonly CaptureOptionKey[]>([]);
 
   // Passive error badge (S3-14): read how many uncaught errors this page logged, so the overlay can
   // offer to dismiss the toolbar badge. Guarded against a late resolve after unmount.
@@ -390,6 +501,100 @@ export function OverlayApp({
     };
   }, [checkCookiesGranted]);
 
+  // Read which optional permissions are actually granted, so the options can be reconciled against
+  // reality. Three independent checks — the CONTAINS_PERMISSIONS bridge answers all-or-nothing for a
+  // list, so a per-permission answer needs one call each. A rejected check counts as not granted:
+  // the safe direction, since it only switches off something that would not have been captured.
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      GATED_PERMISSIONS.map((permission) =>
+        checkPermission(permission)
+          .then((granted) => ({ permission, granted }))
+          .catch(() => ({ permission, granted: false })),
+      ),
+    ).then((results) => {
+      if (cancelled) {
+        return;
+      }
+      const next = new Set(results.filter((r) => r.granted).map((r) => r.permission));
+      // Keep the previous reference when the membership is identical, so this effect is
+      // self-limiting: it feeds the reconcile effect's dependency array, and a re-run that confirms
+      // the status quo must not schedule a render (let alone a second reconcile pass) even if a
+      // future caller passes an inline-arrow `checkPermission` prop.
+      setGrantedPermissions((prev) => (prev && samePermissionSet(prev, next) ? prev : next));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkPermission]);
+
+  /**
+   * `checkPermission`, wrapped so a successful live check updates the mount-time snapshot above.
+   *
+   * Passed to `CaptureOptions` only — the grant-fetch effect keeps the raw prop so its dependency
+   * stays stable. Without this the two authorities disagree: the grant set is read once per mount
+   * and nothing notifies a content script when the popup grants a permission (there is no
+   * `permissions.onAdded` listener, by design — the overlay may only ever call
+   * `permissions.contains`). So the user follows the notice's own instruction, grants Cookies, ticks
+   * the box — `handleToggle`'s live check says yes and calls `onChange` — and the reconcile effect
+   * then fires on the changed options against the *stale* snapshot and unticks it again, telling the
+   * user to do the thing they just did. Feeding the live answer back keeps the snapshot honest, and
+   * also releases a user trapped by a transient bridge failure.
+   *
+   * The `prev` early-return preserves reference identity whenever membership is unchanged, so the
+   * common case (a re-check that confirms what we already knew) cannot retrigger the reconcile.
+   */
+  const checkPermissionTracked = useCallback(
+    (permission: OptionalPermissionName) =>
+      checkPermission(permission).then((granted) => {
+        setGrantedPermissions((prev) => {
+          if (!prev || prev.has(permission) === granted) {
+            return prev;
+          }
+          const next = new Set(prev);
+          if (granted) {
+            next.add(permission);
+          } else {
+            next.delete(permission);
+          }
+          return next;
+        });
+        return granted;
+      }),
+    [checkPermission],
+  );
+
+  // Reconcile whenever the grants or the options change (BUG-06 permission-grant reconcile). One
+  // effect covers both async entry paths — the stored-defaults seed and the BUG-06 draft restore —
+  // without caring which wins the race. It terminates because reconcileOptionsToGrants returns the
+  // SAME reference when nothing is blocked, so the guard below stops a second pass.
+  useEffect(() => {
+    if (!grantedPermissions) {
+      return;
+    }
+    const next = reconcileOptionsToGrants(captureOptions, grantedPermissions);
+    if (next !== captureOptions) {
+      setReconciledOff(blockedGatedOptions(captureOptions, grantedPermissions));
+      setCaptureOptions(next);
+    }
+  }, [grantedPermissions, captureOptions]);
+
+  // What the notice should still say, derived rather than stored. `reconciledOff` deliberately
+  // outlives the untick that produced it (the reconcile immediately makes the options no longer
+  // "blocked", so it cannot be recomputed from them), but the claim it makes — "the permission isn't
+  // granted" — stops being true the moment the user grants it in the popup and a live check feeds
+  // that back into `grantedPermissions`. Filtering here retires the notice exactly then, with no
+  // extra state and no setState during render.
+  const noticeOff = reconciledOff.filter((key) => {
+    const permission = optionPermission(key);
+    return (
+      permission !== undefined &&
+      grantedPermissions !== undefined &&
+      !grantedPermissions.has(permission)
+    );
+  });
+
   useEffect(() => {
     // Seed the capture options from the user's stored defaults (S3-06 settings page). A failed read
     // keeps the static defaults; the bail-out equality check avoids a needless re-render when the
@@ -403,7 +608,14 @@ export function OverlayApp({
         // Only touch state when the stored defaults actually differ from the static ones — this
         // keeps a no-op read from scheduling a needless re-render. The overlay has only just
         // mounted, so there is no user selection to clobber.
-        if (!cancelled && !optionsEqual(loaded, CAPTURE_OPTION_DEFAULTS)) {
+        // BUG-06: also bail out once a draft has been restored — this effect and the draft-restore
+        // effect below both call setCaptureOptions, and without this guard whichever resolves last
+        // wins, so a restored draft could be silently overwritten by the stored defaults.
+        if (
+          !cancelled &&
+          !draftLoadedRef.current &&
+          !optionsEqual(loaded, CAPTURE_OPTION_DEFAULTS)
+        ) {
           setCaptureOptions(loaded);
         }
       })
@@ -502,6 +714,103 @@ export function OverlayApp({
     // Run once on mount; recordingClient/pageWindow are stable for the overlay's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // BUG-06: restore the draft persisted on a prior page load. The overlay's state lives in this
+  // document, which every navigation destroys; without this the form silently reopens with defaults
+  // and the capture ships them. Merged over the canonical defaults so a partial stored blob cannot
+  // leave a field undefined.
+  useEffect(() => {
+    let cancelled = false;
+    void draftClient
+      .get()
+      .then((draft) => {
+        if (cancelled) {
+          return;
+        }
+        if (draft) {
+          setCaptureOptions({ ...CAPTURE_OPTION_DEFAULTS, ...draft.captureOptions });
+          setUserReport({ ...USER_REPORT_DEFAULTS, ...draft.userReport });
+          dispatchElement({ type: 'restore', inspections: draft.inspections });
+          setMinimized(draft.ui.minimized);
+          setPanelPos(clampRestoredPanelPosition(draft.ui.panelPos));
+          // Only a real restored draft blocks the stored-defaults seed below — a null draft (the
+          // common first-open-on-a-tab case) must never suppress it, or the user's configured
+          // defaults (S3-06) would be silently skipped whenever this relay just happens to resolve
+          // before that settings read.
+          draftLoadedRef.current = true;
+        }
+      })
+      .finally(() => {
+        // Unconditional: the persist effect below just needs to know the lookup is done, draft or
+        // not, so it can distinguish "still waiting on the initial read" from "genuinely nothing
+        // to type yet" — see the draftCheckedRef comment above.
+        if (!cancelled) {
+          draftCheckedRef.current = true;
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; draftClient is stable for the overlay's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // BUG-06: persist the draft so a navigation cannot discard it. Debounced rather than deferred to
+  // an unload hook: `pagehide` cannot be relied on, because an async sendMessage is not guaranteed
+  // to flush during unload. Suppressed until the restore lookup has settled (draftCheckedRef, not
+  // draftLoadedRef — see its declaration above) so the empty initial state cannot overwrite a
+  // stored draft, while a first-open session with no existing draft can still start saving.
+  useEffect(() => {
+    if (!draftCheckedRef.current || draftDiscardedRef.current) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      persistTimerRef.current = null;
+      // A clear can be requested while this timer is pending; it cancels the timer, but re-check here
+      // so no path can write the draft back after it has been discarded.
+      if (draftDiscardedRef.current) {
+        return;
+      }
+      void draftClient.save({
+        captureOptions,
+        userReport,
+        inspections: elementSession.inspections,
+        ui: { minimized, panelPos },
+      });
+    }, 300);
+    persistTimerRef.current = timer;
+    return () => {
+      clearTimeout(timer);
+      if (persistTimerRef.current === timer) {
+        persistTimerRef.current = null;
+      }
+    };
+  }, [draftClient, captureOptions, userReport, elementSession.inspections, minimized, panelPos]);
+
+  /**
+   * Discard the draft for good: cancel any pending debounced write, latch the guard so no later
+   * render can re-arm one, then remove it. Without the cancel + latch, closing shortly after an edit
+   * would let the debounced `set` land after the `remove` and restore what the user just discarded.
+   */
+  const discardDraft = (): void => {
+    draftDiscardedRef.current = true;
+    if (persistTimerRef.current !== null) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    void draftClient.clear();
+  };
+
+  // BUG-06: an explicit close discards the draft, so reopening always starts from a clean form. This is
+  // the component-level half only — `onClose` (content/overlay-root.tsx's `removeOverlay`) is the real
+  // choke point and performs the full wipe (draft + recording + passive errors) for every close path,
+  // including the ones that never reach this component (toolbar icon, post-download). Keeping this call
+  // here too is a harmless no-op (`storage.remove` on an already-cleared key) that keeps the React-level
+  // contract explicit and its own test coverage intact.
+  const handleClose = (): void => {
+    discardDraft();
+    onClose();
+  };
 
   /** Assemble the reproduction recording from the durable session for a capture (S3-12 Part B). */
   const buildReproduction = async (): Promise<ReproductionRecording | null> => {
@@ -634,6 +943,8 @@ export function OverlayApp({
           onComplete={() => {
             // The recording has been folded into the downloaded report; drop the durable session.
             void recordingClient.clear();
+            // BUG-06: the draft has been captured and downloaded; drop it too.
+            discardDraft();
             onClose();
           }}
         />
@@ -647,7 +958,7 @@ export function OverlayApp({
     return (
       <div
         role="dialog"
-        aria-label="BugCase recording"
+        aria-label="BugCase step tracking"
         data-testid="bugcase-recording-pill"
         style={pillStyle}
       >
@@ -687,6 +998,7 @@ export function OverlayApp({
           count={elementSession.inspections.length}
           onStartPicking={handleStartPicking}
           onStopPicking={handleStopPicking}
+          budgetNotice={elementSession.budgetNotice}
         />
       </div>
     );
@@ -718,7 +1030,7 @@ export function OverlayApp({
               type="button"
               aria-label="Close overlay"
               data-testid="bugcase-overlay-close-min"
-              onClick={onClose}
+              onClick={handleClose}
               style={closeStyle}
             >
               ×
@@ -758,7 +1070,7 @@ export function OverlayApp({
             type="button"
             aria-label="Close overlay"
             data-testid="bugcase-overlay-close"
-            onClick={onClose}
+            onClick={handleClose}
             onMouseDown={(event) => event.stopPropagation()}
             style={closeStyle}
           >
@@ -801,13 +1113,37 @@ export function OverlayApp({
         <p style={{ margin: '0 0 8px', color: '#475569' }}>
           Choose what to capture, then download a bug report ZIP.
         </p>
-        <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
+        {noticeOff.length > 0 ? (
+          <p
+            data-testid="permission-reconcile-notice"
+            role="status"
+            style={{ fontSize: '11px', color: '#b45309', margin: '0 0 8px' }}
+          >
+            {`${noticeOff.map((key) => optionLabel(key)).join(', ')} ` +
+              (noticeOff.length === 1
+                ? 'was switched off for this capture — the permission isn’t granted. Enable it ' +
+                  'from the toolbar popup.'
+                : 'were switched off for this capture — their permissions aren’t granted. Enable ' +
+                  'them from the toolbar popup.')}
+          </p>
+        ) : null}
+        <CaptureOptions
+          value={captureOptions}
+          onChange={setCaptureOptions}
+          checkPermission={checkPermissionTracked}
+          {...(grantedPermissions ? { grantedPermissions } : {})}
+        />
         <UserReportForm value={userReport} onChange={setUserReport} />
         {captureOptions.reproductionSteps ? (
           <ReproductionControls
             status={reproSession.status}
             onStart={handleStartRecording}
             onStop={handleStopRecording}
+            // The hint below the Track button describes the screenshot's timing; it would be a false
+            // promise with every screenshot option turned off. Gates the copy only — never capture.
+            screenshotEnabled={
+              captureOptions.viewportScreenshot || captureOptions.fullPageScreenshot
+            }
           />
         ) : null}
         {captureOptions.elementInspections ? (
@@ -816,6 +1152,7 @@ export function OverlayApp({
             count={elementSession.inspections.length}
             onStartPicking={handleStartPicking}
             onStopPicking={handleStopPicking}
+            budgetNotice={elementSession.budgetNotice}
           />
         ) : null}
         <div style={{ marginTop: '12px' }}>

@@ -15,6 +15,14 @@ vi.mock('./overlay-state-report', () => ({
   queryOverlayOpen: () => queryOverlayOpen(),
 }));
 
+// BUG-06 follow-up: closing the overlay must wipe all captured data for the tab (draft, recording,
+// passive errors), not just the draft — otherwise a closed-and-reopened overlay shows a stale
+// completed recording ("Track again") instead of a fresh form. Assert the relay without a worker.
+const requestClearTabCaptureData = vi.fn<() => void>();
+vi.mock('./clear-tab-capture-data-request', () => ({
+  requestClearTabCaptureData: () => requestClearTabCaptureData(),
+}));
+
 import {
   OVERLAY_HOST_ID,
   isOverlayMounted,
@@ -119,6 +127,30 @@ describe('OverlayApp close affordance', () => {
       closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(isOverlayMounted(document)).toBe(false);
+  });
+
+  it('wipes the tab’s captured data when the overlay is dismissed from the toolbar icon (BUG-06)', () => {
+    // The toolbar icon calls toggleOverlay → removeOverlay, which unmounts React directly and never
+    // reaches OverlayApp's onClose. Without a wipe here the draft/recording/passive-error data outlives
+    // the close, so reopening — even on a *different* site — restores the previous site's severity,
+    // notes, raw element crops, and tracked reproduction steps (shown as a stale "Track again").
+    act(() => {
+      mountOverlay(document);
+    });
+    requestClearTabCaptureData.mockClear();
+    act(() => {
+      toggleOverlay(document);
+    });
+    expect(isOverlayMounted(document)).toBe(false);
+    expect(requestClearTabCaptureData).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not wipe captured data when there was no overlay to remove', () => {
+    requestClearTabCaptureData.mockClear();
+    act(() => {
+      removeOverlay(document);
+    });
+    expect(requestClearTabCaptureData).not.toHaveBeenCalled();
   });
 
   it('reports the overlay as closed so the worker stops re-mounting it after navigations', () => {
