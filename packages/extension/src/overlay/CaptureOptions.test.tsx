@@ -36,6 +36,10 @@ function checkbox(key: string): HTMLInputElement {
   return el;
 }
 
+function query(testId: string): HTMLElement | null {
+  return container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+}
+
 describe('CaptureOptions', () => {
   it('renders each option with checked state from value', () => {
     act(() => {
@@ -133,5 +137,85 @@ describe('CaptureOptions', () => {
     });
     expect(checkPermission).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cookies: false }));
+  });
+});
+
+describe('CaptureOptions permission labels', () => {
+  it('renders no permission label when the permission is granted', () => {
+    act(() => {
+      root.render(
+        <CaptureOptions
+          value={{ ...CAPTURE_OPTION_DEFAULTS, cookies: true }}
+          onChange={() => {}}
+          checkPermission={() => Promise.resolve(true)}
+          grantedPermissions={new Set(['cookies', 'management', 'history'])}
+        />,
+      );
+    });
+    expect(query('capture-option-needs-permission-cookies')).toBeNull();
+    expect(query('capture-option-permission-revoked-cookies')).toBeNull();
+  });
+
+  it('renders the needs-permission label when ungranted and unticked', () => {
+    act(() => {
+      root.render(
+        <CaptureOptions
+          value={{ ...CAPTURE_OPTION_DEFAULTS, cookies: false }}
+          onChange={() => {}}
+          checkPermission={() => Promise.resolve(false)}
+          grantedPermissions={new Set()}
+        />,
+      );
+    });
+    expect(query('capture-option-needs-permission-cookies')?.textContent).toContain(
+      'needs permission',
+    );
+    expect(query('capture-option-permission-revoked-cookies')).toBeNull();
+  });
+
+  it('renders the revoked label when ungranted but still ticked', () => {
+    act(() => {
+      root.render(
+        <CaptureOptions
+          value={{ ...CAPTURE_OPTION_DEFAULTS, cookies: true }}
+          onChange={() => {}}
+          checkPermission={() => Promise.resolve(false)}
+          grantedPermissions={new Set()}
+        />,
+      );
+    });
+    expect(query('capture-option-permission-revoked-cookies')?.textContent).toContain(
+      'permission revoked',
+    );
+    expect(query('capture-option-needs-permission-cookies')).toBeNull();
+  });
+
+  it('renders no permission label while grants are unknown', () => {
+    act(() => {
+      root.render(
+        <CaptureOptions
+          value={{ ...CAPTURE_OPTION_DEFAULTS, cookies: true }}
+          onChange={() => {}}
+          checkPermission={() => Promise.resolve(false)}
+        />,
+      );
+    });
+    expect(query('capture-option-needs-permission-cookies')).toBeNull();
+    expect(query('capture-option-permission-revoked-cookies')).toBeNull();
+  });
+
+  it('never renders a permission label on a non-gated option', () => {
+    act(() => {
+      root.render(
+        <CaptureOptions
+          value={{ ...CAPTURE_OPTION_DEFAULTS, consoleLogs: true }}
+          onChange={() => {}}
+          checkPermission={() => Promise.resolve(false)}
+          grantedPermissions={new Set()}
+        />,
+      );
+    });
+    expect(query('capture-option-needs-permission-consoleLogs')).toBeNull();
+    expect(query('capture-option-permission-revoked-consoleLogs')).toBeNull();
   });
 });

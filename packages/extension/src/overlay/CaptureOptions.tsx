@@ -27,6 +27,13 @@ export interface CaptureOptionsProps {
    * popup; the overlay only reflects what is already granted. Injectable for tests.
    */
   readonly checkPermission?: (permission: OptionalPermissionName) => Promise<boolean>;
+  /**
+   * Optional permissions currently granted. `undefined` means "not yet known" — no permission label
+   * renders, so nothing flashes before the check resolves. The overlay reconciles its options against
+   * this set (so gated+ungranted is always unticked there); Settings does not, so a ticked+ungranted
+   * option there renders as revoked.
+   */
+  readonly grantedPermissions?: ReadonlySet<OptionalPermissionName>;
 }
 
 /** Gesture-free "is this granted?" check via the service worker (`permissions.contains`). */
@@ -62,12 +69,14 @@ const rowStyle: CSSProperties = {
 const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', flex: 1 };
 const hintStyle: CSSProperties = { fontSize: '11px', color: '#94a3b8' };
 const needsGrantStyle: CSSProperties = { fontSize: '11px', color: '#b45309' };
+const revokedStyle: CSSProperties = { fontSize: '11px', color: '#b45309' };
 
 export function CaptureOptions({
   value,
   onChange,
   disabled,
   checkPermission,
+  grantedPermissions,
 }: CaptureOptionsProps) {
   const check = checkPermission ?? checkPermissionViaBridge;
   const [pending, setPending] = useState<CaptureOptionKey | null>(null);
@@ -105,7 +114,6 @@ export function CaptureOptions({
         <fieldset key={group.id} style={fieldsetStyle}>
           <legend style={legendStyle}>{group.label}</legend>
           {group.options.map((option) => {
-            const gated = option.permission !== undefined;
             const isPending = pending === option.key;
             return (
               <div key={option.key} style={rowStyle}>
@@ -121,7 +129,30 @@ export function CaptureOptions({
                   />
                   <span>{option.label}</span>
                 </label>
-                {gated ? <span style={hintStyle}>needs permission</span> : null}
+                {(() => {
+                  const permission = optionPermission(option.key);
+                  if (permission === undefined || grantedPermissions === undefined) {
+                    return null;
+                  }
+                  if (grantedPermissions.has(permission)) {
+                    return null;
+                  }
+                  return value[option.key] ? (
+                    <span
+                      data-testid={`capture-option-permission-revoked-${option.key}`}
+                      style={revokedStyle}
+                    >
+                      permission revoked — grant it in the toolbar popup to use this
+                    </span>
+                  ) : (
+                    <span
+                      data-testid={`capture-option-needs-permission-${option.key}`}
+                      style={hintStyle}
+                    >
+                      needs permission — enable in the toolbar popup
+                    </span>
+                  );
+                })()}
                 {isPending ? <span style={hintStyle}>Checking…</span> : null}
                 {needsGrant === option.key ? (
                   <span
