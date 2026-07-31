@@ -145,3 +145,14 @@ const PERMISSION_BY_KEY: ReadonlyMap<CaptureOptionKey, OptionalPermissionName> =
 export function optionPermission(key: CaptureOptionKey): OptionalPermissionName | undefined {
   return PERMISSION_BY_KEY.get(key);
 }
+
+const LABEL_BY_KEY: ReadonlyMap<CaptureOptionKey, string> = new Map(
+  CAPTURE_OPTION_GROUPS.flatMap((group) =>
+    group.options.map((option) => [option.key, option.label] as const),
+  ),
+);
+
+/** Display label for a capture option (e.g. `cookies` → `Cookies`); the key itself if unknown. */
+export function optionLabel(key: CaptureOptionKey): string {
+  return LABEL_BY_KEY.get(key) ?? key;
+}

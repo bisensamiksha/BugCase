@@ -7,6 +7,7 @@ import {
   CAPTURE_OPTION_DEFAULTS,
   CAPTURE_OPTION_GROUPS,
   captureOptionsReducer,
+  optionLabel,
   optionPermission,
 } from './capture-options-state';
 
@@ -107,5 +108,13 @@ describe('optionPermission', () => {
     expect(optionPermission('navigationHistory')).toBe('history');
     expect(optionPermission('domSnapshot')).toBeUndefined();
     expect(optionPermission('viewportScreenshot')).toBeUndefined();
+  });
+});
+
+describe('optionLabel', () => {
+  it('returns the display label for a known option', () => {
+    expect(optionLabel('cookies')).toBe('Cookies');
+    expect(optionLabel('navigationHistory')).toBe('Navigation history');
+    expect(optionLabel('installedExtensions')).toBe('Installed extensions');
   });
 });
