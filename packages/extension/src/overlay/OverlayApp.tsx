@@ -27,11 +27,19 @@ import {
   type OriginAllowlistRequest,
   type OriginAllowlistResponse,
 } from '../background/origin-allowlist-handler';
+import {
+  CONTAINS_PERMISSIONS,
+  type ContainsPermissionsRequest,
+  type RequestPermissionsResponse,
+} from '../background/permissions-handler';
 import { buildElementInspection } from '../capture/element-inspection';
 import { toReproductionRecording } from '../capture/reproduction-log';
 import { installElementPicker } from '../injected/element-picker';
 import browser from '../lib/browser';
-import { hasOptionalPermissions } from '../permissions/optional-permissions';
+import {
+  hasOptionalPermissions,
+  type OptionalPermissionName,
+} from '../permissions/optional-permissions';
 import { PreviewApp } from '../preview/PreviewApp';
 import type { ArtifactId } from '../preview/artifact-list';
 import { createVerifierToken, isRecorderStep } from '../shared/bridge-protocol';
@@ -47,7 +55,11 @@ import { DismissErrorBadgeButton } from './DismissErrorBadgeButton';
 import { ElementPickerControls } from './ElementPickerControls';
 import { ReproductionControls } from './ReproductionControls';
 import { UserReportForm } from './UserReportForm';
-import { CAPTURE_OPTION_DEFAULTS } from './capture-options-state';
+import {
+  CAPTURE_OPTION_DEFAULTS,
+  optionLabel,
+  type CaptureOptionKey,
+} from './capture-options-state';
 import { CookiesWarning } from './components/CookiesWarning';
 import { DebuggerBanner } from './components/DebuggerBanner';
 import { OriginOptInModal } from './components/OriginOptInModal';
@@ -58,6 +70,7 @@ import {
   elementInspectionSessionReducer,
 } from './element-inspection-session';
 import { withHostHidden } from './hide-host-during-capture';
+import { blockedGatedOptions, reconcileOptionsToGrants } from './permission-reconcile';
 import {
   appendRecordingStep,
   clearRecording,
@@ -152,6 +165,30 @@ function requestDismissPassiveErrors(): Promise<void> {
   }
 }
 
+/** The optional permissions that gate a capture option; checked together on mount. */
+const GATED_PERMISSIONS: readonly OptionalPermissionName[] = ['cookies', 'management', 'history'];
+
+/**
+ * Gesture-free "is this granted?" check via the service worker, mirroring CaptureOptions'. Wrapped
+ * in try/catch (not just `.catch()`) like {@link requestPassiveErrorCount} above: `browser.runtime`
+ * itself can be undefined outside a real extension context, and that property access throws
+ * synchronously before a promise chain exists to catch it.
+ */
+function checkPermissionViaBridge(permission: OptionalPermissionName): Promise<boolean> {
+  try {
+    const message: ContainsPermissionsRequest = {
+      type: CONTAINS_PERMISSIONS,
+      permissions: [permission],
+    };
+    return browser.runtime
+      .sendMessage<ContainsPermissionsRequest, RequestPermissionsResponse>(message)
+      .then((result) => result.granted === true)
+      .catch(() => false);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
 const DEFAULT_ELEMENT_PICKER: ElementPickerController = {
   start(onPick, onCancel) {
     if (typeof document === 'undefined') {
@@ -221,6 +258,8 @@ export interface OverlayAppProps {
   readonly currentUrl?: string;
   /** Durable overlay-draft operations (BUG-06); defaults to the real service-worker relay. */
   readonly draftClient?: DraftClient;
+  /** Checks one optional permission; defaults to the gesture-free SW bridge. Injectable for tests. */
+  readonly checkPermission?: (permission: OptionalPermissionName) => Promise<boolean>;
 }
 
 type OverlayPhase = 'form' | 'preview';
@@ -359,6 +398,7 @@ export function OverlayApp({
   dismissPassiveErrors = requestDismissPassiveErrors,
   currentUrl,
   draftClient = DEFAULT_DRAFT_CLIENT,
+  checkPermission = checkPermissionViaBridge,
 }: OverlayAppProps) {
   const pageUrl = currentUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
   const pageOrigin = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
@@ -407,6 +447,10 @@ export function OverlayApp({
     hostName?: string;
   }>({ active: false });
   const [passiveErrorCount, setPassiveErrorCount] = useState(0);
+  const [grantedPermissions, setGrantedPermissions] = useState<
+    ReadonlySet<OptionalPermissionName> | undefined
+  >(undefined);
+  const [reconciledOff, setReconciledOff] = useState<readonly CaptureOptionKey[]>([]);
 
   // Passive error badge (S3-14): read how many uncaught errors this page logged, so the overlay can
   // offer to dismiss the toolbar badge. Guarded against a late resolve after unmount.
@@ -452,6 +496,44 @@ export function OverlayApp({
       cancelled = true;
     };
   }, [checkCookiesGranted]);
+
+  // Read which optional permissions are actually granted, so the options can be reconciled against
+  // reality. Three independent checks — the CONTAINS_PERMISSIONS bridge answers all-or-nothing for a
+  // list, so a per-permission answer needs one call each. A rejected check counts as not granted:
+  // the safe direction, since it only switches off something that would not have been captured.
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      GATED_PERMISSIONS.map((permission) =>
+        checkPermission(permission)
+          .then((granted) => ({ permission, granted }))
+          .catch(() => ({ permission, granted: false })),
+      ),
+    ).then((results) => {
+      if (cancelled) {
+        return;
+      }
+      setGrantedPermissions(new Set(results.filter((r) => r.granted).map((r) => r.permission)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkPermission]);
+
+  // Reconcile whenever the grants or the options change (BUG-06 permission-grant reconcile). One
+  // effect covers both async entry paths — the stored-defaults seed and the BUG-06 draft restore —
+  // without caring which wins the race. It terminates because reconcileOptionsToGrants returns the
+  // SAME reference when nothing is blocked, so the guard below stops a second pass.
+  useEffect(() => {
+    if (!grantedPermissions) {
+      return;
+    }
+    const next = reconcileOptionsToGrants(captureOptions, grantedPermissions);
+    if (next !== captureOptions) {
+      setReconciledOff(blockedGatedOptions(captureOptions, grantedPermissions));
+      setCaptureOptions(next);
+    }
+  }, [grantedPermissions, captureOptions]);
 
   useEffect(() => {
     // Seed the capture options from the user's stored defaults (S3-06 settings page). A failed read
@@ -971,7 +1053,23 @@ export function OverlayApp({
         <p style={{ margin: '0 0 8px', color: '#475569' }}>
           Choose what to capture, then download a bug report ZIP.
         </p>
-        <CaptureOptions value={captureOptions} onChange={setCaptureOptions} />
+        {reconciledOff.length > 0 ? (
+          <p
+            data-testid="permission-reconcile-notice"
+            role="status"
+            style={{ fontSize: '11px', color: '#b45309', margin: '0 0 8px' }}
+          >
+            {reconciledOff.map((key) => optionLabel(key)).join(', ')}{' '}
+            {reconciledOff.length === 1 ? 'was' : 'were'} switched off for this capture — the
+            permission isn’t granted. Enable it from the toolbar popup.
+          </p>
+        ) : null}
+        <CaptureOptions
+          value={captureOptions}
+          onChange={setCaptureOptions}
+          checkPermission={checkPermission}
+          {...(grantedPermissions ? { grantedPermissions } : {})}
+        />
         <UserReportForm value={userReport} onChange={setUserReport} />
         {captureOptions.reproductionSteps ? (
           <ReproductionControls

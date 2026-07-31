@@ -1311,3 +1311,125 @@ describe('OverlayApp draft persistence — draftCheckedRef vs draftLoadedRef gua
     },
   );
 });
+
+describe('OverlayApp permission reconcile', () => {
+  it('unticks a stored default whose permission is not granted, and says so', async () => {
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({ ...DEFAULT_USER_OPTIONS, cookies: true })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={() => Promise.resolve(false)}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cookies = queryTestId('capture-option-cookies') as HTMLInputElement | null;
+    expect(cookies?.checked).toBe(false);
+    expect(queryTestId('permission-reconcile-notice')?.textContent).toContain('Cookies');
+  });
+
+  it('leaves a stored default ticked when its permission is granted', async () => {
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(true)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({ ...DEFAULT_USER_OPTIONS, cookies: true })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={() => Promise.resolve(true)}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cookies = queryTestId('capture-option-cookies') as HTMLInputElement | null;
+    expect(cookies?.checked).toBe(true);
+    expect(queryTestId('permission-reconcile-notice')).toBeNull();
+  });
+
+  it('reconciles a restored draft too', async () => {
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() => Promise.resolve(DEFAULT_USER_OPTIONS)}
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={() => Promise.resolve(false)}
+          draftClient={{
+            get: () =>
+              Promise.resolve({
+                captureOptions: { ...DEFAULT_USER_OPTIONS, cookies: true },
+                userReport: {
+                  schemaVersion: 'v1' as const,
+                  title: '',
+                  stepsToReproduce: '',
+                  severity: 'minor' as const,
+                  notes: '',
+                },
+                inspections: [],
+                ui: { minimized: false, panelPos: null },
+              }),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cookies = queryTestId('capture-option-cookies') as HTMLInputElement | null;
+    expect(cookies?.checked).toBe(false);
+  });
+
+  it('treats a failing permission check as not granted', async () => {
+    await act(async () => {
+      root.render(
+        <OverlayApp
+          onClose={() => {}}
+          checkAllowed={() => Promise.resolve(true)}
+          checkCookiesGranted={() => Promise.resolve(false)}
+          loadDefaultCaptureOptions={() =>
+            Promise.resolve({ ...DEFAULT_USER_OPTIONS, cookies: true })
+          }
+          loadPassiveErrorCount={() => Promise.resolve(0)}
+          checkPermission={() => Promise.reject(new Error('bridge down'))}
+          draftClient={{
+            get: () => Promise.resolve(null),
+            save: () => Promise.resolve(),
+            clear: () => Promise.resolve(),
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const cookies = queryTestId('capture-option-cookies') as HTMLInputElement | null;
+    expect(cookies?.checked).toBe(false);
+  });
+});
