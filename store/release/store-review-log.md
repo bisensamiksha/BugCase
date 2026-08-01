@@ -11,11 +11,15 @@ and the outcome.
 
 ## Log
 
-<!-- Example format (delete once real entries exist):
-### 2026-08-03 — Chrome Web Store — v1.0.0
-- Automated review passed; queued for manual review of the install-time `debugger` permission.
-- Reviewer asked why `debugger` is required → replied with `../chrome/permission-justifications.md` wording.
-- Outcome: ✅ published.
--->
+### 2026-07-31 — Chrome Web Store — v1.0.0
 
-_No submissions recorded yet — file the Chrome/Edge submissions per the tracker, then log outcomes here._
+- Submitted `bugcase-chrome-1.0.0.zip` (`69c24b3e…3466`, 586,810 bytes) built from `main` @ `048f4c5`,
+  tag `v1.0.0`. Byte-identical to the `v1.0.0` GitHub Release asset.
+- Filed into the **existing draft item** rather than a new listing — the Chrome Web Store has no way to
+  delete a draft, and a second item would be permanent clutter with a different extension ID. Chrome
+  accepted the replacement package under the same version number (`1.0.0`) over the draft's earlier upload.
+- The replaced draft package was `aae5371c…60b1` (2026-07-25, commit `6afc58c`), which predated BUG-03,
+  BUG-04, BUG-05 and BUG-06. It was caught before submission; nothing was ever published from it.
+- Screenshot 1 was re-shot (PR #191) because BUG-06 reworded the gated capture options' hint from
+  "needs permission" to "needs permission — enable in the toolbar popup".
+- Outcome: ⏳ awaiting review.

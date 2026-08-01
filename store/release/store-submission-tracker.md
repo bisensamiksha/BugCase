@@ -11,22 +11,37 @@
 
 | Store                  | Artifact                   | SHA-256         | Submitted    | Review state         | Reviewer feedback | Resolution |
 | ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | ---------- |
-| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `271a43a6…1bb9` | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
-| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `271a43a6…1bb9` | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
+| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ⏳ in review         | —                 | —          |
+| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —          |
 | Firefox AMO            | —                          | —               | —            | ⬜ S4-32             | —                 | —          |
 
-**Upload candidate — built 2026-07-29 from `main` (BUG-05 merged, PR #187):**
+**Upload candidate — built 2026-07-31 from `main` @ `048f4c5`, tagged `v1.0.0` (PR #190 BUG-06,
+PR #191 screenshot):**
 
 ```
-sha256  271a43a6141863895938d87a36ea95577e2be1f739b4bd096d6fe7ce45eb1bb9
-size    584,501 bytes · 24 entries · 9 sourcemaps excluded
+sha256  69c24b3e4cb2c4e833caec5422d1f2c0e3c1ea9b3ca1f44f827fb2dc56343466
+size    586,810 bytes · 24 entries · 9 sourcemaps excluded
 ```
 
 Verified before recording: `verify:edge-brave` passes (MV3 valid, manifest at root, service worker and
-all declared icons present, no `.map` files); `check:permission-justifications` matches 10/10; the
-build is **reproducible** (byte-identical hash across two runs separated by a wall-clock boundary);
-and the BUG-05 fix is present in the artifact (`content/overlay.js` + the shared `messages` chunk the
-service worker imports).
+all declared icons present, no `.map` files); `check:permission-justifications` matches 10/10; and both
+recent fixes are present in the artifact — BUG-05 (`bugcase/overlay-open`, `bugcase/overlay-state`) and
+BUG-06 (`bugcase/overlay-draft`, plus the reworded reproduction copy "Track reproduction steps" /
+"never video or audio").
+
+**Reproducible across platforms.** The same hash was produced by a local macOS build and by the
+tag-driven `release.yml` run on `ubuntu-latest` — the GitHub Release asset for `v1.0.0` is byte-identical
+to the ZIP uploaded to the store. GitHub, the store, and this row all pin the same bytes.
+
+### Superseded candidates — do not upload
+
+| SHA-256         | Size    | Built      | Source commit | Missing                        |
+| --------------- | ------- | ---------- | ------------- | ------------------------------ |
+| `aae5371c…60b1` | 579,355 | 2026-07-25 | `6afc58c`     | BUG-03, BUG-04, BUG-05, BUG-06 |
+| `271a43a6…1bb9` | 584,501 | 2026-07-29 | `bbb5e57`     | BUG-06                         |
+
+`aae5371c…60b1` was the original `v1.0.0` GitHub Release asset and the package first uploaded to the
+Chrome draft. The release was re-cut at `048f4c5` on 2026-07-31 and that asset no longer exists.
 
 ⚠️ **Re-package before submitting if `main` has moved.** This hash pins one specific build — a
 mismatch between what you upload and what is recorded here makes the trail worthless. Re-run
