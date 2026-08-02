@@ -1,4 +1,5 @@
 import type { DomSnapshot } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 
 import { requestPeekAsset } from '../overlay/request-capture';
@@ -27,8 +28,8 @@ type LoadStatus = 'loading' | 'loaded' | 'error';
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
   padding: '24px',
@@ -48,9 +49,9 @@ const splitStyle: CSSProperties = {
 const iframeStyle: CSSProperties = {
   flex: 2,
   minWidth: 0,
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '4px',
-  background: '#ffffff',
+  background: palette.white,
 };
 
 const rawPanelStyle: CSSProperties = {
@@ -58,7 +59,7 @@ const rawPanelStyle: CSSProperties = {
   minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '4px',
   overflow: 'hidden',
 };
@@ -73,7 +74,7 @@ const preStyle: CSSProperties = {
   lineHeight: 1.5,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
-  background: '#f8fafc',
+  background: palette.slate50,
 };
 
 export function SandboxedDomSnapshotViewer({
@@ -170,7 +171,7 @@ export function SandboxedDomSnapshotViewer({
       >
         <div>
           <h2 style={{ margin: 0 }}>DOM snapshot</h2>
-          <p style={{ margin: '4px 0 0', color: '#475569' }}>
+          <p style={{ margin: '4px 0 0', color: palette.slate600 }}>
             Rendered in a locked sandbox (no scripts, no network). Inputs were scrubbed
             {snapshot.scrubberHits > 0 ? ` (${snapshot.scrubberHits} masked).` : '.'}
           </p>
@@ -185,7 +186,10 @@ export function SandboxedDomSnapshotViewer({
             Copy HTML
           </button>
           {copyStatus ? (
-            <span data-testid="dom-copy-status" style={{ alignSelf: 'center', color: '#475569' }}>
+            <span
+              data-testid="dom-copy-status"
+              style={{ alignSelf: 'center', color: palette.slate600 }}
+            >
               {copyStatus}
             </span>
           ) : null}
@@ -201,12 +205,12 @@ export function SandboxedDomSnapshotViewer({
       </div>
 
       {status === 'loading' ? (
-        <p data-testid="dom-loading" style={{ color: '#475569' }}>
+        <p data-testid="dom-loading" style={{ color: palette.slate600 }}>
           Loading…
         </p>
       ) : null}
       {status === 'error' ? (
-        <p data-testid="dom-error" role="alert" style={{ color: '#b91c1c' }}>
+        <p data-testid="dom-error" role="alert" style={{ color: palette.red700 }}>
           Couldn’t load this DOM snapshot. It may have expired — capture again.
         </p>
       ) : null}
@@ -222,7 +226,11 @@ export function SandboxedDomSnapshotViewer({
           />
           <div style={rawPanelStyle}>
             <div
-              style={{ padding: '6px 12px', borderBottom: '1px solid #e2e8f0', color: '#475569' }}
+              style={{
+                padding: '6px 12px',
+                borderBottom: `1px solid ${palette.slate200}`,
+                color: palette.slate600,
+              }}
             >
               Raw HTML
             </div>

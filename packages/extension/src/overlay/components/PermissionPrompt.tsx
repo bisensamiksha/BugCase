@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { useState, type CSSProperties } from 'react';
 
 import {
@@ -40,8 +41,8 @@ function requestViaBridge(request: OptionalPermissionRequest): Promise<RequestPe
 const panelStyle: CSSProperties = {
   padding: '12px',
   borderRadius: '8px',
-  background: '#f8fafc',
-  color: '#0f172a',
+  background: palette.slate50,
+  color: palette.slate900,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '13px',
 };
@@ -53,8 +54,8 @@ const allowStyle: CSSProperties = {
   padding: '6px 10px',
   borderRadius: '6px',
   border: 'none',
-  background: '#2563eb',
-  color: '#ffffff',
+  background: palette.blue600,
+  color: palette.white,
   fontWeight: 600,
   cursor: 'pointer',
 };
@@ -63,13 +64,13 @@ const denyStyle: CSSProperties = {
   flex: 1,
   padding: '6px 10px',
   borderRadius: '6px',
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#334155',
+  border: `1px solid ${palette.slate300}`,
+  background: palette.white,
+  color: palette.slate700,
   cursor: 'pointer',
 };
 
-const statusStyle: CSSProperties = { margin: '8px 0 0', fontSize: '12px', color: '#475569' };
+const statusStyle: CSSProperties = { margin: '8px 0 0', fontSize: '12px', color: palette.slate600 };
 
 function buildRequest(props: PermissionPromptProps): OptionalPermissionRequest {
   return {
@@ -129,7 +130,7 @@ export function PermissionPrompt(props: PermissionPromptProps) {
         {permissions.length + origins.length === 1 ? 'permission' : 'permissions'}:{' '}
         <strong data-testid="permission-list">{labels}</strong>
       </p>
-      {reason ? <p style={{ margin: '4px 0 0', color: '#475569' }}>{reason}</p> : null}
+      {reason ? <p style={{ margin: '4px 0 0', color: palette.slate600 }}>{reason}</p> : null}
       <div style={rowStyle}>
         <button
           type="button"

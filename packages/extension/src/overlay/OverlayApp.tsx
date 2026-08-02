@@ -1,4 +1,5 @@
 import type { BugReportV1, ReproductionRecording, UserInput, UserOptions } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import {
   useCallback,
   useEffect,
@@ -339,8 +340,8 @@ const panelStyle: CSSProperties = {
   maxHeight: 'calc(100vh - 32px)',
   padding: '16px',
   borderRadius: '12px',
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   boxShadow: '0 10px 30px rgba(2, 6, 23, 0.25)',
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
@@ -362,8 +363,8 @@ const pillStyle: CSSProperties = {
   maxWidth: '260px',
   padding: '12px 16px',
   borderRadius: '12px',
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   boxShadow: '0 10px 30px rgba(2, 6, 23, 0.25)',
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
@@ -385,7 +386,7 @@ const closeStyle: CSSProperties = {
   cursor: 'pointer',
   fontSize: '20px',
   lineHeight: 1,
-  color: '#475569',
+  color: palette.slate600,
 };
 
 export function OverlayApp({
@@ -911,7 +912,7 @@ export function OverlayApp({
           <div
             role="alert"
             data-testid="preview-error-fallback"
-            style={{ padding: 16, fontSize: 13, color: '#b91c1c' }}
+            style={{ padding: 16, fontSize: 13, color: palette.red700 }}
           >
             <p style={{ margin: 0, fontWeight: 600 }}>The preview couldn’t be displayed.</p>
             <button
@@ -922,9 +923,9 @@ export function OverlayApp({
               }}
               style={{
                 marginTop: 8,
-                border: '1px solid #fca5a5',
+                border: `1px solid ${palette.red300}`,
                 background: 'transparent',
-                color: '#b91c1c',
+                color: palette.red700,
                 borderRadius: 6,
                 padding: '4px 10px',
                 cursor: 'pointer',
@@ -989,7 +990,7 @@ export function OverlayApp({
           tabIndex={-1}
           title="Drag to move"
           onMouseDown={onHeaderMouseDown}
-          style={{ cursor: 'move', color: '#94a3b8', userSelect: 'none', lineHeight: 1 }}
+          style={{ cursor: 'move', color: palette.slate400, userSelect: 'none', lineHeight: 1 }}
         >
           ⠿
         </span>
@@ -1110,14 +1111,14 @@ export function OverlayApp({
             />
           </div>
         ) : null}
-        <p style={{ margin: '0 0 8px', color: '#475569' }}>
+        <p style={{ margin: '0 0 8px', color: palette.slate600 }}>
           Choose what to capture, then download a bug report ZIP.
         </p>
         {noticeOff.length > 0 ? (
           <p
             data-testid="permission-reconcile-notice"
             role="status"
-            style={{ fontSize: '11px', color: '#b45309', margin: '0 0 8px' }}
+            style={{ fontSize: '11px', color: palette.amber700, margin: '0 0 8px' }}
           >
             {`${noticeOff.map((key) => optionLabel(key)).join(', ')} ` +
               (noticeOff.length === 1

@@ -1,4 +1,5 @@
 import type { Severity, UserInput } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties } from 'react';
 
 import { SEVERITY_OPTIONS, userReportReducer } from './user-report-state';
@@ -12,19 +13,19 @@ export interface UserReportFormProps {
 // Inline styles keep the form self-contained inside the Shadow DOM, matching CaptureOptions; a
 // shared stylesheet is deferred to a later UI ticket.
 const fieldsetStyle: CSSProperties = {
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '8px',
   padding: '8px 12px',
   margin: '0 0 8px',
 };
-const legendStyle: CSSProperties = { fontSize: '12px', fontWeight: 600, color: '#475569' };
+const legendStyle: CSSProperties = { fontSize: '12px', fontWeight: 600, color: palette.slate600 };
 const rowStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '4px',
   margin: '4px 0',
 };
-const labelStyle: CSSProperties = { fontSize: '12px', color: '#475569' };
+const labelStyle: CSSProperties = { fontSize: '12px', color: palette.slate600 };
 const controlStyle: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
@@ -32,9 +33,9 @@ const controlStyle: CSSProperties = {
   fontSize: '13px',
   padding: '6px 8px',
   borderRadius: '6px',
-  border: '1px solid #cbd5e1',
-  color: '#0f172a',
-  background: '#ffffff',
+  border: `1px solid ${palette.slate300}`,
+  color: palette.slate900,
+  background: palette.white,
 };
 const textareaStyle: CSSProperties = { ...controlStyle, minHeight: '56px', resize: 'vertical' };
 

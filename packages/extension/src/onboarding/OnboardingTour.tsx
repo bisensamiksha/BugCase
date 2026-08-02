@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { useState, type CSSProperties } from 'react';
 
 import { setOnboardingSeen } from '../storage/onboarding';
@@ -61,8 +62,8 @@ const overlayStyle: CSSProperties = {
 };
 const cardStyle: CSSProperties = {
   width: 'min(440px, calc(100vw - 32px))',
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   borderRadius: '12px',
   padding: '24px',
   boxShadow: '0 20px 50px rgba(2, 6, 23, 0.35)',
@@ -80,9 +81,9 @@ const primaryBtn: CSSProperties = {
   fontSize: '14px',
   padding: '8px 16px',
   borderRadius: '8px',
-  border: '1px solid #2563eb',
-  background: '#2563eb',
-  color: '#ffffff',
+  border: `1px solid ${palette.blue600}`,
+  background: palette.blue600,
+  color: palette.white,
   cursor: 'pointer',
 };
 const secondaryBtn: CSSProperties = {
@@ -90,9 +91,9 @@ const secondaryBtn: CSSProperties = {
   fontSize: '14px',
   padding: '8px 16px',
   borderRadius: '8px',
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#0f172a',
+  border: `1px solid ${palette.slate300}`,
+  background: palette.white,
+  color: palette.slate900,
   cursor: 'pointer',
 };
 const linkBtn: CSSProperties = {
@@ -101,10 +102,10 @@ const linkBtn: CSSProperties = {
   padding: '8px 4px',
   border: 'none',
   background: 'transparent',
-  color: '#475569',
+  color: palette.slate600,
   cursor: 'pointer',
 };
-const progressStyle: CSSProperties = { fontSize: '12px', color: '#64748b' };
+const progressStyle: CSSProperties = { fontSize: '12px', color: palette.slate500 };
 
 /**
  * First-install onboarding tour (S3-18) — three slides shown once, overlaid on the options page. Back/

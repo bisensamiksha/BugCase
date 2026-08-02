@@ -135,6 +135,9 @@ importers:
       '@bugcase/schema':
         specifier: workspace:*
         version: link:../schema
+      '@bugcase/shared-tokens':
+        specifier: workspace:*
+        version: link:../shared-tokens
       '@bugcase/shared-ui':
         specifier: workspace:*
         version: link:../shared-ui

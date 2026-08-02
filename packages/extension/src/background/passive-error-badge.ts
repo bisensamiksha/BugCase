@@ -8,6 +8,8 @@
  * real browser.
  */
 
+import { palette } from '@bugcase/shared-tokens';
+
 import browser from '../lib/browser';
 import {
   clearPassiveErrorCount,
@@ -17,7 +19,7 @@ import {
 } from '../storage/passive-errors';
 
 /** Red badge background (Tailwind red-600). */
-export const BADGE_BACKGROUND = '#dc2626';
+export const BADGE_BACKGROUND = palette.red600;
 
 /** The slice of `chrome.action` we depend on (promise- or callback-style via the polyfill). */
 export interface BadgeAction {

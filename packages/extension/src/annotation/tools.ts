@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 /**
  * Pure annotation model + reducer for the Konva annotation canvas (S3-08).
  *
@@ -82,7 +83,7 @@ export type AnnotationAction =
   | { type: 'redo' }
   | { type: 'clear' };
 
-export const DEFAULT_COLOR = '#ef4444';
+export const DEFAULT_COLOR = palette.red500;
 export const DEFAULT_STROKE_WIDTH = 4;
 export const DEFAULT_FONT_SIZE = 20;
 

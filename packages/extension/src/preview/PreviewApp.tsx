@@ -1,4 +1,5 @@
 import type { BugReportV1, ScreenshotRef } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import { summarizePrivacy } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
@@ -58,8 +59,8 @@ export interface PreviewAppProps {
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
   padding: '24px',
@@ -73,7 +74,7 @@ const rowStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: '12px',
   padding: '8px 0',
-  borderBottom: '1px solid #e2e8f0',
+  borderBottom: `1px solid ${palette.slate200}`,
 };
 
 const footerStyle: CSSProperties = { display: 'flex', gap: '12px', marginTop: '16px' };
@@ -321,7 +322,7 @@ export function PreviewApp({
       style={overlayStyle}
     >
       <h2 style={{ marginTop: 0 }}>Review report</h2>
-      <p style={{ color: '#475569' }}>
+      <p style={{ color: palette.slate600 }}>
         Choose what to include, then download. Nothing leaves your browser.
       </p>
       <ImageDisclosure testId="review-image-disclosure">
@@ -342,7 +343,7 @@ export function PreviewApp({
               <span style={{ flex: 1, textDecoration: isRemoved ? 'line-through' : 'none' }}>
                 {a.label}
               </span>
-              <span style={{ color: '#475569', minWidth: '80px', textAlign: 'right' }}>
+              <span style={{ color: palette.slate600, minWidth: '80px', textAlign: 'right' }}>
                 {a.present ? formatBytes(a.sizeBytes) : 'Not captured'}
               </span>
               <button
@@ -377,7 +378,7 @@ export function PreviewApp({
                 <>
                   <span
                     data-testid="screenshot-annotated"
-                    style={{ color: '#16a34a', fontSize: '12px' }}
+                    style={{ color: palette.green600, fontSize: '12px' }}
                   >
                     Annotated
                   </span>
@@ -415,7 +416,7 @@ export function PreviewApp({
       </div>
       {inspectionRows.length > 0 ? (
         <div data-testid="element-inspection-rows" style={{ marginTop: '8px' }}>
-          <p style={{ margin: '0 0 4px', fontSize: '12px', color: '#475569' }}>
+          <p style={{ margin: '0 0 4px', fontSize: '12px', color: palette.slate600 }}>
             Each inspected element also stores a cropped screenshot. Those are raw pixels — annotate
             or remove any that show something sensitive.
           </p>
@@ -437,7 +438,7 @@ export function PreviewApp({
                 {isAnnotated ? (
                   <span
                     data-testid={`inspection-annotated-${inspection.id}`}
-                    style={{ color: '#16a34a', fontSize: '12px' }}
+                    style={{ color: palette.green600, fontSize: '12px' }}
                   >
                     Annotated
                   </span>
@@ -476,7 +477,7 @@ export function PreviewApp({
         </div>
       ) : null}
       {error ? (
-        <p data-testid="preview-error" role="alert" style={{ color: '#b91c1c' }}>
+        <p data-testid="preview-error" role="alert" style={{ color: palette.red700 }}>
           {error === 'expired'
             ? 'This capture expired before download. Please capture again.'
             : error}

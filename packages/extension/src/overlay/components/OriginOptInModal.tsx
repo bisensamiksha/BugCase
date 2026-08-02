@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { useState, type CSSProperties } from 'react';
 
 import {
@@ -28,8 +29,8 @@ function enableViaBridge(origin: string): Promise<OriginAllowlistResponse> {
 const panelStyle: CSSProperties = {
   padding: '12px',
   borderRadius: '8px',
-  background: '#f8fafc',
-  color: '#0f172a',
+  background: palette.slate50,
+  color: palette.slate900,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '13px',
 };
@@ -41,8 +42,8 @@ const enableStyle: CSSProperties = {
   padding: '6px 10px',
   borderRadius: '6px',
   border: 'none',
-  background: '#2563eb',
-  color: '#ffffff',
+  background: palette.blue600,
+  color: palette.white,
   fontWeight: 600,
   cursor: 'pointer',
 };
@@ -51,13 +52,13 @@ const dismissStyle: CSSProperties = {
   flex: 1,
   padding: '6px 10px',
   borderRadius: '6px',
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#334155',
+  border: `1px solid ${palette.slate300}`,
+  background: palette.white,
+  color: palette.slate700,
   cursor: 'pointer',
 };
 
-const statusStyle: CSSProperties = { margin: '8px 0 0', fontSize: '12px', color: '#475569' };
+const statusStyle: CSSProperties = { margin: '8px 0 0', fontSize: '12px', color: palette.slate600 };
 
 export function OriginOptInModal(props: OriginOptInModalProps) {
   const { origin, onEnable, onResult, onDismiss } = props;
@@ -101,7 +102,7 @@ export function OriginOptInModal(props: OriginOptInModalProps) {
       <p style={{ margin: 0 }}>
         Enable passive monitoring on <strong data-testid="origin-name">{origin}</strong>?
       </p>
-      <p style={{ margin: '4px 0 0', color: '#475569' }}>
+      <p style={{ margin: '4px 0 0', color: palette.slate600 }}>
         BugCase will buffer console and network activity for this origin in memory only, so it can
         be included in a future capture. Nothing is recorded until you opt in, and nothing leaves
         your browser.
