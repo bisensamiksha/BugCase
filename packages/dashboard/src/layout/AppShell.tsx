@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { CopyLinkButton } from '../components/CopyLinkButton';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { DASHBOARD_PANES, PANE_LABELS, formatHash, type RouteState } from '../router/hash-router';
@@ -37,6 +38,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
         >
           {tabs}
         </div>
+        <CopyLinkButton />
         <ThemeToggle />
       </header>
 
