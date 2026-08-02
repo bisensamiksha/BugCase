@@ -1,0 +1,28 @@
+/*
+ * Shiki dual-theme flip for the DOM pane's source view (S4-09), rescued from the old
+ * `tokens.css` when the token layer moved to @bugcase/shared-tokens (S4-25).
+ *
+ * These rules are NOT design tokens — they belong to the syntax highlighter. Shiki inlines the
+ * light colours on each token plus a `--shiki-dark*` custom property holding the dark value; these
+ * rules swap to the dark value, with `!important` to outweigh the inline light style.
+ */
+
+/*
+ * Pre-JS fallback. Scoped `:not([data-theme])` so it matches only before the theme controller has
+ * written a resolved attribute — otherwise a dark-OS visitor who explicitly chooses light would
+ * keep dark syntax highlighting against a light page.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .shiki,
+  :root:not([data-theme]) .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+
+/* The resolved attribute the theme controller always writes. */
+:root[data-theme='dark'] .shiki,
+:root[data-theme='dark'] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
