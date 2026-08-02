@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { DASHBOARD_PANES, PANE_LABELS, formatHash, type RouteState } from '../router/hash-router';
 
 export interface AppShellProps {
@@ -35,6 +36,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
         >
           {tabs}
         </div>
+        <ThemeToggle />
       </header>
 
       <div className="flex flex-1">
