@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties } from 'react';
 
 export interface DismissErrorBadgeButtonProps {
@@ -12,21 +13,21 @@ const bannerStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '8px',
-  border: '1px solid #fecaca',
-  background: '#fef2f2',
+  border: `1px solid ${palette.red200}`,
+  background: palette.red50,
   borderRadius: '8px',
   padding: '8px 12px',
   margin: '0 0 8px',
 };
-const textStyle: CSSProperties = { fontSize: '13px', color: '#991b1b' };
+const textStyle: CSSProperties = { fontSize: '13px', color: palette.red800 };
 const buttonStyle: CSSProperties = {
   fontFamily: 'inherit',
   fontSize: '12px',
   padding: '4px 10px',
   borderRadius: '6px',
-  border: '1px solid #fca5a5',
-  background: '#ffffff',
-  color: '#991b1b',
+  border: `1px solid ${palette.red300}`,
+  background: palette.white,
+  color: palette.red800,
   cursor: 'pointer',
   flexShrink: 0,
 };

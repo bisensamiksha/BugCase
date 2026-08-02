@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
+import { PrintHeader } from './components/PrintHeader';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
 import {
@@ -269,7 +270,7 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
       >
         {/* A later failed drop while a report stays open surfaces as a transient banner. */}
         {activeReport && status === 'error' && error ? (
-          <p data-testid="error" role="alert" className="mb-3 text-red-600">
+          <p data-testid="error" role="alert" className="mb-3 text-[var(--bc-danger)]">
             {error}
           </p>
         ) : null}
@@ -286,6 +287,8 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
             }}
             className="h-full"
           >
+            {/* Print-only; identifies the capture on paper (S4-25). */}
+            <PrintHeader report={activeReport.report} />
             <LoadedPane
               pane={route.activePane}
               report={activeReport.report}

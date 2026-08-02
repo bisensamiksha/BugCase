@@ -1,4 +1,5 @@
 import type { UserOptions } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import { useState, type CSSProperties } from 'react';
 
 import {
@@ -62,12 +63,12 @@ function checkPermissionViaBridge(permission: OptionalPermissionName): Promise<b
 }
 
 const fieldsetStyle: CSSProperties = {
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '8px',
   padding: '8px 12px',
   margin: '0 0 8px',
 };
-const legendStyle: CSSProperties = { fontSize: '12px', fontWeight: 600, color: '#475569' };
+const legendStyle: CSSProperties = { fontSize: '12px', fontWeight: 600, color: palette.slate600 };
 const rowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -75,9 +76,9 @@ const rowStyle: CSSProperties = {
   margin: '4px 0',
 };
 const labelStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', flex: 1 };
-const hintStyle: CSSProperties = { fontSize: '11px', color: '#94a3b8' };
+const hintStyle: CSSProperties = { fontSize: '11px', color: palette.slate400 };
 /** Amber: something the user has to act on (grant in the popup). Shared by both grant notices. */
-const needsGrantStyle: CSSProperties = { fontSize: '11px', color: '#b45309' };
+const needsGrantStyle: CSSProperties = { fontSize: '11px', color: palette.amber700 };
 
 export function CaptureOptions({
   value,

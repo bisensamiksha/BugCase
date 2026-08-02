@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties } from 'react';
 
 import type { ToolId } from './tools';
@@ -54,7 +55,7 @@ const barStyle: CSSProperties = {
   flexWrap: 'wrap',
   justifyContent: 'center',
   padding: '8px 12px',
-  background: '#0f172a',
+  background: palette.slate900,
   borderRadius: '10px',
   zIndex: 3,
 };
@@ -63,19 +64,19 @@ const buttonStyle: CSSProperties = {
   fontSize: '12px',
   padding: '4px 8px',
   borderRadius: '6px',
-  border: '1px solid #334155',
-  background: '#1e293b',
-  color: '#e2e8f0',
+  border: `1px solid ${palette.slate700}`,
+  background: palette.slate800,
+  color: palette.slate200,
   cursor: 'pointer',
 };
 
 const activeButtonStyle: CSSProperties = {
   ...buttonStyle,
-  background: '#2563eb',
-  border: '1px solid #3b82f6',
+  background: palette.blue600,
+  border: `1px solid ${palette.blue500}`,
 };
 
-const dividerStyle: CSSProperties = { width: '1px', background: '#334155', margin: '0 2px' };
+const dividerStyle: CSSProperties = { width: '1px', background: palette.slate700, margin: '0 2px' };
 
 // Keep the zoom controls (− level + Fit) together as one flex unit so the toolbar's flex-wrap never
 // splits "−" onto a different line from "+".

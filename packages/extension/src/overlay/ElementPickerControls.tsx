@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties } from 'react';
 
 import type { ElementPickerStatus } from './element-inspection-session';
@@ -13,17 +14,17 @@ export interface ElementPickerControlsProps {
 
 // Inline styles keep the controls self-contained inside the Shadow DOM, matching the rest of the overlay.
 const sectionStyle: CSSProperties = {
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '8px',
   padding: '8px 12px',
   margin: '0 0 8px',
 };
-const legendStyle: CSSProperties = { fontSize: '12px', fontWeight: 600, color: '#475569' };
-const hintStyle: CSSProperties = { fontSize: '11px', color: '#64748b', margin: '4px 0 8px' };
+const legendStyle: CSSProperties = { fontSize: '12px', fontWeight: 600, color: palette.slate600 };
+const hintStyle: CSSProperties = { fontSize: '11px', color: palette.slate500, margin: '4px 0 8px' };
 const statusStyle: CSSProperties = {
   fontSize: '13px',
   fontWeight: 600,
-  color: '#0f172a',
+  color: palette.slate900,
   margin: '2px 0 8px',
 };
 const buttonStyle: CSSProperties = {
@@ -31,14 +32,14 @@ const buttonStyle: CSSProperties = {
   fontSize: '13px',
   padding: '6px 12px',
   borderRadius: '6px',
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  color: '#0f172a',
+  border: `1px solid ${palette.slate300}`,
+  background: palette.white,
+  color: palette.slate900,
   cursor: 'pointer',
 };
 const noticeStyle: CSSProperties = {
   fontSize: '11px',
-  color: '#b45309',
+  color: palette.amber700,
   margin: '0 0 8px',
 };
 

@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { useState, type CSSProperties } from 'react';
 
 import type { CaptureReportResponse } from '../background/messages';
@@ -18,8 +19,8 @@ const buttonStyle: CSSProperties = {
   padding: '8px 12px',
   borderRadius: '8px',
   border: 'none',
-  background: '#2563eb',
-  color: '#ffffff',
+  background: palette.blue600,
+  color: palette.white,
   fontSize: '14px',
   fontWeight: 600,
   cursor: 'pointer',
@@ -28,7 +29,7 @@ const buttonStyle: CSSProperties = {
 const statusStyle: CSSProperties = {
   margin: '8px 0 0',
   fontSize: '12px',
-  color: '#475569',
+  color: palette.slate600,
 };
 
 export function CaptureButton({ onCapture, onComplete, disabled }: CaptureButtonProps) {

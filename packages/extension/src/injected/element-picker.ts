@@ -8,6 +8,8 @@
  * highlight) on `stop()`.
  */
 
+import { palette } from '@bugcase/shared-tokens';
+
 import { OVERLAY_HOST_ID } from '../shared/overlay-host';
 
 /** Id of the picker's highlight box, so it can be ignored + removed. */
@@ -52,7 +54,7 @@ export function installElementPicker(
     boxSizing: 'border-box',
     pointerEvents: 'none',
     zIndex: '2147483646',
-    border: '2px solid #2563eb',
+    border: `2px solid ${palette.blue600}`,
     background: 'rgba(37, 99, 235, 0.15)',
   } satisfies Partial<CSSStyleDeclaration>);
   (doc.body ?? doc.documentElement).appendChild(highlight);

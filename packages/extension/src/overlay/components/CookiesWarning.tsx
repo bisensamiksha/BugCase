@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties } from 'react';
 
 export interface CookiesWarningProps {
@@ -16,8 +17,8 @@ const warningStyle: CSSProperties = {
   gap: '8px',
   padding: '8px 12px',
   borderRadius: '8px',
-  background: '#78350f',
-  color: '#fef3c7',
+  background: palette.amber900,
+  color: palette.amber100,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '13px',
   fontWeight: 600,
@@ -27,7 +28,7 @@ const dotStyle: CSSProperties = {
   width: '8px',
   height: '8px',
   borderRadius: '50%',
-  background: '#f59e0b',
+  background: palette.amber500,
   flex: '0 0 auto',
 };
 

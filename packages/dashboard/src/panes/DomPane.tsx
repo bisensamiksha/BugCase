@@ -205,7 +205,11 @@ export function DomPane({ dom, source, initialElementQuery }: DomPaneProps) {
                 className="min-w-56 rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-[var(--bc-surface)] px-2 py-1 text-sm text-[var(--bc-fg)]"
               />
               {search && !search.ok ? (
-                <p data-testid="dom-search-error" role="alert" className="text-sm text-red-600">
+                <p
+                  data-testid="dom-search-error"
+                  role="alert"
+                  className="text-sm text-[var(--bc-danger)]"
+                >
                   {search.error}
                 </p>
               ) : null}

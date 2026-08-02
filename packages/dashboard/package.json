@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@bugcase/schema": "workspace:*",
+    "@bugcase/shared-tokens": "workspace:*",
     "@bugcase/shared-ui": "workspace:*",
     "dompurify": "^3.4.12",
     "jszip": "^3.10.1",

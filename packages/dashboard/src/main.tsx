@@ -4,8 +4,11 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
 import { createInlineReportSource } from './lib/inline-report-source';
-import './styles/tokens.css';
+import '@bugcase/shared-tokens/tokens.css';
+import './styles/shiki-theme.css';
 import './index.css';
+// Last, so its @media print overrides win over the utility layer.
+import './styles/print.css';
 
 const rootEl = document.getElementById('root');
 

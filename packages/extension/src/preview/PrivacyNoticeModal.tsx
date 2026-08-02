@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { PrivacySummary } from '@bugcase/shared-ui';
 import { useState, type CSSProperties } from 'react';
 
@@ -18,8 +19,8 @@ export interface PrivacyNoticeModalProps {
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
   padding: '24px',
@@ -28,8 +29,8 @@ const overlayStyle: CSSProperties = {
 };
 
 const sectionHeadingStyle: CSSProperties = { margin: '20px 0 4px', fontSize: '14px' };
-const mutedStyle: CSSProperties = { color: '#475569', margin: '4px 0' };
-const listStyle: CSSProperties = { margin: '4px 0', paddingLeft: '20px', color: '#475569' };
+const mutedStyle: CSSProperties = { color: palette.slate600, margin: '4px 0' };
+const listStyle: CSSProperties = { margin: '4px 0', paddingLeft: '20px', color: palette.slate600 };
 const consentStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'flex-start',

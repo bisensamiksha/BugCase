@@ -1,4 +1,5 @@
 import type { UserOptions } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import { OnboardingTour } from '../onboarding/OnboardingTour';
@@ -65,10 +66,10 @@ const pageStyle: CSSProperties = {
   padding: '24px',
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
-  color: '#0f172a',
+  color: palette.slate900,
 };
 const sectionStyle: CSSProperties = {
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '8px',
   padding: '12px 16px',
   margin: '0 0 16px',
@@ -80,13 +81,13 @@ const rowStyle: CSSProperties = {
   gap: '8px',
   margin: '4px 0',
 };
-const mutedStyle: CSSProperties = { color: '#475569', margin: '0 0 8px' };
+const mutedStyle: CSSProperties = { color: palette.slate600, margin: '0 0 8px' };
 const footerLegalStyle: CSSProperties = {
   marginTop: '24px',
   paddingTop: '12px',
-  borderTop: '1px solid #e2e8f0',
+  borderTop: `1px solid ${palette.slate200}`,
   fontSize: '12px',
-  color: '#475569',
+  color: palette.slate600,
 };
 
 /** Split a textarea's contents into trimmed, non-empty header names, preserving order. */

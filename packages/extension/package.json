@@ -23,6 +23,7 @@
   "dependencies": {
     "@bugcase/report-template": "workspace:*",
     "@bugcase/schema": "workspace:*",
+    "@bugcase/shared-tokens": "workspace:*",
     "@bugcase/shared-ui": "workspace:*",
     "konva": "^9.3.16",
     "react": "^18.3.1",

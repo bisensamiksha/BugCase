@@ -29,8 +29,8 @@ export function JsonTree({ data, name, defaultOpen = true }: JsonTreeProps) {
   if (isPrimitive(data)) {
     return (
       <div className="font-mono text-sm leading-6">
-        {name !== undefined ? <span className="text-slate-500">{name}: </span> : null}
-        <span className="text-emerald-700">{formatPrimitive(data)}</span>
+        {name !== undefined ? <span className="text-[var(--bc-syntax-key)]">{name}: </span> : null}
+        <span className="text-[var(--bc-syntax-value)]">{formatPrimitive(data)}</span>
       </div>
     );
   }
@@ -43,11 +43,11 @@ export function JsonTree({ data, name, defaultOpen = true }: JsonTreeProps) {
 
   return (
     <details open={defaultOpen} className="font-mono text-sm leading-6">
-      <summary className="cursor-pointer text-slate-600">
+      <summary className="cursor-pointer text-[var(--bc-syntax-summary)]">
         {name !== undefined ? `${name}: ` : ''}
         {label}
       </summary>
-      <div className="ml-4 border-l border-slate-200 pl-3">
+      <div className="ml-4 border-l border-[var(--bc-syntax-guide)] pl-3">
         {entries.map(([key, value]) => (
           <JsonTree key={key} name={key} data={value} defaultOpen={false} />
         ))}

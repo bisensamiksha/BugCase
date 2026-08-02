@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { compileSearch, filterJson, primitiveText } from '@bugcase/shared-ui';
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 
@@ -20,8 +21,8 @@ const NO_MATCH = Symbol('no-match');
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  background: '#ffffff',
-  color: '#0f172a',
+  background: palette.white,
+  color: palette.slate900,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '14px',
   padding: '24px',
@@ -55,8 +56,8 @@ function JsonNode({
   if (isPrimitive(value)) {
     return (
       <div style={{ fontFamily: 'monospace', lineHeight: 1.6 }}>
-        {name !== undefined ? <span style={{ color: '#64748b' }}>{name}: </span> : null}
-        <span style={{ color: '#047857' }}>
+        {name !== undefined ? <span style={{ color: palette.slate500 }}>{name}: </span> : null}
+        <span style={{ color: palette.emerald700 }}>
           {typeof value === 'string' ? `"${value}"` : primitiveText(value)}
         </span>
       </div>
@@ -68,11 +69,17 @@ function JsonNode({
   const label = Array.isArray(value) ? `Array(${entries.length})` : `Object(${entries.length})`;
   return (
     <details open={open} style={{ fontFamily: 'monospace', lineHeight: 1.6 }}>
-      <summary style={{ cursor: 'pointer', color: '#475569' }}>
+      <summary style={{ cursor: 'pointer', color: palette.slate600 }}>
         {name !== undefined ? `${name}: ` : ''}
         {label}
       </summary>
-      <div style={{ marginLeft: '16px', borderLeft: '1px solid #e2e8f0', paddingLeft: '12px' }}>
+      <div
+        style={{
+          marginLeft: '16px',
+          borderLeft: `1px solid ${palette.slate200}`,
+          paddingLeft: '12px',
+        }}
+      >
         {entries.map(([key, child]) => (
           <JsonNode key={key} name={key} value={child} open={nestedOpen} nestedOpen={nestedOpen} />
         ))}
@@ -168,19 +175,19 @@ export function JsonTreeViewer({ title, data, disabled, onCancel, copyText }: Js
           Copy JSON
         </button>
         {copyStatus ? (
-          <span data-testid="json-copy-status" style={{ color: '#475569' }}>
+          <span data-testid="json-copy-status" style={{ color: palette.slate600 }}>
             {copyStatus}
           </span>
         ) : null}
       </div>
       {invalidRegex ? (
-        <p data-testid="json-invalid-regex" role="alert" style={{ color: '#b91c1c' }}>
+        <p data-testid="json-invalid-regex" role="alert" style={{ color: palette.red700 }}>
           Invalid regular expression.
         </p>
       ) : (
         <div data-testid="json-tree">
           {view === NO_MATCH ? (
-            <p data-testid="json-no-matches" style={{ color: '#475569' }}>
+            <p data-testid="json-no-matches" style={{ color: palette.slate600 }}>
               No matches.
             </p>
           ) : (

@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from 'react';
 
 /**
@@ -19,9 +20,9 @@ interface ErrorBoundaryState {
 }
 
 const fallbackBox: CSSProperties = {
-  border: '1px solid #fca5a5',
-  background: '#fef2f2',
-  color: '#b91c1c',
+  border: `1px solid ${palette.red300}`,
+  background: palette.red50,
+  color: palette.red700,
   borderRadius: 6,
   padding: 12,
   fontSize: 13,
@@ -29,9 +30,9 @@ const fallbackBox: CSSProperties = {
 
 const retryButton: CSSProperties = {
   marginTop: 8,
-  border: '1px solid #fca5a5',
+  border: `1px solid ${palette.red300}`,
   background: 'transparent',
-  color: '#b91c1c',
+  color: palette.red700,
   borderRadius: 6,
   padding: '4px 10px',
   fontSize: 13,

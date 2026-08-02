@@ -1,0 +1,109 @@
+/*
+ * GENERATED FILE — DO NOT EDIT BY HAND.
+ *
+ * Source of truth: packages/shared-tokens/src/{primitives,themes,css-vars}.ts
+ * Regenerate:      pnpm --filter @bugcase/shared-tokens generate
+ *
+ * A file-snapshot test (css-vars.test.ts) fails if this file drifts from the TypeScript source.
+ */
+
+:root {
+  --bc-bg: #f8fafc;
+  --bc-surface: #ffffff;
+  --bc-surface-muted: #f1f5f9;
+  --bc-border: #e2e8f0;
+  --bc-fg: #1e293b;
+  --bc-fg-muted: #64748b;
+  --bc-accent: #2563eb;
+  --bc-accent-fg: #ffffff;
+  --bc-danger: #dc2626;
+  --bc-danger-strong: #b91c1c;
+  --bc-danger-bg: #fef2f2;
+  --bc-danger-bg-strong: #fee2e2;
+  --bc-danger-border: #fca5a5;
+  --bc-warning: #d97706;
+  --bc-warning-strong: #b45309;
+  --bc-warning-bg: #fffbeb;
+  --bc-warning-bg-strong: #fef3c7;
+  --bc-warning-on-bg: #78350f;
+  --bc-warning-border: #fbbf24;
+  --bc-success: #047857;
+  --bc-syntax-value: #047857;
+  --bc-syntax-key: #64748b;
+  --bc-syntax-summary: #475569;
+  --bc-syntax-guide: #e2e8f0;
+  --bc-step-click: #1d4ed8;
+  --bc-step-input: #047857;
+  --bc-step-scroll: #475569;
+  --bc-step-modifier: #7e22ce;
+  --bc-step-navigation: #b45309;
+  --bc-radius: 0.5rem;
+}
+
+/* Pre-JS fallback: correct colours for a dark-OS visitor before the theme controller mounts. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bc-bg: #0f172a;
+    --bc-surface: #1e293b;
+    --bc-surface-muted: #334155;
+    --bc-border: #334155;
+    --bc-fg: #e2e8f0;
+    --bc-fg-muted: #94a3b8;
+    --bc-accent: #3b82f6;
+    --bc-accent-fg: #ffffff;
+    --bc-danger: #dc2626;
+    --bc-danger-strong: #b91c1c;
+    --bc-danger-bg: #fef2f2;
+    --bc-danger-bg-strong: #fee2e2;
+    --bc-danger-border: #fca5a5;
+    --bc-warning: #d97706;
+    --bc-warning-strong: #b45309;
+    --bc-warning-bg: #451a03;
+    --bc-warning-bg-strong: #fef3c7;
+    --bc-warning-on-bg: #fde68a;
+    --bc-warning-border: #f59e0b;
+    --bc-success: #047857;
+    --bc-syntax-value: #047857;
+    --bc-syntax-key: #64748b;
+    --bc-syntax-summary: #475569;
+    --bc-syntax-guide: #e2e8f0;
+    --bc-step-click: #93c5fd;
+    --bc-step-input: #6ee7b7;
+    --bc-step-scroll: #cbd5e1;
+    --bc-step-modifier: #d8b4fe;
+    --bc-step-navigation: #fcd34d;
+  }
+}
+
+/* The resolved attribute written by the theme controller. */
+:root[data-theme='dark'] {
+  --bc-bg: #0f172a;
+  --bc-surface: #1e293b;
+  --bc-surface-muted: #334155;
+  --bc-border: #334155;
+  --bc-fg: #e2e8f0;
+  --bc-fg-muted: #94a3b8;
+  --bc-accent: #3b82f6;
+  --bc-accent-fg: #ffffff;
+  --bc-danger: #dc2626;
+  --bc-danger-strong: #b91c1c;
+  --bc-danger-bg: #fef2f2;
+  --bc-danger-bg-strong: #fee2e2;
+  --bc-danger-border: #fca5a5;
+  --bc-warning: #d97706;
+  --bc-warning-strong: #b45309;
+  --bc-warning-bg: #451a03;
+  --bc-warning-bg-strong: #fef3c7;
+  --bc-warning-on-bg: #fde68a;
+  --bc-warning-border: #f59e0b;
+  --bc-success: #047857;
+  --bc-syntax-value: #047857;
+  --bc-syntax-key: #64748b;
+  --bc-syntax-summary: #475569;
+  --bc-syntax-guide: #e2e8f0;
+  --bc-step-click: #93c5fd;
+  --bc-step-input: #6ee7b7;
+  --bc-step-scroll: #cbd5e1;
+  --bc-step-modifier: #d8b4fe;
+  --bc-step-navigation: #fcd34d;
+}

@@ -1,4 +1,5 @@
 import type { ScreenshotRef } from '@bugcase/schema';
+import { palette } from '@bugcase/shared-tokens';
 import type Konva from 'konva';
 import {
   useEffect,
@@ -465,12 +466,12 @@ export function KonvaAnnotationCanvas({
       />
 
       {status === 'loading' ? (
-        <p data-testid="annotation-canvas-loading" style={{ color: '#e2e8f0' }}>
+        <p data-testid="annotation-canvas-loading" style={{ color: palette.slate200 }}>
           Loading…
         </p>
       ) : null}
       {status === 'error' ? (
-        <p data-testid="annotation-canvas-error" role="alert" style={{ color: '#fca5a5' }}>
+        <p data-testid="annotation-canvas-error" role="alert" style={{ color: palette.red300 }}>
           Couldn’t load this screenshot. It may have expired — capture again.
         </p>
       ) : null}
@@ -526,7 +527,7 @@ export function KonvaAnnotationCanvas({
                   font: `${DEFAULT_FONT_SIZE * displayScale}px sans-serif`,
                   color: state.color,
                   background: 'rgba(255,255,255,0.9)',
-                  border: '1px solid #2563eb',
+                  border: `1px solid ${palette.blue600}`,
                   resize: 'none',
                   zIndex: 4,
                 }}

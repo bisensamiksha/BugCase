@@ -1,9 +1,10 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties, ReactNode } from 'react';
 
 const noteStyle: CSSProperties = {
-  border: '1px solid #f59e0b',
-  background: '#fffbeb',
-  color: '#78350f',
+  border: `1px solid ${palette.amber500}`,
+  background: palette.amber50,
+  color: palette.amber900,
   borderRadius: '8px',
   padding: '12px',
   margin: '12px 0',

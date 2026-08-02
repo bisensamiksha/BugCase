@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import { revealDownload, type RevealResult } from '../lib/reveal-download';
@@ -21,21 +22,21 @@ export interface ReportHistoryProps {
 }
 
 const sectionStyle: CSSProperties = {
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '8px',
   padding: '12px 16px',
   margin: '0 0 16px',
 };
 const legendStyle: CSSProperties = { fontSize: '13px', fontWeight: 600, margin: '0 0 8px' };
-const mutedStyle: CSSProperties = { color: '#475569', margin: '0 0 8px' };
+const mutedStyle: CSSProperties = { color: palette.slate600, margin: '0 0 8px' };
 const rowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '12px',
   padding: '8px 0',
-  borderBottom: '1px solid #e2e8f0',
+  borderBottom: `1px solid ${palette.slate200}`,
 };
-const metaStyle: CSSProperties = { color: '#475569', fontSize: '12px' };
+const metaStyle: CSSProperties = { color: palette.slate600, fontSize: '12px' };
 
 /** A readable local timestamp; falls back to the raw value when it isn't a parseable date. */
 function formatCapturedAt(iso: string): string {

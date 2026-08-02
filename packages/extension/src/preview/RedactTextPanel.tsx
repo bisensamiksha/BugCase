@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import { useState, type CSSProperties } from 'react';
 
 import {
@@ -32,7 +33,7 @@ type Status =
   | { readonly kind: 'error'; readonly message: string };
 
 const wrapStyle: CSSProperties = {
-  border: '1px solid #e2e8f0',
+  border: `1px solid ${palette.slate200}`,
   borderRadius: '8px',
   padding: '12px',
   margin: '12px 0',
@@ -43,7 +44,7 @@ const rowStyle: CSSProperties = { display: 'flex', gap: '8px', alignItems: 'cent
 const inputStyle: CSSProperties = {
   flex: 1,
   padding: '6px 8px',
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${palette.slate300}`,
   borderRadius: '6px',
   fontSize: '13px',
 };
@@ -52,13 +53,13 @@ const buttonStyle: CSSProperties = {
   padding: '6px 12px',
   borderRadius: '6px',
   border: 'none',
-  background: '#2563eb',
-  color: '#ffffff',
+  background: palette.blue600,
+  color: palette.white,
   fontWeight: 600,
   cursor: 'pointer',
 };
 
-const noteStyle: CSSProperties = { margin: '8px 0 0', fontSize: '12px', color: '#475569' };
+const noteStyle: CSSProperties = { margin: '8px 0 0', fontSize: '12px', color: palette.slate600 };
 
 function defaultSend(message: RedactTextRequest): Promise<RedactTextResponse> {
   return browser.runtime.sendMessage<RedactTextRequest, RedactTextResponse>(message);
@@ -136,7 +137,11 @@ export function RedactTextPanel({ reportId, send, disabled }: RedactTextPanelPro
         </p>
       ) : null}
       {status.kind === 'error' ? (
-        <p style={{ ...noteStyle, color: '#b91c1c' }} data-testid="redact-text-status" role="alert">
+        <p
+          style={{ ...noteStyle, color: palette.red700 }}
+          data-testid="redact-text-status"
+          role="alert"
+        >
           {status.message}
         </p>
       ) : null}

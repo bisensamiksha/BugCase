@@ -1,3 +1,4 @@
+import { palette } from '@bugcase/shared-tokens';
 import type { CSSProperties } from 'react';
 
 export interface DebuggerBannerProps {
@@ -14,8 +15,8 @@ const bannerStyle: CSSProperties = {
   gap: '8px',
   padding: '8px 12px',
   borderRadius: '8px',
-  background: '#7c2d12',
-  color: '#ffedd5',
+  background: palette.orange900,
+  color: palette.orange100,
   fontFamily: 'system-ui, -apple-system, sans-serif',
   fontSize: '13px',
   fontWeight: 600,
@@ -25,7 +26,7 @@ const dotStyle: CSSProperties = {
   width: '8px',
   height: '8px',
   borderRadius: '50%',
-  background: '#f97316',
+  background: palette.orange500,
   flex: '0 0 auto',
 };
 

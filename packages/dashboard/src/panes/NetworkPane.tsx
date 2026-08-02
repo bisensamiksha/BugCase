@@ -334,7 +334,11 @@ export function NetworkPane({ log }: NetworkPaneProps) {
       </div>
 
       {invalidRegex ? (
-        <p data-testid="network-invalid-regex" role="alert" className="mb-2 text-sm text-red-600">
+        <p
+          data-testid="network-invalid-regex"
+          role="alert"
+          className="mb-2 text-sm text-[var(--bc-danger)]"
+        >
           Invalid regular expression.
         </p>
       ) : null}
@@ -429,7 +433,7 @@ export function NetworkPane({ log }: NetworkPaneProps) {
                 {selected.url}
               </p>
               {selected.errorText ? (
-                <p className="mt-1 text-xs text-red-600">{selected.errorText}</p>
+                <p className="mt-1 text-xs text-[var(--bc-danger)]">{selected.errorText}</p>
               ) : null}
               <button
                 type="button"

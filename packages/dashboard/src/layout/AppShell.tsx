@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { DASHBOARD_PANES, PANE_LABELS, formatHash, type RouteState } from '../router/hash-router';
 
 export interface AppShellProps {
@@ -22,6 +23,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
     <div className="flex min-h-screen flex-col bg-[var(--bc-bg)] text-[var(--bc-fg)]">
       <header
         data-testid="app-topbar"
+        data-print-hide
         className="flex items-center gap-3 border-b border-[var(--bc-border)] bg-[var(--bc-surface)] px-4 py-3"
       >
         <h1 className="text-base font-bold">BugCase Dashboard</h1>
@@ -35,11 +37,13 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
         >
           {tabs}
         </div>
+        <ThemeToggle />
       </header>
 
       <div className="flex flex-1">
         <nav
           data-testid="app-sidenav"
+          data-print-hide
           aria-label="Report sections"
           className="w-44 shrink-0 border-r border-[var(--bc-border)] bg-[var(--bc-surface)] p-2"
         >
@@ -73,6 +77,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
 
       <footer
         data-testid="legal-footer"
+        data-print-hide
         className="border-t border-[var(--bc-border)] bg-[var(--bc-surface)] px-4 py-2 text-xs text-[var(--bc-fg-muted)]"
       >
         <a

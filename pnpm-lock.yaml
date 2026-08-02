@@ -71,6 +71,9 @@ importers:
       '@bugcase/schema':
         specifier: workspace:*
         version: link:../schema
+      '@bugcase/shared-tokens':
+        specifier: workspace:*
+        version: link:../shared-tokens
       '@bugcase/shared-ui':
         specifier: workspace:*
         version: link:../shared-ui
@@ -132,6 +135,9 @@ importers:
       '@bugcase/schema':
         specifier: workspace:*
         version: link:../schema
+      '@bugcase/shared-tokens':
+        specifier: workspace:*
+        version: link:../shared-tokens
       '@bugcase/shared-ui':
         specifier: workspace:*
         version: link:../shared-ui
@@ -228,6 +234,12 @@ importers:
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.41
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@20.19.41)(jsdom@29.1.1)
+
+  packages/shared-tokens:
+    devDependencies:
       vitest:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@20.19.41)(jsdom@29.1.1)
