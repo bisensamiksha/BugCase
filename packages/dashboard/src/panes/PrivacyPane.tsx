@@ -15,8 +15,8 @@ const MUTED = 'text-sm text-[var(--bc-fg-muted)]';
 const TH = 'px-2 py-1 text-left text-xs font-semibold text-[var(--bc-fg-muted)]';
 const TD = 'px-2 py-1 align-top text-xs text-[var(--bc-fg)]';
 const DISCLOSURE =
-  'rounded-[var(--bc-radius)] border border-amber-400/60 bg-amber-50 p-3 text-sm text-amber-900 ' +
-  'dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200';
+  'rounded-[var(--bc-radius)] border border-[var(--bc-warning-border)] bg-[var(--bc-warning-bg)] ' +
+  'p-3 text-sm text-[var(--bc-warning-on-bg)]';
 
 /**
  * Privacy pane (S4-13): recorded evidence, not configured intent — the scrubber rules that

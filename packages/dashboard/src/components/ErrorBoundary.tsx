@@ -46,14 +46,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       <div
         data-testid="async-boundary-fallback"
         role="alert"
-        className="rounded-[var(--bc-radius)] border border-red-300 bg-red-50 p-4 text-sm text-red-700"
+        className="rounded-[var(--bc-radius)] border border-[var(--bc-danger-border)] bg-[var(--bc-danger-bg)] p-4 text-sm text-[var(--bc-danger-strong)]"
       >
         <p className="font-medium">Something went wrong displaying this view.</p>
         <button
           type="button"
           data-testid="async-boundary-retry"
           onClick={this.reset}
-          className="mt-2 rounded-[var(--bc-radius)] border border-red-300 px-3 py-1 text-sm font-medium hover:bg-red-100"
+          className="mt-2 rounded-[var(--bc-radius)] border border-[var(--bc-danger-border)] px-3 py-1 text-sm font-medium hover:bg-[var(--bc-danger-bg-strong)]"
         >
           Try again
         </button>

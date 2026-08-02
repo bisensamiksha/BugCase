@@ -270,7 +270,7 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
       >
         {/* A later failed drop while a report stays open surfaces as a transient banner. */}
         {activeReport && status === 'error' && error ? (
-          <p data-testid="error" role="alert" className="mb-3 text-red-600">
+          <p data-testid="error" role="alert" className="mb-3 text-[var(--bc-danger)]">
             {error}
           </p>
         ) : null}

@@ -17,8 +17,8 @@ export interface ConsolePaneProps {
 const ROW_H = 28;
 
 const LEVEL_CLASS: Partial<Record<ConsoleLevel, string>> = {
-  error: 'text-red-600',
-  warn: 'text-amber-600',
+  error: 'text-[var(--bc-danger)]',
+  warn: 'text-[var(--bc-warning)]',
 };
 
 function messageOf(entry: ConsoleEntry): string {
@@ -184,7 +184,11 @@ export function ConsolePane({ log }: ConsolePaneProps) {
       </div>
 
       {invalidRegex ? (
-        <p data-testid="console-invalid-regex" role="alert" className="mb-2 text-sm text-red-600">
+        <p
+          data-testid="console-invalid-regex"
+          role="alert"
+          className="mb-2 text-sm text-[var(--bc-danger)]"
+        >
           Invalid regular expression.
         </p>
       ) : null}

@@ -28,12 +28,12 @@ const BTN =
   'rounded border border-[var(--bc-border)] px-2 py-0.5 text-sm text-[var(--bc-fg)] disabled:opacity-50';
 
 const TYPE_TINT: Record<ReproStepType, string> = {
-  click: 'text-blue-700 dark:text-blue-300',
-  input: 'text-emerald-700 dark:text-emerald-300',
-  change: 'text-emerald-700 dark:text-emerald-300',
-  scroll: 'text-slate-600 dark:text-slate-300',
-  'keydown-modifier': 'text-purple-700 dark:text-purple-300',
-  navigation: 'text-amber-700 dark:text-amber-300',
+  click: 'text-[var(--bc-step-click)]',
+  input: 'text-[var(--bc-step-input)]',
+  change: 'text-[var(--bc-step-input)]',
+  scroll: 'text-[var(--bc-step-scroll)]',
+  'keydown-modifier': 'text-[var(--bc-step-modifier)]',
+  navigation: 'text-[var(--bc-step-navigation)]',
 };
 
 /**
@@ -177,7 +177,11 @@ export function ReproductionPane({ reproduction, reportId }: ReproductionPanePro
       </div>
 
       {copyError ? (
-        <p data-testid="repro-copy-error" role="alert" className="mb-2 text-sm text-red-600">
+        <p
+          data-testid="repro-copy-error"
+          role="alert"
+          className="mb-2 text-sm text-[var(--bc-danger)]"
+        >
           {copyError}
         </p>
       ) : null}

@@ -14,9 +14,9 @@ export interface OverviewPaneProps {
 }
 
 const SEVERITY_BADGE: Record<Severity, string> = {
-  minor: 'bg-slate-100 text-slate-600',
-  major: 'bg-amber-100 text-amber-700',
-  critical: 'bg-red-100 text-red-700',
+  minor: 'bg-[var(--bc-surface-muted)] text-[var(--bc-fg-muted)]',
+  major: 'bg-[var(--bc-warning-bg-strong)] text-[var(--bc-warning-strong)]',
+  critical: 'bg-[var(--bc-danger-bg-strong)] text-[var(--bc-danger-strong)]',
 };
 
 function capitalize(value: string): string {
@@ -74,10 +74,14 @@ function MetricTile({
     <div
       data-testid={testid}
       className={`rounded-[var(--bc-radius)] border p-3 text-center ${
-        emphasized ? 'border-red-300 bg-red-50' : 'border-[var(--bc-border)] bg-[var(--bc-surface)]'
+        emphasized
+          ? 'border-[var(--bc-danger-border)] bg-[var(--bc-danger-bg)]'
+          : 'border-[var(--bc-border)] bg-[var(--bc-surface)]'
       }`}
     >
-      <div className={`text-2xl font-bold ${emphasized ? 'text-red-600' : 'text-[var(--bc-fg)]'}`}>
+      <div
+        className={`text-2xl font-bold ${emphasized ? 'text-[var(--bc-danger)]' : 'text-[var(--bc-fg)]'}`}
+      >
         {value}
       </div>
       <div className="mt-0.5 text-xs text-[var(--bc-fg-muted)]">{label}</div>
