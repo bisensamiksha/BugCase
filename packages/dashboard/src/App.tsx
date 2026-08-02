@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
+import { PrintHeader } from './components/PrintHeader';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
 import {
@@ -286,6 +287,8 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
             }}
             className="h-full"
           >
+            {/* Print-only; identifies the capture on paper (S4-25). */}
+            <PrintHeader report={activeReport.report} />
             <LoadedPane
               pane={route.activePane}
               report={activeReport.report}

@@ -1,0 +1,74 @@
+/*
+ * Print-to-PDF layout (S4-25).
+ *
+ * Printing produces the pane in view, single column, preceded by an identifying header — that PDF
+ * is usually going onto a ticket, so it has to say which capture it came from. Chrome (side nav,
+ * top bar, tab strip, drop zone, theme toggle) is dropped via `data-print-hide`.
+ *
+ * This also reaches report.html, which bundles the dashboard — that offline single file is the
+ * artefact people actually print.
+ */
+
+@media print {
+  /*
+   * Force the light values regardless of the active theme. Printing a dark-mode page wastes ink
+   * and reads poorly; the resolved data-theme attribute is deliberately ignored here.
+   */
+  :root,
+  :root[data-theme='dark'],
+  :root[data-theme='light'] {
+    --bc-bg: #ffffff;
+    --bc-surface: #ffffff;
+    --bc-surface-muted: #ffffff;
+    --bc-border: #cbd5e1;
+    --bc-fg: #0f172a;
+    --bc-fg-muted: #334155;
+    --bc-accent: #1d4ed8;
+    --bc-accent-fg: #ffffff;
+  }
+
+  /* Shiki emits inline light colours; make sure the dark flip cannot win on paper. */
+  :root .shiki,
+  :root .shiki span {
+    color: inherit !important;
+    background-color: transparent !important;
+  }
+
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  [data-print-only] {
+    display: block !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Single column: the shell's flex row becomes a stack once the nav is gone. */
+  [data-testid='app-content'] {
+    padding: 0 !important;
+  }
+
+  /*
+   * Unclamp scroll containers. On screen the panes cap their height and scroll; on paper anything
+   * past the cap would simply be cut off, which silently loses console lines and network rows.
+   */
+  [data-testid='app-content'] * {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Keep rows and cards from being split across a page break. */
+  tr,
+  li,
+  [data-print-keep] {
+    break-inside: avoid;
+  }
+
+  a {
+    text-decoration: none;
+  }
+}

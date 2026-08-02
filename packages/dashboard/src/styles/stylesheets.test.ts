@@ -33,3 +33,38 @@ describe('shiki-theme.css', () => {
     expect(css).toContain('!important');
   });
 });
+
+describe('print.css', () => {
+  it('scopes everything to @media print', async () => {
+    const css = await read('print.css');
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Any rule outside the print block would leak into the on-screen dashboard.
+    expect(withoutComments.trim().startsWith('@media print')).toBe(true);
+  });
+
+  it('hides chrome and reveals print-only content', async () => {
+    const css = await read('print.css');
+    expect(css).toContain('[data-print-hide]');
+    expect(css).toContain('display: none !important');
+    expect(css).toContain('[data-print-only]');
+    expect(css).toContain('display: block !important');
+  });
+
+  it('forces the light token values regardless of the resolved theme', async () => {
+    const css = await read('print.css');
+    // Printing a dark page wastes ink; the data-theme attribute is deliberately overridden.
+    expect(css).toContain(":root[data-theme='dark']");
+    expect(css).toContain('--bc-bg: #ffffff');
+    expect(css).toContain('--bc-fg: #0f172a');
+  });
+
+  it('unclamps scroll containers so nothing is cut at the fold', async () => {
+    const css = await read('print.css');
+    expect(css).toContain('max-height: none !important');
+    expect(css).toContain('overflow: visible !important');
+  });
+
+  it('avoids breaking rows across pages', async () => {
+    expect(await read('print.css')).toContain('break-inside: avoid');
+  });
+});
