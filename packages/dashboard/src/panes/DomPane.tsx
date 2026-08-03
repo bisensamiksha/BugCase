@@ -6,6 +6,7 @@ import { SandboxFrame } from '../components/SandboxFrame';
 import { formatByteSize } from '../lib/format-bytes';
 import type { ReportSource } from '../lib/report-source';
 import { highlightHtml, type HighlightResult } from '../lib/shiki';
+import type { DomTab, DomViewState } from '../router/hash-state';
 
 import {
   elementBreadcrumb,
@@ -23,6 +24,10 @@ export interface DomPaneProps {
   readonly source: ReportSource;
   /** `?el=` deep-link selector (S4-11 seam): pre-fills the search and selects the first match. */
   readonly initialElementQuery?: string | null;
+  /** `?tab=` from the hash (S4-26); anything but `source` opens the rendered view. */
+  readonly initialTab?: DomTab;
+  /** Called when the tab or element query changes, so the caller can reflect it into the hash. */
+  readonly onViewChange?: (state: DomViewState) => void;
 }
 
 type SnapshotTab = 'rendered' | 'source';
@@ -39,12 +44,18 @@ const TAB_IDS: Record<SnapshotTab, { tab: string; panel: string }> = {
  * as an outline (the sandbox permits no scripts, so nothing can be highlighted live), and the
  * `?el=` hash param deep-links straight to a match.
  */
-export function DomPane({ dom, source, initialElementQuery }: DomPaneProps) {
+export function DomPane({
+  dom,
+  source,
+  initialElementQuery,
+  initialTab,
+  onViewChange,
+}: DomPaneProps) {
   const [html, setHtml] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState(initialElementQuery ?? '');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [tab, setTab] = useState<SnapshotTab>('rendered');
+  const [tab, setTab] = useState<SnapshotTab>(initialTab === 'source' ? 'source' : 'rendered');
   const [highlight, setHighlight] = useState<HighlightResult | null>(null);
   const renderedTabRef = useRef<HTMLButtonElement>(null);
   const sourceTabRef = useRef<HTMLButtonElement>(null);
@@ -126,6 +137,12 @@ export function DomPane({ dom, source, initialElementQuery }: DomPaneProps) {
     }
     return markedSnapshotHtml(html, query, activeIndex % matches.length) ?? html;
   }, [html, activeMatch, query, activeIndex, matches.length]);
+
+  // Report the shareable view state (S4-26). The element query is the pane's search box — the same
+  // value the `?el=` deep-link seeds — so one param round-trips both directions.
+  useEffect(() => {
+    onViewChange?.({ elementQuery: query, tab });
+  }, [onViewChange, query, tab]);
 
   if (dom === null) {
     return (

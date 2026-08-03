@@ -1,16 +1,24 @@
 import type { ConsoleArg, ConsoleEntry, ConsoleLevel, ConsoleLog } from '@bugcase/schema';
 import { compileSearch } from '@bugcase/shared-ui';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { useVirtualWindow } from '../lib/virtual-window';
+import type { ConsoleFilterState } from '../router/hash-state';
 
 import { CONSOLE_LEVELS, consoleTimeRange, filterConsole, levelCounts } from './console-filters';
 
 export interface ConsolePaneProps {
   /** Parsed `report.console`; null when no console log was captured. */
   readonly log: ConsoleLog | null;
+  /**
+   * Filter state decoded from the URL hash (S4-26). Partial: absent fields keep their default, so a
+   * link only has to carry what differs from the default view.
+   */
+  readonly initialFilters?: Partial<ConsoleFilterState>;
+  /** Called whenever the filter state changes, so the caller can reflect it into the hash (S4-26). */
+  readonly onFiltersChange?: (state: ConsoleFilterState) => void;
 }
 
 /** Fixed row height (px) — keeps virtualization to simple windowing (no dynamic measurement). */
@@ -48,16 +56,27 @@ function ArgValue({ arg }: { readonly arg: ConsoleArg }) {
  * master–detail panel that renders object args through the shared `JsonTree`. All ZIP-derived text
  * renders as text nodes / JsonTree — never as HTML.
  */
-export function ConsolePane({ log }: ConsolePaneProps) {
+export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePaneProps) {
   const entries = useMemo(() => log?.entries ?? [], [log]);
 
-  const [activeLevels, setActiveLevels] = useState<ReadonlySet<ConsoleLevel>>(
-    () => new Set(CONSOLE_LEVELS),
+  // Seeded once from the route; the pane owns its filter state from then on (S4-26). An empty
+  // seeded level set means "nothing valid survived decoding" — fall back to all levels rather than
+  // rendering an empty pane.
+  const [activeLevels, setActiveLevels] = useState<ReadonlySet<ConsoleLevel>>(() =>
+    initialFilters?.levels && initialFilters.levels.size > 0
+      ? new Set(initialFilters.levels)
+      : new Set(CONSOLE_LEVELS),
   );
-  const [query, setQuery] = useState('');
-  const [useRegex, setUseRegex] = useState(false);
-  const [cutoffMs, setCutoffMs] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState(initialFilters?.query ?? '');
+  const [useRegex, setUseRegex] = useState(initialFilters?.useRegex ?? false);
+  const [cutoffMs, setCutoffMs] = useState<number | null>(initialFilters?.cutoffMs ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialFilters?.selectedId ?? null);
+
+  // Report the whole filter state on any change. Covers every setter path — chips, search, regex,
+  // the time scrubber and selection — without threading a callback through each one.
+  useEffect(() => {
+    onFiltersChange?.({ levels: activeLevels, query, useRegex, cutoffMs, selectedId });
+  }, [onFiltersChange, activeLevels, query, useRegex, cutoffMs, selectedId]);
 
   const range = useMemo(() => consoleTimeRange(entries), [entries]);
   const counts = useMemo(() => levelCounts(entries), [entries]);

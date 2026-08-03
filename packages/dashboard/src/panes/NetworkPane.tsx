@@ -6,12 +6,14 @@ import type {
   NetworkLog,
 } from '@bugcase/schema';
 import { compileSearch } from '@bugcase/shared-ui';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
 
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { toCurl } from '../lib/curl';
 import { useVirtualWindow } from '../lib/virtual-window';
+import type { NetworkFilterState } from '../router/hash-state';
 
 import { Waterfall, statusClassColor } from './Waterfall';
 import {
@@ -29,6 +31,26 @@ import {
 export interface NetworkPaneProps {
   /** Parsed `report.network`; null when no network log was captured. */
   readonly log: NetworkLog | null;
+  /**
+   * Filter state decoded from the URL hash (S4-26). Partial: absent fields keep their default. Set
+   * members are intersected with the values this report actually contains, so a link built against
+   * another capture degrades to a usable view rather than an empty table.
+   */
+  readonly initialFilters?: Partial<NetworkFilterState>;
+  /** Called whenever the filter state changes, so the caller can reflect it into the hash (S4-26). */
+  readonly onFiltersChange?: (state: NetworkFilterState) => void;
+}
+
+/** Seed an active set from the route, keeping only values present here; empty seed → everything. */
+function seedSet<T extends string>(
+  seeded: ReadonlySet<T> | undefined,
+  availableValues: readonly T[],
+): Set<T> {
+  if (!seeded || seeded.size === 0) {
+    return new Set(availableValues);
+  }
+  const kept = availableValues.filter((value) => seeded.has(value));
+  return kept.length > 0 ? new Set(kept) : new Set(availableValues);
 }
 
 /** Fixed row height (px) — keeps virtualization to simple windowing (no dynamic measurement). */
@@ -143,7 +165,7 @@ function HeaderList({
  * the shared `JsonTree`), and a copy-as-cURL action. All ZIP-derived text renders as text nodes /
  * JsonTree — never as HTML — and binary body bytes are never rendered.
  */
-export function NetworkPane({ log }: NetworkPaneProps) {
+export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPaneProps) {
   const entries = useMemo(() => log?.entries ?? [], [log]);
 
   const classes = useMemo(() => presentStatusClasses(entries), [entries]);
@@ -154,15 +176,40 @@ export function NetworkPane({ log }: NetworkPaneProps) {
   const iCounts = useMemo(() => initiatorCounts(entries), [entries]);
   const range = useMemo(() => networkTimeRange(entries), [entries]);
 
-  const [activeClasses, setActiveClasses] = useState<ReadonlySet<string>>(() => new Set(classes));
-  const [activeMethods, setActiveMethods] = useState<ReadonlySet<string>>(() => new Set(methods));
-  const [activeInitiators, setActiveInitiators] = useState<ReadonlySet<NetworkInitiator>>(
-    () => new Set(initiators),
+  // Seeded once from the route; the pane owns its filter state from then on (S4-26).
+  const [activeClasses, setActiveClasses] = useState<ReadonlySet<string>>(() =>
+    seedSet(initialFilters?.classes, classes),
   );
-  const [query, setQuery] = useState('');
-  const [useRegex, setUseRegex] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeMethods, setActiveMethods] = useState<ReadonlySet<string>>(() =>
+    seedSet(initialFilters?.methods, methods),
+  );
+  const [activeInitiators, setActiveInitiators] = useState<ReadonlySet<NetworkInitiator>>(() =>
+    seedSet(initialFilters?.initiators, initiators),
+  );
+  const [query, setQuery] = useState(initialFilters?.query ?? '');
+  const [useRegex, setUseRegex] = useState(initialFilters?.useRegex ?? false);
+  const [selectedId, setSelectedId] = useState<string | null>(initialFilters?.selectedId ?? null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Report the whole filter state on any change — chips, search, regex and selection alike.
+  useEffect(() => {
+    onFiltersChange?.({
+      classes: activeClasses,
+      methods: activeMethods,
+      initiators: activeInitiators,
+      query,
+      useRegex,
+      selectedId,
+    });
+  }, [
+    onFiltersChange,
+    activeClasses,
+    activeMethods,
+    activeInitiators,
+    query,
+    useRegex,
+    selectedId,
+  ]);
 
   const compiled = useMemo(
     () => (query ? compileSearch(query, useRegex) : null),

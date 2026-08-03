@@ -1,8 +1,15 @@
 import type { ReactNode } from 'react';
 
+import { CopyLinkButton } from '../components/CopyLinkButton';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { DASHBOARD_PANES, PANE_LABELS, formatHash, type RouteState } from '../router/hash-router';
+import {
+  DASHBOARD_PANES,
+  PANE_LABELS,
+  formatHash,
+  type DashboardPane,
+  type RouteState,
+} from '../router/hash-router';
 
 export interface AppShellProps {
   /** Current route — drives the active side-nav highlight and nav hrefs. */
@@ -11,6 +18,12 @@ export interface AppShellProps {
   readonly children: ReactNode;
   /** Optional content for the top-bar slot — the multi-ZIP tab strip (S4-02). */
   readonly tabs?: ReactNode;
+  /**
+   * Builds each nav link's href (S4-26). The App supplies one that carries the target pane's
+   * remembered filters, so leaving a pane and returning does not discard the view you built.
+   * Defaults to a plain pane+report hash.
+   */
+  readonly hrefForPane?: (pane: DashboardPane) => string;
 }
 
 /**
@@ -18,7 +31,10 @@ export interface AppShellProps {
  * panes, and a content region. Layout is Tailwind; color comes from the `--bc-*` theming tokens so
  * the shell follows light/dark automatically. It holds no report or routing state of its own.
  */
-export function AppShell({ route, children, tabs }: AppShellProps) {
+export function AppShell({ route, children, tabs, hrefForPane }: AppShellProps) {
+  const href =
+    hrefForPane ??
+    ((pane: DashboardPane) => formatHash({ activePane: pane, reportId: route.reportId }));
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bc-bg)] text-[var(--bc-fg)]">
       <header
@@ -37,6 +53,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
         >
           {tabs}
         </div>
+        <CopyLinkButton />
         <ThemeToggle />
       </header>
 
@@ -54,7 +71,7 @@ export function AppShell({ route, children, tabs }: AppShellProps) {
                 <li key={pane}>
                   <a
                     data-testid={`nav-${pane}`}
-                    href={formatHash({ activePane: pane, reportId: route.reportId })}
+                    href={href(pane)}
                     aria-current={active ? 'page' : undefined}
                     className={`block rounded-[var(--bc-radius)] px-3 py-1.5 text-sm ${
                       active

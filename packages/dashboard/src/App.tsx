@@ -1,5 +1,5 @@
 import type { BugReportV1 } from '@bugcase/schema';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
@@ -20,7 +20,18 @@ import {
 } from './lib/lazy-panes';
 import { readReportZip, type ReadReportResult } from './lib/read-report-zip';
 import type { ReportSource } from './lib/report-source';
+import { distinctMethods, presentInitiators, presentStatusClasses } from './panes/network-filters';
 import { formatHash, type DashboardPane } from './router/hash-router';
+import {
+  decodeConsoleFilters,
+  decodeDomView,
+  decodeNetworkFilters,
+  encodeConsoleFilters,
+  encodeDomView,
+  encodeNetworkFilters,
+  type NetworkAvailable,
+} from './router/hash-state';
+import { useHashParamWriter } from './router/use-hash-params';
 import { useHashRoute } from './router/use-hash-route';
 import {
   addReportTab,
@@ -50,12 +61,39 @@ function paneElement(
   reportId: string,
   source: ReportSource | undefined,
   elementQuery: string | null,
+  params: Readonly<Record<string, string>>,
+  writeParams: (next: Record<string, string>, owner: DashboardPane) => void,
 ) {
   switch (pane) {
+    // Console, Network and DOM round-trip their view state through the hash (S4-26): seeded from
+    // the decoded params, reporting back so the URL always describes what is on screen.
     case 'console':
-      return <LazyConsolePane log={report.console} />;
-    case 'network':
-      return <LazyNetworkPane log={report.network} />;
+      return (
+        <LazyConsolePane
+          log={report.console}
+          initialFilters={decodeConsoleFilters(params)}
+          onFiltersChange={(state) => {
+            writeParams(encodeConsoleFilters(state), 'console');
+          }}
+        />
+      );
+    case 'network': {
+      const entries = report.network?.entries ?? [];
+      const available: NetworkAvailable = {
+        classes: presentStatusClasses(entries),
+        methods: distinctMethods(entries),
+        initiators: presentInitiators(entries),
+      };
+      return (
+        <LazyNetworkPane
+          log={report.network}
+          initialFilters={decodeNetworkFilters(params, available)}
+          onFiltersChange={(state) => {
+            writeParams(encodeNetworkFilters(state, available), 'network');
+          }}
+        />
+      );
+    }
     case 'screenshots':
       // The pane reads image bytes lazily via the report's ReportSource; without one (should not
       // happen for an open tab) fall back to the neutral placeholder rather than throwing.
@@ -73,6 +111,10 @@ function paneElement(
           reportId={reportId}
           source={source}
           initialElementQuery={elementQuery}
+          initialTab={decodeDomView(params).tab}
+          onViewChange={(state) => {
+            writeParams(encodeDomView(state), 'dom');
+          }}
         />
       ) : (
         <LazyPanePlaceholder pane={pane} />
@@ -112,16 +154,20 @@ function LoadedPane({
   reportId,
   source,
   elementQuery,
+  params,
+  writeParams,
 }: {
   readonly pane: DashboardPane;
   readonly report: BugReportV1;
   readonly reportId: string;
   readonly source: ReportSource | undefined;
   readonly elementQuery: string | null;
+  readonly params: Readonly<Record<string, string>>;
+  readonly writeParams: (next: Record<string, string>, owner: DashboardPane) => void;
 }) {
   return (
     <Suspense fallback={<AsyncState status="loading" loadingLabel="Loading view…" />}>
-      {paneElement(pane, report, reportId, source, elementQuery)}
+      {paneElement(pane, report, reportId, source, elementQuery, params, writeParams)}
     </Suspense>
   );
 }
@@ -138,6 +184,34 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const route = useHashRoute();
+  const writeHashParams = useHashParamWriter(route);
+  /**
+   * Each pane's most recent params, keyed by pane + report (S4-26). Nav links are built from this,
+   * so leaving a pane and coming back restores the view rather than resetting to defaults. Keyed by
+   * report as well as pane so one report's filters never appear on another's.
+   */
+  const paneParamsRef = useRef<Map<string, Record<string, string>>>(new Map());
+
+  const writeParams = useCallback(
+    (next: Record<string, string>, owner: DashboardPane) => {
+      const reportId = route.reportId ?? '';
+      paneParamsRef.current.set(`${owner}:${reportId}`, next);
+      writeHashParams(next, owner);
+    },
+    [writeHashParams, route.reportId],
+  );
+
+  const hrefForPane = useCallback(
+    (pane: DashboardPane) => {
+      const remembered = paneParamsRef.current.get(`${pane}:${route.reportId ?? ''}`);
+      return formatHash({
+        activePane: pane,
+        reportId: route.reportId,
+        ...(remembered && Object.keys(remembered).length > 0 ? { params: remembered } : {}),
+      });
+    },
+    [route.reportId],
+  );
   const addInputRef = useRef<HTMLInputElement>(null);
   // Remember the last batch so the error state's Retry can re-invoke the loader on it.
   const lastFilesRef = useRef<File[]>([]);
@@ -240,7 +314,7 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
           : 'empty';
 
   return (
-    <AppShell route={route} tabs={tabBar}>
+    <AppShell route={route} tabs={tabBar} hrefForPane={hrefForPane}>
       {/* Hidden picker for the tab-bar "+" button (multi-select). */}
       <input
         ref={addInputRef}
@@ -290,11 +364,16 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
             {/* Print-only; identifies the capture on paper (S4-25). */}
             <PrintHeader report={activeReport.report} />
             <LoadedPane
+              // Keyed by report so switching tabs remounts the pane instead of carrying one
+              // report's filters onto another (S4-26).
+              key={`${route.activePane}:${activeReport.id}`}
               pane={route.activePane}
               report={activeReport.report}
               reportId={activeReport.id}
               source={sourcesRef.current.get(activeReport.id)}
               elementQuery={route.params?.el ?? null}
+              params={route.params ?? {}}
+              writeParams={writeParams}
             />
           </div>
         ) : null}
