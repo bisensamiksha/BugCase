@@ -14,7 +14,9 @@ export interface OverviewPaneProps {
 }
 
 const SEVERITY_BADGE: Record<Severity, string> = {
-  minor: 'bg-[var(--bc-surface-muted)] text-[var(--bc-fg-muted)]',
+  // `fgMuted` on `surfaceMuted` is 4.34:1 — below AA. Minor is already de-emphasised by its neutral
+  // field; muting the text as well made it the least readable badge of the three (S4-27).
+  minor: 'bg-[var(--bc-surface-muted)] text-[var(--bc-fg)]',
   major: 'bg-[var(--bc-warning-bg-strong)] text-[var(--bc-warning-strong)]',
   critical: 'bg-[var(--bc-danger-bg-strong)] text-[var(--bc-danger-strong)]',
 };
