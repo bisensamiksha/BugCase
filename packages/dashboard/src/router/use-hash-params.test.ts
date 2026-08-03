@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { RouteState } from './hash-router';
 import { createHashParamWriter, HASH_WRITE_DEBOUNCE_MS } from './use-hash-params';
 
 beforeEach(() => {
@@ -19,7 +20,7 @@ describe('createHashParamWriter', () => {
     const replaceState = vi.spyOn(window.history, 'replaceState');
     const writer = createHashParamWriter(() => route);
 
-    writer.write({ q: 'timeout' });
+    writer.write({ q: 'timeout' }, 'console');
     expect(replaceState).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS);
@@ -35,7 +36,7 @@ describe('createHashParamWriter', () => {
 
     // Typing produces one call per keystroke; the URL should be written once.
     for (const q of ['t', 'ti', 'tim', 'time']) {
-      writer.write({ q });
+      writer.write({ q }, 'console');
       vi.advanceTimersByTime(50);
     }
     vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS);
@@ -49,7 +50,7 @@ describe('createHashParamWriter', () => {
     const pushState = vi.spyOn(window.history, 'pushState');
     const writer = createHashParamWriter(() => route);
 
-    writer.write({ q: 'x' });
+    writer.write({ q: 'x' }, 'console');
     vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS);
 
     // Back must return to the previous pane, not replay twenty keystrokes.
@@ -61,7 +62,7 @@ describe('createHashParamWriter', () => {
     const replaceState = vi.spyOn(window.history, 'replaceState');
     const writer = createHashParamWriter(() => route);
 
-    writer.write({ q: 'pending' });
+    writer.write({ q: 'pending' }, 'console');
     writer.dispose();
     vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS * 4);
 
@@ -73,7 +74,22 @@ describe('createHashParamWriter', () => {
     const writer = createHashParamWriter(() => route);
 
     // The mount-time report of an unfiltered pane must not churn the URL.
-    writer.write({});
+    writer.write({}, 'console');
+    vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS);
+
+    expect(replaceState).not.toHaveBeenCalled();
+    writer.dispose();
+  });
+
+  it('drops a queued write once the user has left that pane', () => {
+    // Both console and network use `q`. Without this guard a console keystroke still in flight
+    // lands on whatever pane you navigated to, and seeds its search box.
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    let current: RouteState = { activePane: 'console', reportId: 'r1' };
+    const writer = createHashParamWriter(() => current);
+
+    writer.write({ q: 'bugcase' }, 'console');
+    current = { activePane: 'screenshots', reportId: 'r1' };
     vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS);
 
     expect(replaceState).not.toHaveBeenCalled();
@@ -86,7 +102,7 @@ describe('createHashParamWriter', () => {
     });
     const writer = createHashParamWriter(() => route);
 
-    writer.write({ q: 'x' });
+    writer.write({ q: 'x' }, 'console');
     expect(() => vi.advanceTimersByTime(HASH_WRITE_DEBOUNCE_MS)).not.toThrow();
 
     replaceState.mockRestore();

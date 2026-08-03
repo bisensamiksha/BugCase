@@ -81,6 +81,33 @@ test.describe('filters in the hash', () => {
     expect(await page.evaluate(() => window.history.length)).toBe(before);
   });
 
+  test('filters survive leaving the pane and coming back', async ({ page }) => {
+    await openConsole(page);
+    await page.getByTestId('console-search').fill('bugcase');
+    await expect.poll(() => hash(page)).toContain('q=bugcase');
+
+    await page.getByTestId('nav-screenshots').click();
+    await expect(page.getByTestId('nav-screenshots')).toHaveAttribute('aria-current', 'page');
+
+    await page.getByTestId('nav-console').click();
+
+    // Navigating away must not discard the view you built.
+    await expect(page.getByTestId('console-search')).toHaveValue('bugcase');
+  });
+
+  test("one pane's query does not leak into another pane", async ({ page }) => {
+    await openConsole(page);
+    await page.getByTestId('console-search').fill('bugcase');
+    await expect.poll(() => hash(page)).toContain('q=bugcase');
+
+    // Both panes use `q`; a queued write from console must never land on network.
+    await page.getByTestId('nav-network').click();
+    await expect(page.getByTestId('network-pane')).toBeVisible();
+
+    await expect(page.getByTestId('network-search')).toHaveValue('');
+    expect(await hash(page)).not.toContain('q=bugcase');
+  });
+
   test('a hand-written link with a junk filter still renders the report', async ({ page }) => {
     // Attached before navigation so an error thrown during boot cannot slip past (the pattern
     // report-html.spec.ts establishes).

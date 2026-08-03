@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { formatHash, type RouteState } from './hash-router';
+import { formatHash, type DashboardPane, type RouteState } from './hash-router';
 
 /**
  * Reflect pane filter state into the URL hash (S4-26).
@@ -21,7 +21,12 @@ import { formatHash, type RouteState } from './hash-router';
 export const HASH_WRITE_DEBOUNCE_MS = 250;
 
 export interface HashParamWriter {
-  write(params: Record<string, string>): void;
+  /**
+   * Queue a write. `owner` is the pane the params belong to: params are pane-scoped (console and
+   * network both use `q`), so a write still in flight when the user navigates must be dropped
+   * rather than landing on — and seeding — the pane they moved to.
+   */
+  write(params: Record<string, string>, owner: DashboardPane): void;
   dispose(): void;
 }
 
@@ -32,14 +37,26 @@ export interface HashParamWriter {
 export function createHashParamWriter(getRoute: () => RouteState): HashParamWriter {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: Record<string, string> | undefined;
+  let pendingOwner: DashboardPane | undefined;
 
   const flush = () => {
     timer = undefined;
     if (pending === undefined) {
       return;
     }
-    const next = formatHash({ ...getRoute(), params: pending });
+    const route = getRoute();
+    const params = pending;
+    const owner = pendingOwner;
     pending = undefined;
+    pendingOwner = undefined;
+
+    // The user left this pane while the write was in flight; its params do not describe where they
+    // are now.
+    if (owner !== undefined && owner !== route.activePane) {
+      return;
+    }
+
+    const next = formatHash({ ...route, params });
 
     // Nothing to do when the URL already says this — avoids churning history on mount, when every
     // pane reports its (unchanged) initial state.
@@ -56,8 +73,9 @@ export function createHashParamWriter(getRoute: () => RouteState): HashParamWrit
   };
 
   return {
-    write(params) {
+    write(params, owner) {
       pending = params;
+      pendingOwner = owner;
       if (timer !== undefined) {
         clearTimeout(timer);
       }
@@ -69,6 +87,7 @@ export function createHashParamWriter(getRoute: () => RouteState): HashParamWrit
         timer = undefined;
       }
       pending = undefined;
+      pendingOwner = undefined;
     },
   };
 }
@@ -77,7 +96,9 @@ export function createHashParamWriter(getRoute: () => RouteState): HashParamWrit
  * React binding for {@link createHashParamWriter}. Returns a stable `write` so panes can depend on
  * it in an effect without re-reporting on every render.
  */
-export function useHashParamWriter(route: RouteState): (params: Record<string, string>) => void {
+export function useHashParamWriter(
+  route: RouteState,
+): (params: Record<string, string>, owner: DashboardPane) => void {
   // Keep the latest route readable at flush time without rebuilding the writer, which would drop a
   // pending write on every navigation.
   const routeRef = useRef(route);

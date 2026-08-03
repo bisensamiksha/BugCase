@@ -1,5 +1,5 @@
 import type { BugReportV1 } from '@bugcase/schema';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
@@ -62,7 +62,7 @@ function paneElement(
   source: ReportSource | undefined,
   elementQuery: string | null,
   params: Readonly<Record<string, string>>,
-  writeParams: (next: Record<string, string>) => void,
+  writeParams: (next: Record<string, string>, owner: DashboardPane) => void,
 ) {
   switch (pane) {
     // Console, Network and DOM round-trip their view state through the hash (S4-26): seeded from
@@ -73,7 +73,7 @@ function paneElement(
           log={report.console}
           initialFilters={decodeConsoleFilters(params)}
           onFiltersChange={(state) => {
-            writeParams(encodeConsoleFilters(state));
+            writeParams(encodeConsoleFilters(state), 'console');
           }}
         />
       );
@@ -89,7 +89,7 @@ function paneElement(
           log={report.network}
           initialFilters={decodeNetworkFilters(params, available)}
           onFiltersChange={(state) => {
-            writeParams(encodeNetworkFilters(state, available));
+            writeParams(encodeNetworkFilters(state, available), 'network');
           }}
         />
       );
@@ -113,7 +113,7 @@ function paneElement(
           initialElementQuery={elementQuery}
           initialTab={decodeDomView(params).tab}
           onViewChange={(state) => {
-            writeParams(encodeDomView(state));
+            writeParams(encodeDomView(state), 'dom');
           }}
         />
       ) : (
@@ -163,7 +163,7 @@ function LoadedPane({
   readonly source: ReportSource | undefined;
   readonly elementQuery: string | null;
   readonly params: Readonly<Record<string, string>>;
-  readonly writeParams: (next: Record<string, string>) => void;
+  readonly writeParams: (next: Record<string, string>, owner: DashboardPane) => void;
 }) {
   return (
     <Suspense fallback={<AsyncState status="loading" loadingLabel="Loading view…" />}>
@@ -184,7 +184,34 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const route = useHashRoute();
-  const writeParams = useHashParamWriter(route);
+  const writeHashParams = useHashParamWriter(route);
+  /**
+   * Each pane's most recent params, keyed by pane + report (S4-26). Nav links are built from this,
+   * so leaving a pane and coming back restores the view rather than resetting to defaults. Keyed by
+   * report as well as pane so one report's filters never appear on another's.
+   */
+  const paneParamsRef = useRef<Map<string, Record<string, string>>>(new Map());
+
+  const writeParams = useCallback(
+    (next: Record<string, string>, owner: DashboardPane) => {
+      const reportId = route.reportId ?? '';
+      paneParamsRef.current.set(`${owner}:${reportId}`, next);
+      writeHashParams(next, owner);
+    },
+    [writeHashParams, route.reportId],
+  );
+
+  const hrefForPane = useCallback(
+    (pane: DashboardPane) => {
+      const remembered = paneParamsRef.current.get(`${pane}:${route.reportId ?? ''}`);
+      return formatHash({
+        activePane: pane,
+        reportId: route.reportId,
+        ...(remembered && Object.keys(remembered).length > 0 ? { params: remembered } : {}),
+      });
+    },
+    [route.reportId],
+  );
   const addInputRef = useRef<HTMLInputElement>(null);
   // Remember the last batch so the error state's Retry can re-invoke the loader on it.
   const lastFilesRef = useRef<File[]>([]);
@@ -287,7 +314,7 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
           : 'empty';
 
   return (
-    <AppShell route={route} tabs={tabBar}>
+    <AppShell route={route} tabs={tabBar} hrefForPane={hrefForPane}>
       {/* Hidden picker for the tab-bar "+" button (multi-select). */}
       <input
         ref={addInputRef}
