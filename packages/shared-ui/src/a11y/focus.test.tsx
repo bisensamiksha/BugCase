@@ -26,7 +26,10 @@ function Trapped({ onEscape }: { onEscape?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, { onEscape });
   return (
-    <div ref={ref} data-testid="trap">
+    // tabIndex={-1} makes the container itself focusable via script, matching how Lightbox's
+    // sectionRef focuses its own container on mount (Lightbox.tsx:100) — that is the normal
+    // starting state for the component this hook is written for.
+    <div ref={ref} data-testid="trap" tabIndex={-1}>
       <button data-testid="first">first</button>
       <button data-testid="last">last</button>
     </div>
@@ -109,6 +112,35 @@ describe('useFocusTrap', () => {
     act(() => root.render(<Empty />));
 
     expect(() => tab()).not.toThrow();
+  });
+
+  it('wraps Shift+Tab from the container itself to the last focusable', () => {
+    // Lightbox focuses its own container on mount (Lightbox.tsx:100), so "focus is on the
+    // container" is the normal starting state for the component that consumes this hook, not an
+    // edge case.
+    act(() => root.render(<Trapped />));
+    q('trap')!.focus();
+    expect(document.activeElement).toBe(q('trap'));
+
+    tab(true);
+
+    expect(document.activeElement).toBe(q('last'));
+  });
+
+  it('leaves plain Tab from the container to native tab order', () => {
+    // A tabIndex={-1} container is skipped by the browser's own tab order, so native Tab already
+    // lands on the first tabbable descendant without any help from the trap. Intercepting it here
+    // would fight the browser rather than assist it — do not "fix" this by adding an
+    // active === container branch to the non-shift arm.
+    act(() => root.render(<Trapped />));
+    q('trap')!.focus();
+
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => {
+      q('trap')!.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(false);
   });
 });
 
