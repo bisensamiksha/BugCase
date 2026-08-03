@@ -81,6 +81,10 @@ const MATRIX: readonly (readonly [Role, Role, number])[] = [
   // danger
   ['danger', 'bg', 4.5],
   ['danger', 'surface', 4.5],
+  // Doubles as the control-boundary pair: AsyncState's Retry button and ErrorBoundary's "Try
+  // again" button use `dangerStrong` as their only border, sitting on the same `dangerBg` callout
+  // background. 4.5:1 (text) already implies the 3:1 SC 1.4.11 floor a border needs, so this one
+  // entry guards both uses instead of adding a redundant, strictly-weaker second row.
   ['dangerStrong', 'dangerBg', 4.5],
   ['dangerStrong', 'dangerBgStrong', 4.5],
 
@@ -124,12 +128,19 @@ const MATRIX: readonly (readonly [Role, Role, number])[] = [
  *   the divider under a tab strip.
  * - `syntaxGuide` — the JSON tree's indent guide line. Purely a visual alignment aid; the
  *   information (nesting depth) is also conveyed structurally.
- * - `dangerBorder` / `warningBorder` — the border on a static danger/warning callout. The callout's
- *   meaning is carried by its icon and text, not by the border being visible; the border is a
- *   finishing touch, not the only way to identify it.
+ * - `dangerBorder` — the border on the static danger-callout *container* only (`AsyncState`'s and
+ *   `ErrorBoundary`'s outer `role="alert"` box, `OverviewPane`'s emphasized metric tile). The
+ *   callout's meaning is carried by its icon and text, not by that outer border being visible, so
+ *   it stays a finishing touch, not the only way to identify it. The Retry / "Try again" buttons
+ *   *nested inside* those callouts are a different case — their border is their only visible
+ *   boundary — so they were moved onto `dangerStrong` (S4-27) instead of staying on this exemption.
+ * - `warningBorder` — the border on `PrivacyPane`'s static image-disclosure `role="note"`, its only
+ *   use in the codebase. Same reasoning as `dangerBorder`'s callout container: the note's meaning
+ *   comes from its text, not its border.
  *
  * Forcing 3:1 on any of these would make every divider and callout heavy for no accessibility gain.
- * `--bc-border-strong` exists for the boundaries that are the only way to identify a control.
+ * `--bc-border-strong` / `--bc-danger-strong` exist for the boundaries that are the only way to
+ * identify a control.
  */
 const EXEMPT_DECORATIVE: readonly Role[] = [
   'border',
