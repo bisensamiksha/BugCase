@@ -14,3 +14,4 @@ export {
   type PrivacySummaryScrubber,
   type PrivacySummaryPermission,
 } from './privacy-summary';
+export { getFocusable, useFocusRestore, useFocusTrap } from './a11y/focus';
