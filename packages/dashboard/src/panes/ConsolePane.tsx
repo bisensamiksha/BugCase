@@ -143,7 +143,7 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
                   on
                     ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
-                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                    : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {level} {counts[level]}
@@ -159,7 +159,7 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
           placeholder="Search…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border-strong)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
         />
         <label className="flex items-center gap-1 text-sm text-[var(--bc-fg)]">
           <input

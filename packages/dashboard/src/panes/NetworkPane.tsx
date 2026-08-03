@@ -8,7 +8,6 @@ import type {
 import { compileSearch } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState } from 'react';
 
-
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { toCurl } from '../lib/curl';
@@ -301,7 +300,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 onClick={() => toggle(setActiveClasses, cls)}
                 style={on ? { backgroundColor: statusClassColor(cls), color: '#fff' } : undefined}
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
-                  on ? '' : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                  on ? '' : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {cls} {classCounts[cls]}
@@ -324,7 +323,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
                   on
                     ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
-                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                    : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {method} {mCounts[method]}
@@ -347,7 +346,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
                   on
                     ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
-                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                    : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {initiator} {iCounts[initiator]}
@@ -363,7 +362,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
           placeholder="Search…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border-strong)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
         />
         <label className="flex items-center gap-1 text-sm text-[var(--bc-fg)]">
           <input
@@ -486,7 +485,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 type="button"
                 data-testid="network-curl"
                 onClick={() => void copyCurl(selected)}
-                className="mt-2 rounded border border-[var(--bc-border)] px-2 py-0.5 text-xs text-[var(--bc-fg)]"
+                className="mt-2 rounded border border-[var(--bc-border-strong)] px-2 py-0.5 text-xs text-[var(--bc-fg)]"
               >
                 {copiedId === selected.id ? 'Copied' : 'Copy as cURL'}
               </button>

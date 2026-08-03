@@ -64,7 +64,7 @@ export function PrivacyPane({ report, reportId }: PrivacyPaneProps) {
           type="button"
           data-testid="privacy-download"
           onClick={onDownload}
-          className="rounded border border-[var(--bc-border)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+          className="rounded border border-[var(--bc-border-strong)] px-2 py-1 text-sm text-[var(--bc-fg)]"
         >
           Download privacy summary (JSON)
         </button>

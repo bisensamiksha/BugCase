@@ -101,8 +101,9 @@ export const lightTheme: ThemeTokens = {
  *
  * S4-25 mirrored the light values for the roles that had no `dark:` Tailwind variant — the danger
  * group, `success`, and the JSON syntax colours — and explicitly deferred the contrast judgement to
- * this ticket. S4-27 made it: those mirrors measured between 1.12:1 and 3.07:1 against a dark
- * surface, so each moved up the primitive scale until the pair matrix in `contrast.test.ts` passed.
+ * this ticket. S4-27 made it: those mirrors measured between 1.12:1 and 3.70:1 (`danger` on `bg`,
+ * red-600 on slate-900) against a dark surface, so each moved up the primitive scale until the pair
+ * matrix in `contrast.test.ts` passed.
  * The two structural fixes are `accent`/`accentFg` (white on blue-500 was 3.68:1, so the pill is now
  * a lighter blue with dark text) and the `dangerBg`/`warningBgStrong` family, which were still
  * *light* tints inside the dark theme.

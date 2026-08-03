@@ -219,7 +219,7 @@ export function DomPane({
                   setQuery(event.target.value);
                   setActiveIndex(0);
                 }}
-                className="min-w-56 rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-[var(--bc-surface)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+                className="min-w-56 rounded-[var(--bc-radius)] border border-[var(--bc-border-strong)] bg-[var(--bc-surface)] px-2 py-1 text-sm text-[var(--bc-fg)]"
               />
               {search && !search.ok ? (
                 <p
@@ -244,7 +244,7 @@ export function DomPane({
                     data-testid="dom-match-prev"
                     aria-label="Previous match"
                     onClick={() => setActiveIndex((i) => (i - 1 + matches.length) % matches.length)}
-                    className="rounded-[var(--bc-radius)] border border-[var(--bc-border)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+                    className="rounded-[var(--bc-radius)] border border-[var(--bc-border-strong)] px-2 py-1 text-sm text-[var(--bc-fg)]"
                   >
                     ↑
                   </button>
@@ -253,7 +253,7 @@ export function DomPane({
                     data-testid="dom-match-next"
                     aria-label="Next match"
                     onClick={() => setActiveIndex((i) => (i + 1) % matches.length)}
-                    className="rounded-[var(--bc-radius)] border border-[var(--bc-border)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+                    className="rounded-[var(--bc-radius)] border border-[var(--bc-border-strong)] px-2 py-1 text-sm text-[var(--bc-fg)]"
                   >
                     ↓
                   </button>

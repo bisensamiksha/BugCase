@@ -115,12 +115,21 @@ const MATRIX: readonly (readonly [Role, Role, number])[] = [
 ];
 
 /**
- * Roles deliberately absent from {@link MATRIX}, with the reason.
+ * Roles deliberately absent from {@link MATRIX}, with the reason each one is not a control
+ * boundary under SC 1.4.11:
  *
- * SC 1.4.11 covers boundaries needed to *identify a control*. It does not cover decoration: card
- * dividers, table rules and the JSON tree's indent guide carry no information and are exempt.
- * Forcing 3:1 on them would make every divider heavy. `--bc-border-strong` exists for the
- * boundaries that do identify a control.
+ * - `border` — card, table and scroll-container boundaries only. Every dashboard control (button,
+ *   input, select, textarea) that used to sit on `border` was migrated to `--bc-border-strong`
+ *   (S4-27); what is left on `border` is decoration, e.g. the boundary around a screenshot card or
+ *   the divider under a tab strip.
+ * - `syntaxGuide` — the JSON tree's indent guide line. Purely a visual alignment aid; the
+ *   information (nesting depth) is also conveyed structurally.
+ * - `dangerBorder` / `warningBorder` — the border on a static danger/warning callout. The callout's
+ *   meaning is carried by its icon and text, not by the border being visible; the border is a
+ *   finishing touch, not the only way to identify it.
+ *
+ * Forcing 3:1 on any of these would make every divider and callout heavy for no accessibility gain.
+ * `--bc-border-strong` exists for the boundaries that are the only way to identify a control.
  */
 const EXEMPT_DECORATIVE: readonly Role[] = [
   'border',
