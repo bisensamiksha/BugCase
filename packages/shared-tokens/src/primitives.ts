@@ -27,6 +27,7 @@ export const palette = {
   slate900: '#0f172a',
 
   blue300: '#93c5fd',
+  blue400: '#60a5fa',
   blue500: '#3b82f6',
   blue600: '#2563eb',
   blue700: '#1d4ed8',
@@ -35,10 +36,13 @@ export const palette = {
   red100: '#fee2e2',
   red200: '#fecaca',
   red300: '#fca5a5',
+  red400: '#f87171',
   red500: '#ef4444',
   red600: '#dc2626',
   red700: '#b91c1c',
   red800: '#991b1b',
+  red900: '#7f1d1d',
+  red950: '#450a0a',
 
   amber50: '#fffbeb',
   amber100: '#fef3c7',
@@ -52,6 +56,7 @@ export const palette = {
   amber950: '#451a03',
 
   emerald300: '#6ee7b7',
+  emerald400: '#34d399',
   emerald700: '#047857',
 
   green500: '#22c55e',
