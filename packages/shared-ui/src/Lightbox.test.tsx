@@ -97,4 +97,31 @@ describe('Lightbox', () => {
     press('Escape');
     expect(onCancel).not.toHaveBeenCalled();
   });
+
+  it('keeps Tab inside the dialog', async () => {
+    await render();
+
+    // The close button is the last control in the toolbar; Tab from it must wrap, not escape.
+    const close = q('lightbox-close')!;
+    close.focus();
+    act(() => {
+      close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    });
+
+    expect(container.contains(document.activeElement)).toBe(true);
+  });
+
+  it('returns focus to the element that opened it', async () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+
+    await render();
+    expect(document.activeElement).not.toBe(opener);
+
+    act(() => root.unmount());
+
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
 });

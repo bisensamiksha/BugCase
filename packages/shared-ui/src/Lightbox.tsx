@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 
+import { useFocusRestore, useFocusTrap } from './a11y/focus';
 import { useZoomPan } from './useZoomPan';
 
 export interface LightboxProps {
@@ -63,6 +64,13 @@ export function Lightbox({ load, loadKey, alt, disabled, onCancel, errorMessage 
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [src, setSrc] = useState<string | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
+  // The dialog is modal: Tab must not reach the page behind it, and closing must not strand focus
+  // on <body>. `useFocusTrap` is called *without* `onEscape` on purpose — `handleKeyDown` below
+  // already owns Escape (along with the zoom and pan keys), and passing it here would call
+  // `onCancel` twice. `useFocusRestore(true)` is unconditional because this component only ever
+  // renders while open; the caller unmounts it to close, which is what triggers the restore.
+  useFocusTrap(sectionRef);
+  useFocusRestore(true);
   const drag = useRef<{ x: number; y: number } | null>(null);
   // Keep the latest loader without making it an effect dep (it is a fresh closure each render);
   // `loadKey` is the explicit re-run trigger.
