@@ -109,7 +109,7 @@ export function AppShell({
           id="main"
           tabIndex={-1}
           data-testid="app-content"
-          className="min-w-0 flex-1 p-4 outline-none"
+          className="min-w-0 flex-1 p-4"
         >
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

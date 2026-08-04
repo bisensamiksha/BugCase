@@ -291,4 +291,27 @@ describe('dashboard layout shell', () => {
     expect(live!.getAttribute('role')).toBe('status');
     expect(live!.className).toContain('sr-only');
   });
+
+  it('activates the skip link without letting the hash router reset the route', async () => {
+    window.location.hash = '#/network';
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+    expect(q('nav-network')?.getAttribute('aria-current')).toBe('page');
+
+    const skip = q('skip-to-content') as HTMLAnchorElement;
+    await act(async () => {
+      skip.click();
+      // jsdom defers an anchor's default navigation via setTimeout(0) (verified directly against
+      // jsdom's HTMLHyperlinkElementUtils-impl.js). Flush it so an unguarded click would already
+      // have let `#main` reach the hash router by the time we assert — parseHash treats an
+      // unrecognized fragment like '#main' as unknown and falls back to Overview, discarding the
+      // active pane and, via App's tab lookup, the active report tab (S4-27 review finding).
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(window.location.hash).toBe('#/network');
+    expect(q('nav-network')?.getAttribute('aria-current')).toBe('page');
+    expect(document.activeElement).toBe(q('app-content'));
+  });
 });
