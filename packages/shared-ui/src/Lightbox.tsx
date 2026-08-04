@@ -69,6 +69,14 @@ export function Lightbox({ load, loadKey, alt, disabled, onCancel, errorMessage 
   // already owns Escape (along with the zoom and pan keys), and passing it here would call
   // `onCancel` twice. `useFocusRestore(true)` is unconditional because this component only ever
   // renders while open; the caller unmounts it to close, which is what triggers the restore.
+  //
+  // This trap/restore addition (S4-27) reaches BOTH surfaces that consume this component, not just
+  // the dashboard the ticket scoped: `packages/extension/src/preview/Lightbox.tsx` wraps this same
+  // `Lightbox` for the extension's own screenshot viewer. Extension-surface a11y was out of scope for
+  // S4-27, but because the two surfaces share this implementation, the improvement lands there anyway
+  // — verified as a genuine improvement, not a regression (the extension's full test suite passes
+  // unchanged). Flagging it here so the cross-surface impact isn't invisible to a future reader who
+  // only sees this file's dashboard-focused history.
   useFocusTrap(sectionRef);
   useFocusRestore(true);
   const drag = useRef<{ x: number; y: number } | null>(null);

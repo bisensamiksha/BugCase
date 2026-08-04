@@ -48,6 +48,8 @@ export {
   barGeometry,
   statusClassColor,
   STATUS_CLASS_COLOR,
+  statusClassTextColor,
+  STATUS_CLASS_TEXT_COLOR,
   type WaterfallProps,
   type BarGeometry,
 } from './panes/Waterfall';

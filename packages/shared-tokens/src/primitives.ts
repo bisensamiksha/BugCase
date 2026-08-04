@@ -68,6 +68,24 @@ export const palette = {
 
   purple300: '#d8b4fe',
   purple700: '#7e22ce',
+
+  /**
+   * Hand-tuned, non-stock shades (S4-27 review fix round 2) — not on the standard Tailwind 50–950
+   * scale, unlike everything else in this file. `Waterfall.tsx`'s `STATUS_CLASS_COLOR` needs fills
+   * that are simultaneously ≥4.5:1 against white text (the status filter chips) AND ≥3:1 against
+   * both themes' `bg`/`surface` (the waterfall bars, a graphical use under WCAG 1.4.11). Because the
+   * dark theme's `surface` (`slate800`, `#1e293b`) sits at a very low luminance, that is a narrow
+   * luminance band — roughly between each hue's stock 600 and 700 shade — and for green/cyan/amber
+   * hues (which weight the luminance-heavy green channel more than red does) no stock 600 or 700
+   * shade lands inside it: 600 is too light (fails the white-text floor), 700 is too dark (fails the
+   * bar-vs-dark-surface floor). Verified with `contrastRatio` from `contrast.ts`; see
+   * `Waterfall.tsx`'s `STATUS_CLASS_COLOR` doc comment for the actual ratios. `red600` and `slate500`
+   * already exist above and sit inside the same band by coincidence — hue families with less green
+   * content land in it naturally — so only these three needed adding.
+   */
+  emerald660: '#04845e',
+  cyan670: '#0c7d9a',
+  amber690: '#b85709',
 } as const;
 
 /** A key of the primitive scale, e.g. `'slate600'`. */

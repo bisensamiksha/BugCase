@@ -5,10 +5,14 @@ import { PANE_LABELS, type DashboardPane } from '../router/hash-router';
 /**
  * The dashboard's focus entry point (S4-27).
  *
- * The generic primitives live in `@bugcase/shared-ui` because `Lightbox` needs them and shared-ui
- * cannot depend on the dashboard. They are re-exported here so dashboard code has one import site.
+ * `getFocusable`/`useFocusTrap`/`useFocusRestore` used to be re-exported from here too, justified as
+ * giving dashboard code "one import site" for focus primitives. Removed (S4-27 final review): no
+ * dashboard file ever imported them through this module — the dashboard's own focus-trapping consumer
+ * is `Lightbox`, which lives in `@bugcase/shared-ui` and imports them directly from its sibling
+ * `a11y/focus.ts` there, never through here. If a dashboard file genuinely needs them later, import
+ * from `@bugcase/shared-ui` directly — that package's `index.ts` is the real single source for those
+ * primitives; this file re-stating it added an indirection with no consumer, not a convenience.
  */
-export { getFocusable, useFocusRestore, useFocusTrap } from '@bugcase/shared-ui';
 
 /**
  * Move focus and announce when the route changes panes.

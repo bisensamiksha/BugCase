@@ -64,20 +64,30 @@
    * silently not render in some browsers, #main also gets a plain `:focus` rule, so it renders
    * unconditionally whenever #main holds focus, `:focus-visible` heuristic or not.
    *
-   * The known downside of plain `:focus` — a ring appearing after an ordinary pointer click — is
-   * real here, not hypothetical, in Chromium and Firefox: `tabIndex={-1}` makes an element click-
-   * focusable, and the HTML click default-action algorithm focuses the nearest focusable ancestor
-   * when a click lands on non-focusable content, so clicking blank padding or plain text inside
-   * <main> (not on a nested control) does focus <main> itself. Safari is the exception — by default
-   * it only moves focus on click for text-editable controls, not for a plain `tabindex="-1"`
-   * container like <main>, unless the user has "Full Keyboard Access" enabled — so this downside is
-   * Chromium/Firefox-specific, not universal. Where it does apply, the exposure is still bounded:
-   * clicking any actual control inside <main> focuses that control instead, not <main> (only one
-   * element holds focus at a time), and the ring clears the moment focus moves again — it does not
-   * linger past its own focus's lifetime. An occasional large ring around the content column from a
-   * stray click on whitespace is an acceptable, cosmetic trade-off against a route change that
-   * silently fails to show a sighted keyboard user where focus went, which is the failure this rule
-   * exists to prevent.
+   * The known downside of plain `:focus` — a ring appearing after focus that did not come from a
+   * Tab press — is real here, not hypothetical, and it is the COMMON case, not an edge case:
+   * useRouteFocus calls `main.focus()` on every single pane change, regardless of what caused it.
+   * Clicking any of the nine side-nav links with a mouse — the ordinary, expected way most users
+   * change panes — swaps the content and focuses #main exactly the same as a keyboard-driven
+   * change does, leaving a 2px accent ring around the whole content column until focus next moves.
+   * The branch's own E2E suite (`tests/e2e/dashboard-a11y.spec.ts`, "the content region shows a
+   * visible focus ring after a route change") demonstrates precisely this: it clicks a nav link
+   * with `.click()`, not a keyboard press, and then asserts the ring is visible.
+   *
+   * A second, narrower path to the same outcome is clicking blank padding or plain text inside
+   * <main> directly (not on a nested control): `tabIndex={-1}` makes an element click-focusable,
+   * and the HTML click default-action algorithm focuses the nearest focusable ancestor when a
+   * click lands on non-focusable content, so a stray click on whitespace inside <main> also
+   * focuses <main> itself in Chromium and Firefox. Safari is the exception here — by default it
+   * only moves focus on click for text-editable controls, not for a plain `tabindex="-1"`
+   * container, unless the user has "Full Keyboard Access" enabled.
+   *
+   * Either way the exposure is bounded: clicking any actual control inside <main> focuses that
+   * control instead of <main> (only one element holds focus at a time), and the ring clears the
+   * moment focus moves again — it does not linger past its own focus's lifetime. A ring around the
+   * content column after an ordinary mouse-driven pane change is an acceptable, cosmetic trade-off
+   * against a route change that silently fails to show a sighted keyboard user where focus went,
+   * which is the failure this rule exists to prevent.
    */
   #main:focus {
     outline: 2px solid var(--bc-accent);

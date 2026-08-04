@@ -274,6 +274,74 @@ test.describe('keyboard navigation', () => {
     expect(await list.getAttribute('aria-activedescendant')).not.toBe(first);
   });
 
+  test('the console list shows a visible focus ring after a real Tab press, not just .focus()', async ({
+    page,
+  }) => {
+    // S4-27 final review, Finding 1: both listbox containers ended their className with
+    // `outline-none`, which silently cancelled the shared `:focus-visible` ring (index.css) on
+    // their single tab stop — Tailwind's `.outline-none` compiles to `outline: 2px solid
+    // transparent`, ties on specificity with `:focus-visible`, and loads after it in the built CSS,
+    // so only the (invisible-on-page-background) box-shadow survived. A keyboard user Tabbing to
+    // either list saw nothing.
+    //
+    // The test above ("… driven by the arrow keys") uses `list.focus()`, which proves keyboard
+    // navigation works once the list holds focus, but a programmatic `.focus()` call cannot prove
+    // the RING itself renders — only a real Tab press can, because `:focus-visible`'s "was this
+    // keyboard-driven" heuristic is exactly what is under test here. Empirically (this test, both
+    // browser projects): a real Tab press DOES satisfy that heuristic for this element — unlike
+    // `#main`'s programmatic `.focus()` from a `useEffect` (see the route-change test below and
+    // index.css's `#main:focus` comment), a Tab-driven focus move is the ordinary case
+    // `:focus-visible` is designed for, so no `:focus` fallback rule is needed here — removing
+    // `outline-none` alone is sufficient.
+    await page.goto(report.url);
+    await page.getByTestId('nav-console').click();
+    await expect(page.getByTestId('console-pane')).toBeVisible();
+
+    const list = page.getByTestId('console-list');
+    // Bounded loop, not a single Tab: several filter controls (level chips, search, regex,
+    // time scrubber) precede the list in this pane.
+    let reached = false;
+    for (let i = 0; i < 20 && !reached; i++) {
+      await page.keyboard.press('Tab');
+      reached = await list.evaluate((el) => el === document.activeElement);
+    }
+    expect(reached).toBe(true);
+    await expect(list).toBeFocused();
+
+    const outline = await outlineOf(list);
+    console.log(
+      `[S4-27 review] console-list focus outline after real Tab: ${JSON.stringify(outline)}`,
+    );
+    expect(outline.style).not.toBe('none');
+    expect(outline.width).not.toBe('0px');
+  });
+
+  test('the network list shows a visible focus ring after a real Tab press, not just .focus()', async ({
+    page,
+  }) => {
+    // Same defect and fix as the console-list test above — NetworkPane.tsx's list container had the
+    // identical `outline-none`.
+    await page.goto(report.url);
+    await page.getByTestId('nav-network').click();
+    await expect(page.getByTestId('network-pane')).toBeVisible();
+
+    const list = page.getByTestId('network-list');
+    let reached = false;
+    for (let i = 0; i < 20 && !reached; i++) {
+      await page.keyboard.press('Tab');
+      reached = await list.evaluate((el) => el === document.activeElement);
+    }
+    expect(reached).toBe(true);
+    await expect(list).toBeFocused();
+
+    const outline = await outlineOf(list);
+    console.log(
+      `[S4-27 review] network-list focus outline after real Tab: ${JSON.stringify(outline)}`,
+    );
+    expect(outline.style).not.toBe('none');
+    expect(outline.width).not.toBe('0px');
+  });
+
   test('End scrolls the console list past the virtual window and the active row still exists', async ({
     page,
   }) => {

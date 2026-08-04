@@ -242,7 +242,22 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
         data-testid="console-list"
         aria-label="Console entries"
         {...listProps}
-        className="flex-1 overflow-auto rounded border border-[var(--bc-border)] outline-none"
+        // `outline-none` used to sit here and silently cancel the shared `:focus-visible` ring
+        // (index.css) on this container's SOLE tab stop — Tailwind's `.outline-none` compiles to
+        // `outline: 2px solid transparent`, which ties on specificity with `:focus-visible` and
+        // loads after it, so only the (invisible-on-page-bg) box-shadow survived (S4-27 review).
+        // Removed; do not reintroduce it here.
+        //
+        // `hidden` when there are no rows (rather than always rendering a full-height empty box):
+        // an empty listbox has nothing to arrow-navigate into, so it is reasonable for it to drop
+        // out of the accessibility tree and tab order along with its visible border, letting the
+        // "no matches" message below stand on its own instead of sitting under a large blank
+        // bordered box. `hidden` only toggles `display`, so `containerRef` stays attached to the
+        // same node the whole time — `useVirtualWindow`'s ref-derived state does not need to
+        // survive a remount when rows reappear.
+        className={`flex-1 overflow-auto rounded border border-[var(--bc-border)] ${
+          visible.length === 0 ? 'hidden' : ''
+        }`}
       >
         {visible.length === 0 ? null : (
           <div style={{ paddingTop: vwin.padTop, paddingBottom: vwin.padBottom }}>
