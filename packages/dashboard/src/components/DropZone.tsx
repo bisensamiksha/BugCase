@@ -48,21 +48,31 @@ export function DropZone({ onFiles }: DropZoneProps) {
         The input is `sr-only`, never `hidden`. `display:none` would take it out of the tab order,
         and this is the dashboard's only entry point — a keyboard user would have no way in (S4-27).
         The explicit for/id pairing keeps the label as the click target for pointer users.
+
+        `sr-only` clips the element's entire paint region (outline included), so a sighted keyboard
+        user who tabs here would see no focus indicator at all — a WCAG 2.4.7 failure on the app's
+        only entry point. Rather than un-hiding the native file input (its "Choose File / No file
+        chosen" widget is ugly and would shift the layout), the input carries `peer` and the visible
+        label carries `peer-focus-visible:` to draw the ring on the text the user actually reads
+        (S4-27 review). Tailwind's `peer` variant compiles to `.peer:focus-visible ~ &`, a
+        general-sibling selector that only matches LATER siblings — the input MUST come before the
+        label in DOM order for this to work. Order does not affect tab order (the label itself is
+        never focusable); `htmlFor`/`id` keeps the pointer-click association regardless of order.
       */}
-      <label
-        htmlFor="dropzone-file-input"
-        className="mt-2 inline-block cursor-pointer font-medium text-[var(--bc-accent)]"
-      >
-        choose files
-      </label>
       <input
         id="dropzone-file-input"
         type="file"
         accept=".zip,application/zip"
         multiple
-        className="sr-only"
+        className="peer sr-only"
         onChange={onSelect}
       />
+      <label
+        htmlFor="dropzone-file-input"
+        className="mt-2 inline-block cursor-pointer rounded-[var(--bc-radius)] font-medium text-[var(--bc-accent)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--bc-accent)]"
+      >
+        choose files
+      </label>
     </div>
   );
 }

@@ -251,4 +251,24 @@ describe('multi-ZIP tabs + drag-drop intake', () => {
     const label = container.querySelector<HTMLLabelElement>('label[for="dropzone-file-input"]');
     expect(label?.textContent).toContain('choose files');
   });
+
+  it('gives the sr-only file input a visible focus indicator via the peer pattern (S4-27)', () => {
+    renderApp();
+
+    const input = q('dropzone')!.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const label = container.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`)!;
+
+    // jsdom loads no CSS (confirmed above for the hidden-vs-sr-only check), so it can't render the
+    // ring or prove Tab lands on this input with visible styling in a real browser — that
+    // verification belongs to the Playwright/axe task later in this ticket. What IS verifiable
+    // here, statically, is the wiring the "peer" pattern depends on:
+    //   1. the input carries the `peer` marker class;
+    //   2. the label carries a `peer-focus-visible:` utility that targets it;
+    //   3. — load-bearing and easy to get backwards — Tailwind's `peer` variant compiles to
+    //      `.peer:focus-visible ~ &`, a general-sibling selector that only matches LATER siblings,
+    //      so the input must precede the label in DOM order or the rule silently never fires.
+    expect(input.className).toContain('peer');
+    expect(label.className).toMatch(/peer-focus-visible:/);
+    expect(input.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
