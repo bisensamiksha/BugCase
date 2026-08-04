@@ -40,7 +40,16 @@ export function barGeometry(
 /** Neutral color for `1xx` / unmapped classes. */
 const NEUTRAL_COLOR = 'var(--bc-fg-muted)';
 
-/** Semantic status-class colors, shared by the bars, chips, and status text so they stay consistent. */
+/**
+ * Semantic status-class colors for solid graphical fills: the waterfall bars below and the network
+ * filter chips' active background (`NetworkPane.tsx`, paired with hardcoded white text). Deliberately
+ * fixed literals rather than the theme-flipping `--bc-*` status roles — those are tuned as *foreground
+ * text on the page background* (light-mode value saturated, dark-mode value pastel, by design; see
+ * `shared-tokens/src/themes.ts`), which would fail white-on-chip contrast badly once flipped to the
+ * dark-mode pastel shade (e.g. white on `--bc-danger`'s dark value is 2.77:1). A fixed, theme-invariant
+ * swatch is correct for a filled shape/chip rather than page text, and each value here already clears
+ * 4.5:1 against white in both themes precisely because it never changes.
+ */
 export const STATUS_CLASS_COLOR: Record<string, string> = {
   '1xx': NEUTRAL_COLOR,
   '2xx': '#16a34a',
@@ -53,6 +62,30 @@ export const STATUS_CLASS_COLOR: Record<string, string> = {
 /** Color for a status class, falling back to the neutral `1xx`/muted color for anything unmapped. */
 export function statusClassColor(cls: string): string {
   return STATUS_CLASS_COLOR[cls] ?? NEUTRAL_COLOR;
+}
+
+/**
+ * Semantic status-class colors for plain TEXT sitting directly on the pane's `--bc-bg`/`--bc-surface`
+ * (`NetworkPane.tsx`'s row and detail-panel status text) — the S4-27 Task 15 axe gate caught this
+ * exact pair using {@link STATUS_CLASS_COLOR}'s fixed `5xx` literal (`#dc2626`, tuned for a light
+ * background) at 3.70:1 on the dark theme's `--bc-bg` (`#0f172a`), below the 4.5:1 floor. Unlike the
+ * fill colors above, page text MUST flip with the theme, so this reuses the already contrast-audited
+ * `--bc-success` / `--bc-accent` / `--bc-warning` / `--bc-danger` roles — `contrast.test.ts`'s MATRIX
+ * proves each is ≥4.5:1 on both `bg` and `surface`, in both themes — rather than a second set of fixed
+ * literals.
+ */
+export const STATUS_CLASS_TEXT_COLOR: Record<string, string> = {
+  '1xx': NEUTRAL_COLOR,
+  '2xx': 'var(--bc-success)',
+  '3xx': 'var(--bc-accent)',
+  '4xx': 'var(--bc-warning)',
+  '5xx': 'var(--bc-danger)',
+  [FAILED_CLASS]: 'var(--bc-danger)',
+};
+
+/** Text color for a status class, falling back to the neutral `1xx`/muted color for anything unmapped. */
+export function statusClassTextColor(cls: string): string {
+  return STATUS_CLASS_TEXT_COLOR[cls] ?? NEUTRAL_COLOR;
 }
 
 export interface WaterfallProps {

@@ -15,7 +15,7 @@ import { toCurl } from '../lib/curl';
 import { useVirtualWindow } from '../lib/virtual-window';
 import type { NetworkFilterState } from '../router/hash-state';
 
-import { Waterfall, statusClassColor } from './Waterfall';
+import { Waterfall, statusClassColor, statusClassTextColor } from './Waterfall';
 import {
   distinctMethods,
   filterNetwork,
@@ -457,7 +457,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                   }`}
                 >
                   <span className="w-14 shrink-0 text-[var(--bc-fg-muted)]">{entry.method}</span>
-                  <span className="w-14 shrink-0" style={{ color: statusClassColor(cls) }}>
+                  <span className="w-14 shrink-0" style={{ color: statusClassTextColor(cls) }}>
                     {statusLabel(entry)}
                   </span>
                   <span className="min-w-0 flex-[2] truncate text-[var(--bc-fg)]">{entry.url}</span>
@@ -500,7 +500,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
             <div>
               <p className="font-mono text-sm text-[var(--bc-fg)]">
                 <span className="text-[var(--bc-fg-muted)]">{selected.method}</span>{' '}
-                <span style={{ color: statusClassColor(statusClass(selected)) }}>
+                <span style={{ color: statusClassTextColor(statusClass(selected)) }}>
                   {statusLabel(selected)}
                 </span>
                 {selected.statusText ? ` ${selected.statusText}` : ''}
