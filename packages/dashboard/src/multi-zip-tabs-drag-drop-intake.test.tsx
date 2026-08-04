@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { BugReportV1 } from '@bugcase/schema';
+import axe from 'axe-core';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -270,5 +271,35 @@ describe('multi-ZIP tabs + drag-drop intake', () => {
     expect(input.className).toContain('peer');
     expect(label.className).toMatch(/peer-focus-visible:/);
     expect(input.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('names the tab strip via a landmark, not an invented tablist role (S4-27)', async () => {
+    renderApp();
+    await drop('dropzone', [zip('a.zip'), zip('b.zip')]);
+
+    const strip = q('report-tab-bar') as HTMLElement;
+
+    // `role="tablist"` was tried and rejected: ARIA requires a tablist's children to carry
+    // `role="tab"` and control a tabpanel. This strip's children are `<a href>` navigation links
+    // (activation is href-driven — the URL is the source of truth for the active report) plus a
+    // close `<button>` each, not tabs — and empirically, axe-core's `aria-required-children` rule
+    // flags `role="tablist"` here with impact "critical" ("Element has children which are not
+    // allowed: button[aria-label], a[aria-current], a"). `<nav>` is a landmark element with its own
+    // implicit role, so `aria-label` is not dropped the way it is on a role-less `<div>`, and it
+    // needs no invented ARIA.
+    expect(strip.tagName).toBe('NAV');
+    expect(strip.getAttribute('role')).toBeNull();
+
+    const results = await axe.run(strip, { rules: { 'color-contrast': { enabled: false } } });
+    expect(results.violations).toEqual([]);
+
+    // Assert the name actually *lands* for assistive tech — via axe's own accessible-name
+    // computation — rather than merely that an `aria-label` string sits on some element. A bare
+    // attribute check would have passed even on the broken role-less `<div>`, which is exactly the
+    // bug this test exists to catch.
+    axe.setup(container);
+    const accessibleName = axe.commons.text.accessibleText(strip);
+    axe.teardown();
+    expect(accessibleName).toBe('Open reports');
   });
 });

@@ -43,7 +43,22 @@ export function ReportTabBar({
   }
 
   return (
-    <div
+    /*
+     * `aria-label` on a role-less `<div>` (ARIA's `role="generic"`) is dropped by assistive tech,
+     * so the strip was unnamed in practice — that part of the brief's diagnosis is right. But the
+     * prescribed fix, `role="tablist"`, is wrong: ARIA requires a `tablist` to own `role="tab"`
+     * children controlling a `tabpanel`, and this strip's children are plain `<a href>` navigation
+     * links (activation is href-driven — the URL is the source of truth for the active report) plus
+     * a close `<button>` each, not tabs. Empirically, adding `role="tablist"` here makes axe-core's
+     * `aria-required-children` rule fail with impact "critical" ("Element has children which are not
+     * allowed: button[aria-label], a[aria-current], a") — confirmed via a throwaway axe.run before
+     * this fix landed. A `<nav>` is a landmark element (implicit role, unlike `<div>`), so
+     * `aria-label` reaches assistive tech without inventing any ARIA roles; axe-core reports zero
+     * violations on it, and its accessible name resolves to "Open reports" via axe's own
+     * accessible-name computation (`axe.commons.text.accessibleText`). See the "gives the tab strip
+     * an accessible name via a landmark" test below for both checks in place.
+     */
+    <nav
       data-testid="report-tab-bar"
       aria-label="Open reports"
       className="flex min-w-0 items-center gap-1 overflow-x-auto"
@@ -97,6 +112,6 @@ export function ReportTabBar({
       >
         +
       </button>
-    </div>
+    </nav>
   );
 }
