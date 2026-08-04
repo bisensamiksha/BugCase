@@ -14,12 +14,15 @@ export interface ActiveDescendantOptions {
   readonly idPrefix: string;
   /**
    * The currently active row index, owned by the consumer — controlled, like a `<select value>`.
-   * The hook clamps the indices it produces itself (arrow/page/home/end all stay within
-   * `[0, count - 1]`), but it never re-validates a value handed to it. If the consumer's `count`
-   * shrinks — e.g. a filter narrows the list — while `activeIndex` still points past the new end,
-   * that is the CONSUMER's responsibility to re-resolve and clamp before the next render. The hook
-   * will render `aria-activedescendant` for whatever `activeIndex` names, even if that row no
-   * longer exists.
+   * **-1 means "no active option"** — pass it when nothing is selected yet, or when the
+   * previously-active row has been filtered out. The hook treats a negative index the same as
+   * `count === 0`: it omits `aria-activedescendant` rather than guessing at a row the user never
+   * chose. The hook clamps the indices it produces itself (arrow/page/home/end all stay within
+   * `[0, count - 1]`, so the first ArrowDown from -1 lands on row 0 and the first ArrowUp from -1
+   * also lands on row 0 rather than wrapping), but it never re-validates a non-negative value
+   * handed to it. If the consumer's `count` shrinks — e.g. a filter narrows the list — while
+   * `activeIndex` still points past the new end, that is the CONSUMER's responsibility to
+   * re-resolve (to a valid index, or back to -1) before the next render.
    */
   readonly activeIndex: number;
   readonly onActiveIndexChange: (index: number) => void;
@@ -151,8 +154,9 @@ export function useActiveDescendant({
     listProps: {
       role: 'listbox',
       tabIndex: 0,
-      // An id pointing at nothing is worse than no id at all.
-      'aria-activedescendant': count > 0 ? optionId(activeIndex) : undefined,
+      // An id pointing at nothing is worse than no id at all — omit it both when the list is
+      // empty and when the consumer signals "nothing active" via a negative index.
+      'aria-activedescendant': count > 0 && activeIndex >= 0 ? optionId(activeIndex) : undefined,
       onKeyDown,
     },
     optionId,

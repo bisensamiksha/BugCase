@@ -240,7 +240,18 @@ describe('ConsolePane', () => {
     }
   });
 
-  it('selects rows with the arrow keys (S4-27)', () => {
+  it('starts with no active descendant when nothing is selected (S4-27)', () => {
+    render(logWith(5));
+
+    const list = q('console-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    // The disagreement finding-1 caught: nothing should read as selected either.
+    for (const row of qa('console-row')) {
+      expect(row.getAttribute('aria-selected')).toBe('false');
+    }
+  });
+
+  it('the first ArrowDown selects row 0 specifically, not row 1 (S4-27)', () => {
     render(logWith(5));
     const list = q('console-list')!;
 
@@ -248,9 +259,8 @@ describe('ConsolePane', () => {
       list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     });
 
-    const active = list.getAttribute('aria-activedescendant');
-    expect(active).not.toBeNull();
-    expect(document.getElementById(active!)?.getAttribute('aria-selected')).toBe('true');
+    expect(list.getAttribute('aria-activedescendant')).toBe('console-option-0');
+    expect(document.getElementById('console-option-0')?.getAttribute('aria-selected')).toBe('true');
   });
 
   it('keeps arrows inert when the filters match nothing (S4-27)', () => {
@@ -284,7 +294,7 @@ describe('ConsolePane', () => {
     expect(activeRow?.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('keeps aria-activedescendant pointing at a real row when a filter removes the selected entry (S4-27 clamping)', () => {
+  it('drops aria-activedescendant when a filter removes the selected entry, even though other rows remain (S4-27 clamping)', () => {
     render(
       logOf([
         entry({ id: 'a', args: [{ type: 'string', preview: 'keep-a' }] }),
@@ -302,10 +312,13 @@ describe('ConsolePane', () => {
     typeInto(q('console-search') as HTMLInputElement, 'keep');
     expect(qa('console-row')).toHaveLength(4);
 
+    // "e" is gone but a, b, c, d remain — the reference must go absent, not silently repoint at
+    // row 0 (that mismatch, with row 0 showing aria-selected="false", is finding 1 from review).
     const list = q('console-list')!;
-    const active = list.getAttribute('aria-activedescendant');
-    expect(active).not.toBeNull();
-    expect(document.getElementById(active!)).not.toBeNull();
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    for (const row of qa('console-row')) {
+      expect(row.getAttribute('aria-selected')).toBe('false');
+    }
   });
 
   it('drops aria-activedescendant when a filter removes every entry, including the selected one (S4-27 clamping)', () => {
