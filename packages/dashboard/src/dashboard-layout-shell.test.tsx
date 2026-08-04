@@ -249,4 +249,46 @@ describe('dashboard layout shell', () => {
     expect(q('network-pane')).not.toBeNull();
     expect(q('pane-overview')).toBeNull();
   });
+
+  it('offers a skip link as the first focusable element', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    const skip = q('skip-to-content') as HTMLElement | null;
+    expect(skip).not.toBeNull();
+    expect(skip!.getAttribute('href')).toBe('#main');
+    // It must precede the nav in DOM order or it cannot do its job.
+    const nav = q('app-sidenav')!;
+    expect(skip!.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('gives the content region an id and makes it programmatically focusable', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    const main = q('app-content') as HTMLElement | null;
+    expect(main!.id).toBe('main');
+    expect(main!.tabIndex).toBe(-1);
+  });
+
+  it('marks the banner and contentinfo landmarks', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    expect(q('app-topbar')!.getAttribute('role')).toBe('banner');
+    expect(q('legal-footer')!.getAttribute('role')).toBe('contentinfo');
+  });
+
+  it('exposes a polite live region for route announcements', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    const live = q('route-announcer') as HTMLElement | null;
+    expect(live!.getAttribute('role')).toBe('status');
+    expect(live!.className).toContain('sr-only');
+  });
 });

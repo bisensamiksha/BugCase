@@ -50,6 +50,12 @@ describe('DASHBOARD_PANES / PANE_LABELS', () => {
       expect(PANE_LABELS[pane]).toBeTruthy();
     }
   });
+
+  // The route announcer (S4-27) renders PANE_LABELS[pane] into a live region; React only re-announces
+  // when that text actually changes, so two panes sharing a label would silently drop an announcement.
+  it('keeps every pane label unique so the route announcer always re-announces', () => {
+    expect(new Set(Object.values(PANE_LABELS)).size).toBe(DASHBOARD_PANES.length);
+  });
 });
 
 describe('parseHash', () => {
