@@ -2,6 +2,7 @@ import type { ConsoleArg, ConsoleEntry, ConsoleLevel, ConsoleLog } from '@bugcas
 import { compileSearch } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useActiveDescendant } from '../a11y/use-active-descendant';
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { useVirtualWindow } from '../lib/virtual-window';
@@ -92,6 +93,29 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
   }, [entries, activeLevels, compiled, cutoffMs]);
 
   const { window: vwin, containerRef, onScroll } = useVirtualWindow(visible.length, ROW_H);
+
+  // The listbox reasons in indices; the pane's existing selection is by id. Re-derive the index
+  // from `selectedId` on every render (rather than caching it in state) so a filter that shrinks
+  // `visible` — or filters the selected row out entirely — can never leave a stale/out-of-range
+  // index behind. `useActiveDescendant` never re-validates the `activeIndex` it's handed, so this
+  // clamping is the pane's responsibility, not the hook's (S4-27).
+  const activeIndex = Math.max(
+    0,
+    visible.findIndex((entry) => entry.id === selectedId),
+  );
+  const { listProps, optionId } = useActiveDescendant({
+    count: visible.length,
+    rowHeight: ROW_H,
+    containerRef,
+    idPrefix: 'console-option',
+    activeIndex,
+    onActiveIndexChange: (index) => setSelectedId(visible[index]?.id ?? null),
+    // Without this, aria-activedescendant can name a row the virtual window hasn't rendered yet:
+    // useVirtualWindow only recomputes on a throttled native `scroll` event, which a programmatic
+    // `scrollTop` assignment never fires (and jsdom never fires at all).
+    onScrollSync: onScroll,
+  });
+
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
   const showScrubber = range !== null && range.maxMs > range.minMs;
 
@@ -217,7 +241,13 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
         onScroll={onScroll}
         data-testid="console-list"
         aria-label="Console entries"
-        className="flex-1 overflow-auto rounded border border-[var(--bc-border)]"
+        {...listProps}
+        // role="listbox" requires role="option" owned children (axe: aria-required-children). The
+        // empty state below is a plain paragraph, not an option, so the role only applies once
+        // there is at least one option to own — `aria-activedescendant` is already `undefined` in
+        // that case via the hook's own `count > 0` guard.
+        role={visible.length > 0 ? listProps.role : undefined}
+        className="flex-1 overflow-auto rounded border border-[var(--bc-border)] outline-none"
       >
         {visible.length === 0 ? (
           <p data-testid="console-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
@@ -225,18 +255,21 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
           </p>
         ) : (
           <div style={{ paddingTop: vwin.padTop, paddingBottom: vwin.padBottom }}>
-            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry) => {
+            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry, offset) => {
+              const index = vwin.startIndex + offset;
               const current = entry.id === selectedId;
               return (
-                <button
+                <div
                   key={entry.id}
-                  type="button"
+                  id={optionId(index)}
+                  role="option"
+                  tabIndex={-1}
                   data-testid="console-row"
-                  aria-current={current}
+                  aria-selected={current}
                   aria-label={`${entry.level} ${timeOf(entry.timestamp)} ${messageOf(entry)}`}
                   onClick={() => setSelectedId(entry.id)}
                   style={{ height: ROW_H }}
-                  className={`flex w-full items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
+                  className={`flex w-full cursor-pointer items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
                     current
                       ? 'border-[var(--bc-accent)] bg-[var(--bc-surface)]'
                       : 'border-transparent'
@@ -251,7 +284,7 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
                     {timeOf(entry.timestamp)}
                   </span>
                   <span className="truncate text-[var(--bc-fg)]">{messageOf(entry)}</span>
-                </button>
+                </div>
               );
             })}
           </div>
