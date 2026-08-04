@@ -71,4 +71,17 @@
   a {
     text-decoration: none;
   }
+
+  /*
+   * A focus ring (index.css, S4-27) belongs to on-screen keyboard navigation; paper has no
+   * keyboard to navigate with, and a ring baked into a PDF export would look like a rendering bug.
+   * Cancels both index.css rules — the general :focus-visible ring and #main's plain :focus ring —
+   * with the same selectors so this always wins the cascade regardless of specificity: print.css
+   * loads after index.css (see main.tsx), so on an exact-selector tie source order alone decides.
+   */
+  :focus-visible,
+  #main:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
 }

@@ -1,3 +1,70 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Keyboard focus indicator (S4-27).
+ *
+ * The repo had no focus styling at all, so the indicator was whatever the UA happened to draw —
+ * which disappears against the accent-filled nav pill and the active report tab. A two-part ring
+ * (page-coloured inner via box-shadow, accent outer via outline) stays visible on every surface the
+ * token contrast matrix (Task 2) permits — `--bc-accent` clears 3:1 against every `--bc-bg`/
+ * `--bc-surface` pairing in both themes.
+ *
+ * Ordinary controls use the focus-visible pseudo-class rather than plain focus, so a pointer click
+ * does not leave a ring behind. No transition, so there is nothing for prefers-reduced-motion to
+ * disable. (The exact rules, and #main's documented exception, are commented in place below.)
+ */
+@layer base {
+  /*
+   * `:not(.sr-only)` is deliberate, not incidental. `sr-only` sets `clip: rect(0, 0, 0, 0)`, which
+   * clips the element's entire paint region — outline and box-shadow included — so this rule would
+   * be silent dead code on an sr-only element regardless of whether the exclusion is written down.
+   * Writing it down matters anyway: without it, this selector would misleadingly read as though
+   * sr-only controls are handled here. They are not, and cannot be by any rule targeting the
+   * element itself. `DropZone.tsx`'s sr-only file input solves its own indicator by pairing `peer`
+   * on the input with `peer-focus-visible:` on its adjacent visible label, so the ring lands on
+   * something actually painted. Any future sr-only-but-focusable control needs the same treatment,
+   * not this rule.
+   */
+  :focus-visible:not(.sr-only) {
+    outline: 2px solid var(--bc-accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bc-bg);
+  }
+
+  /*
+   * #main (AppShell.tsx) is a deliberate, documented exception to "focus-visible only."
+   *
+   * It carries `tabIndex={-1}` and is reached only programmatically — the skip link
+   * (a11y/SkipLink.tsx) and useRouteFocus (a11y/focus.ts) both call `.focus()` directly, never via
+   * Tab. That makes it precisely where a sighted keyboard user most needs to see that focus moved
+   * (a hash-router pane swap replaces the content while focus would otherwise silently stay on the
+   * nav link that caused it), and precisely where `:focus-visible` is least reliable: browsers'
+   * heuristics generally keep "keyboard modality" through a script-triggered `.focus()` call made
+   * synchronously inside a keyboard event handler (the skip link's onClick), but useRouteFocus calls
+   * `.focus()` from a `useEffect` — scheduled after commit, outside the click handler's own call
+   * stack — and this project has no reliable way to assert cross-browser behaviour for that case
+   * without real-browser testing (that's the Task 15 Playwright gate, not this stylesheet).
+   *
+   * Rather than ship the app's primary focus-management mechanism with an indicator that might
+   * silently not render in some browsers, #main also gets a plain `:focus` rule, so it renders
+   * unconditionally whenever #main holds focus, `:focus-visible` heuristic or not.
+   *
+   * The known downside of plain `:focus` — a ring appearing after an ordinary pointer click — is
+   * real here, not hypothetical: `tabIndex={-1}` makes an element click-focusable, and the HTML
+   * click default-action algorithm focuses the nearest focusable ancestor when a click lands on
+   * non-focusable content, so clicking blank padding or plain text inside <main> (not on a nested
+   * control) does focus <main> itself. But the exposure is bounded: clicking any actual control
+   * inside <main> focuses that control instead, not <main> (only one element holds focus at a
+   * time), and the ring clears the moment focus moves again — it does not linger past its own
+   * focus's lifetime. An occasional large ring around the content column from a stray click on
+   * whitespace is an acceptable, cosmetic trade-off against a route change that silently fails to
+   * show a sighted keyboard user where focus went, which is the failure this rule exists to prevent.
+   */
+  #main:focus {
+    outline: 2px solid var(--bc-accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bc-bg);
+  }
+}
