@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NetworkPane } from './panes/NetworkPane';
+import type { NetworkFilterState } from './router/hash-state';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -36,6 +37,14 @@ const logOf = (entries: NetworkEntry[]): NetworkLog => ({
   entries,
 });
 
+/** `n` distinct entries, for tests that care about count/virtualization rather than content. */
+const logWith = (n: number): NetworkLog =>
+  logOf(
+    Array.from({ length: n }, (_, i) =>
+      entry({ id: `n${i}`, url: `https://example.com/api/${i}` }),
+    ),
+  );
+
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
 const q = (id: string) => container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
@@ -53,11 +62,32 @@ const typeInto = (el: HTMLInputElement, value: string) =>
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
-function render(log: NetworkLog | null) {
+function render(log: NetworkLog | null, initialFilters?: Partial<NetworkFilterState>) {
   act(() => {
-    root.render(<NetworkPane log={log} />);
+    root.render(
+      initialFilters === undefined ? (
+        <NetworkPane log={log} />
+      ) : (
+        <NetworkPane log={log} initialFilters={initialFilters} />
+      ),
+    );
   });
 }
+
+/**
+ * Flushes exactly one real `requestAnimationFrame` tick, wrapped in `act` so the React state
+ * update `useVirtualWindow`'s `onScroll` schedules inside that callback is committed before the
+ * assertions run. jsdom's `requestAnimationFrame` queue is FIFO, so a callback registered here
+ * (after the row-jump keydown that registers the hook's own raf callback via `onScrollSync`)
+ * always resolves after it.
+ */
+const flushRaf = () =>
+  act(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      }),
+  );
 
 beforeEach(() => {
   container = document.createElement('div');
@@ -230,5 +260,131 @@ describe('NetworkPane', () => {
     );
     const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(results.violations).toEqual([]);
+  });
+
+  it('has no axe violations when the filters exclude every entry (S4-27)', async () => {
+    // role="listbox" requires role="option" owned children; the empty state's "no matches"
+    // paragraph must not end up as a non-option child of the listbox (aria-required-children).
+    render(logOf([entry({ id: 'a', status: 200 })]));
+    click(q('network-status-2xx')!);
+    expect(q('network-no-matches')).not.toBeNull();
+
+    const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
+    expect(results.violations).toEqual([]);
+  });
+
+  it('exposes the request list as a single-tab-stop listbox (S4-27)', () => {
+    render(logWith(5));
+
+    const list = q('network-list')!;
+    expect(list.getAttribute('role')).toBe('listbox');
+    expect(list.getAttribute('aria-label')).toBe('Network requests');
+    expect(list.tabIndex).toBe(0);
+  });
+
+  it('marks rows as options rather than individual tab stops (S4-27)', () => {
+    render(logWith(5));
+
+    const rows = qa('network-row');
+    expect(rows.length).toBe(5);
+    for (const row of rows) {
+      expect(row.getAttribute('role')).toBe('option');
+      expect(row.hasAttribute('aria-selected')).toBe(true);
+      expect(row.tabIndex).toBe(-1);
+    }
+  });
+
+  it('starts with no active descendant when nothing is selected (S4-27)', () => {
+    render(logWith(5));
+
+    const list = q('network-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    // Nothing should read as selected either — a stale row-0 default would disagree with this.
+    for (const row of qa('network-row')) {
+      expect(row.getAttribute('aria-selected')).toBe('false');
+    }
+  });
+
+  it('the first ArrowDown selects row 0 specifically, not row 1 (S4-27)', () => {
+    render(logWith(5));
+    const list = q('network-list')!;
+
+    act(() => {
+      list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+
+    expect(list.getAttribute('aria-activedescendant')).toBe('network-option-0');
+    expect(document.getElementById('network-option-0')?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps arrows inert when the filters match nothing (S4-27)', () => {
+    render(logWith(5), { query: 'zzz-no-such-request' });
+
+    const list = q('network-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    expect(() =>
+      act(() => {
+        list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      }),
+    ).not.toThrow();
+  });
+
+  it('renders the row End jumped to even though it starts outside the initial virtual window (S4-27 onScrollSync)', async () => {
+    // 60 rows so the last one sits well past the ~5-row window jsdom's zero clientHeight renders
+    // by default. Only a synchronously-wired onScrollSync brings it into the DOM.
+    render(logWith(60));
+    const list = q('network-list')!;
+
+    act(() => {
+      list.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+    await flushRaf();
+
+    const active = list.getAttribute('aria-activedescendant');
+    expect(active).not.toBeNull();
+    const activeRow = document.getElementById(active!);
+    expect(activeRow).not.toBeNull();
+    expect(activeRow?.getAttribute('role')).toBe('option');
+    expect(activeRow?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('drops aria-activedescendant when a filter removes the selected entry, even though other rows remain (S4-27 clamping)', () => {
+    render(
+      logOf([
+        entry({ id: 'a', url: 'https://x/keep-a' }),
+        entry({ id: 'b', url: 'https://x/keep-b' }),
+        entry({ id: 'c', url: 'https://x/keep-c' }),
+        entry({ id: 'd', url: 'https://x/keep-d' }),
+        entry({ id: 'e', url: 'https://x/drop-e' }),
+      ]),
+    );
+
+    // Select the last row (id "e") before a filter removes it from the visible list.
+    click(qa('network-row')[4]!);
+    expect(q('network-detail')?.textContent).toContain('drop-e');
+
+    typeInto(q('network-search') as HTMLInputElement, 'keep');
+    expect(qa('network-row')).toHaveLength(4);
+
+    // "e" is gone but a, b, c, d remain — the reference must go absent, not silently repoint at
+    // row 0.
+    const list = q('network-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    for (const row of qa('network-row')) {
+      expect(row.getAttribute('aria-selected')).toBe('false');
+    }
+  });
+
+  it('drops aria-activedescendant when a filter removes every entry, including the selected one (S4-27 clamping)', () => {
+    render(logOf([entry({ id: 'a', status: 200 })]));
+
+    click(q('network-row')!);
+    expect(q('network-detail')?.textContent).not.toContain('Select a request');
+
+    click(q('network-status-2xx')!);
+    expect(qa('network-row')).toHaveLength(0);
+
+    const list = q('network-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
   });
 });

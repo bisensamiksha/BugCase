@@ -8,6 +8,7 @@ import type {
 import { compileSearch } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useActiveDescendant } from '../a11y/use-active-descendant';
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { toCurl } from '../lib/curl';
@@ -227,6 +228,29 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
   }, [entries, activeClasses, activeMethods, activeInitiators, compiled]);
 
   const { window: vwin, containerRef, onScroll } = useVirtualWindow(visible.length, ROW_H);
+
+  // The listbox reasons in indices; the pane's existing selection is by id. Re-derive the index
+  // from `selectedId` on every render (rather than caching it in state) so a filter that shrinks
+  // `visible` — or filters the selected row out entirely — can never leave a stale/out-of-range
+  // index behind. `useActiveDescendant` never re-validates the `activeIndex` it's handed, so this
+  // clamping is the pane's responsibility, not the hook's (S4-27). `findIndex` returning -1 (no
+  // selection, or the selected row got filtered out) is passed through as-is — the hook treats a
+  // negative index as "nothing active" and omits `aria-activedescendant`, rather than us faking
+  // index 0 and disagreeing with the row that actually shows `aria-selected="true"`.
+  const activeIndex = visible.findIndex((entry) => entry.id === selectedId);
+  const { listProps, optionId } = useActiveDescendant({
+    count: visible.length,
+    rowHeight: ROW_H,
+    containerRef,
+    idPrefix: 'network-option',
+    activeIndex,
+    onActiveIndexChange: (index) => setSelectedId(visible[index]?.id ?? null),
+    // Without this, aria-activedescendant can name a row the virtual window hasn't rendered yet:
+    // useVirtualWindow only recomputes on a throttled native `scroll` event, which a programmatic
+    // `scrollTop` assignment never fires (and jsdom never fires at all).
+    onScrollSync: onScroll,
+  });
+
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
   const totalMs = range === null ? 0 : range.maxMs - range.minMs;
 
@@ -406,27 +430,27 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
         onScroll={onScroll}
         data-testid="network-list"
         aria-label="Network requests"
-        className="flex-1 overflow-auto rounded border border-[var(--bc-border)]"
+        {...listProps}
+        className="flex-1 overflow-auto rounded border border-[var(--bc-border)] outline-none"
       >
-        {visible.length === 0 ? (
-          <p data-testid="network-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
-            No requests match the current filters.
-          </p>
-        ) : (
+        {visible.length === 0 ? null : (
           <div style={{ paddingTop: vwin.padTop, paddingBottom: vwin.padBottom }}>
-            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry) => {
+            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry, offset) => {
+              const index = vwin.startIndex + offset;
               const cls = statusClass(entry);
               const current = entry.id === selectedId;
               return (
-                <button
+                <div
                   key={entry.id}
-                  type="button"
+                  id={optionId(index)}
+                  role="option"
+                  tabIndex={-1}
                   data-testid="network-row"
-                  aria-current={current}
+                  aria-selected={current}
                   aria-label={`${entry.method} ${statusLabel(entry)} ${entry.url} ${durationLabel(entry)}`}
                   onClick={() => setSelectedId(entry.id)}
                   style={{ height: ROW_H }}
-                  className={`flex w-full items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
+                  className={`flex w-full cursor-pointer items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
                     current
                       ? 'border-[var(--bc-accent)] bg-[var(--bc-surface)]'
                       : 'border-transparent'
@@ -452,12 +476,20 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                       label={entry.durationMs === null ? 'failed' : `${entry.durationMs} ms`}
                     />
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </div>
+      {visible.length === 0 ? (
+        // A sibling of the listbox, not a child: role="listbox" requires role="option" owned
+        // children (axe: aria-required-children), so this message lives outside it. The listbox
+        // itself stays permanently role="listbox" — just empty — rather than losing its role.
+        <p data-testid="network-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
+          No requests match the current filters.
+        </p>
+      ) : null}
 
       <div
         data-testid="network-detail"
