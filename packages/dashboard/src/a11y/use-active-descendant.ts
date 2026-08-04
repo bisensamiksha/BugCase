@@ -12,8 +12,27 @@ export interface ActiveDescendantOptions {
   readonly containerRef: RefObject<HTMLDivElement>;
   /** Prefix for generated option ids; must be unique within the document. */
   readonly idPrefix: string;
+  /**
+   * The currently active row index, owned by the consumer — controlled, like a `<select value>`.
+   * The hook clamps the indices it produces itself (arrow/page/home/end all stay within
+   * `[0, count - 1]`), but it never re-validates a value handed to it. If the consumer's `count`
+   * shrinks — e.g. a filter narrows the list — while `activeIndex` still points past the new end,
+   * that is the CONSUMER's responsibility to re-resolve and clamp before the next render. The hook
+   * will render `aria-activedescendant` for whatever `activeIndex` names, even if that row no
+   * longer exists.
+   */
   readonly activeIndex: number;
   readonly onActiveIndexChange: (index: number) => void;
+  /**
+   * Called synchronously right after the hook sets `scrollTop`, so the virtual window recomputes in
+   * the same tick and the row `aria-activedescendant` names is actually in the DOM. Consumers pass
+   * `useVirtualWindow`'s `onScroll`. Without it the reference dangles for a frame or two on any jump
+   * past the overscan buffer (Home/End/PageUp/PageDown) — `useVirtualWindow` only recomputes on the
+   * container's rAF-throttled native `onScroll`, which lands after the `activeIndex` state commit
+   * that writes the new `aria-activedescendant`, and jsdom never fires that event on a programmatic
+   * `scrollTop` assignment at all.
+   */
+  readonly onScrollSync?: (() => void) | undefined;
 }
 
 export interface ActiveDescendantResult {
@@ -37,10 +56,16 @@ export interface ActiveDescendantResult {
  *
  * The hook is deliberately unaware of the rendered slice: it reasons over `count` and sets
  * `scrollTop` so the active index falls inside the window on the next frame. That is why it stays
- * correct even in the frame before the target row mounts.
+ * correct even in the frame before the target row mounts — provided the consumer wires
+ * `onScrollSync` (see {@link ActiveDescendantOptions.onScrollSync}) so the window recomputes
+ * synchronously rather than waiting on a throttled scroll event.
  *
  * `DomPane`'s two-tab tablist keeps its roving tabindex — it is never virtualized, so the pattern
  * that is wrong here is right there.
+ *
+ * Type-ahead (jump-to-character) from the APG listbox pattern is intentionally omitted: rows here
+ * are structured log/network entries, not a flat list of option labels, and single-character typing
+ * is already claimed by the pane's filter input, not row navigation.
  */
 export function useActiveDescendant({
   count,
@@ -49,6 +74,7 @@ export function useActiveDescendant({
   idPrefix,
   activeIndex,
   onActiveIndexChange,
+  onScrollSync,
 }: ActiveDescendantOptions): ActiveDescendantResult {
   const optionId = useCallback((index: number) => `${idPrefix}-${index}`, [idPrefix]);
 
@@ -72,13 +98,21 @@ export function useActiveDescendant({
         // No layout yet (jsdom, or before first paint): anchoring at the row is still correct.
         el.scrollTop = top;
       }
+
+      // `scrollTop` alone does not repaint the virtual window — see `onScrollSync`'s doc comment.
+      // Force a synchronous recompute so the row this call just scrolled to is actually in the DOM
+      // by the time `aria-activedescendant` names it.
+      onScrollSync?.();
     },
-    [count, rowHeight, containerRef, onActiveIndexChange],
+    [count, rowHeight, containerRef, onActiveIndexChange, onScrollSync],
   );
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
-      if (count === 0) {
+      // `rowHeight <= 0` is as degenerate as `count === 0`: `computeWindow` treats both the same
+      // way (an empty, unrenderable window), so this guard keeps the two in agreement and avoids a
+      // `viewport / rowHeight` blow-up below.
+      if (count === 0 || rowHeight <= 0) {
         return;
       }
       const viewport = containerRef.current?.clientHeight ?? 0;
