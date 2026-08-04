@@ -1,6 +1,7 @@
 import type { BugReportV1 } from '@bugcase/schema';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
+import { useRouteFocus } from './a11y/focus';
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
 import { PrintHeader } from './components/PrintHeader';
@@ -185,6 +186,9 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const route = useHashRoute();
   const writeHashParams = useHashParamWriter(route);
+  // Pane changes move focus into the content region and announce the new pane (S4-27).
+  const mainRef = useRef<HTMLElement>(null);
+  const announcement = useRouteFocus(route.activePane, mainRef);
   /**
    * Each pane's most recent params, keyed by pane + report (S4-26). Nav links are built from this,
    * so leaving a pane and coming back restores the view rather than resetting to defaults. Keyed by
@@ -314,7 +318,13 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
           : 'empty';
 
   return (
-    <AppShell route={route} tabs={tabBar} hrefForPane={hrefForPane}>
+    <AppShell
+      route={route}
+      tabs={tabBar}
+      hrefForPane={hrefForPane}
+      mainRef={mainRef}
+      announcement={announcement}
+    >
       {/* Hidden picker for the tab-bar "+" button (multi-select). */}
       <input
         ref={addInputRef}

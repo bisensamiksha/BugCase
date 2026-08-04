@@ -314,4 +314,19 @@ describe('dashboard layout shell', () => {
     expect(q('nav-network')?.getAttribute('aria-current')).toBe('page');
     expect(document.activeElement).toBe(q('app-content'));
   });
+
+  it('focuses the content region and announces when the user changes pane', async () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    await act(async () => {
+      window.location.hash = '#/console';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+
+    expect(document.activeElement).toBe(q('app-content'));
+    expect(q('route-announcer')?.textContent).toBe('Console');
+  });
 });
