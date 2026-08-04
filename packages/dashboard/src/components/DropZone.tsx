@@ -44,16 +44,25 @@ export function DropZone({ onFiles }: DropZoneProps) {
       className="mx-auto mt-2 max-w-3xl rounded-[var(--bc-radius)] border-2 border-dashed border-[var(--bc-border)] p-8 text-center"
     >
       <p className="text-[var(--bc-fg-muted)]">Drag BugCase report .zip files here, or</p>
-      <label className="mt-2 inline-block cursor-pointer font-medium text-[var(--bc-accent)]">
+      {/*
+        The input is `sr-only`, never `hidden`. `display:none` would take it out of the tab order,
+        and this is the dashboard's only entry point — a keyboard user would have no way in (S4-27).
+        The explicit for/id pairing keeps the label as the click target for pointer users.
+      */}
+      <label
+        htmlFor="dropzone-file-input"
+        className="mt-2 inline-block cursor-pointer font-medium text-[var(--bc-accent)]"
+      >
         choose files
-        <input
-          type="file"
-          accept=".zip,application/zip"
-          multiple
-          className="hidden"
-          onChange={onSelect}
-        />
       </label>
+      <input
+        id="dropzone-file-input"
+        type="file"
+        accept=".zip,application/zip"
+        multiple
+        className="sr-only"
+        onChange={onSelect}
+      />
     </div>
   );
 }

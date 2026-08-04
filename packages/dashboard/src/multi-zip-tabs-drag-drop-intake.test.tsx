@@ -218,4 +218,37 @@ describe('multi-ZIP tabs + drag-drop intake', () => {
     expect(q('report-tab-report-a')).not.toBeNull();
     expect(q('error')?.textContent).toContain('not a valid ZIP');
   });
+
+  it('keeps the file input in the tab order (S4-27)', () => {
+    renderApp();
+
+    const input = q('dropzone')!.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    // `hidden` (display:none) removes an element from the tab order entirely; `sr-only` does not.
+    // This is the dashboard's only entry point, so a non-focusable input locks keyboard users out.
+    //
+    // jsdom has no layout/CSS engine — it never loads the compiled Tailwind stylesheet that gives
+    // `hidden` its `display:none`, so `.focus()`/`activeElement` below succeeds regardless of which
+    // class is present and can NOT, on its own, distinguish `hidden` from `sr-only` (confirmed by
+    // mutation testing: reverting to `className="hidden"` left this assertion green). It is kept
+    // because it still guards a different regression class jsdom CAN see — a stray `disabled` or
+    // `tabIndex={-1}` — but the className assertions below are the actually load-bearing check for
+    // this ticket's hidden-vs-sr-only distinction. Real visibility and real Tab traversal belong to
+    // the Playwright/axe task later in this ticket.
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    expect(input.className).not.toContain('hidden');
+    expect(input.className).toContain('sr-only');
+  });
+
+  it('labels the file input so its purpose is announced (S4-27)', () => {
+    renderApp();
+
+    const input = q('dropzone')!.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    expect(input.getAttribute('id')).toBe('dropzone-file-input');
+    const label = container.querySelector<HTMLLabelElement>('label[for="dropzone-file-input"]');
+    expect(label?.textContent).toContain('choose files');
+  });
 });
