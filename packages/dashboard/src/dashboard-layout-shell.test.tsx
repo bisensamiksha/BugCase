@@ -329,4 +329,22 @@ describe('dashboard layout shell', () => {
     expect(document.activeElement).toBe(q('app-content'));
     expect(q('route-announcer')?.textContent).toBe('Console');
   });
+
+  it('focuses the content region and announces when a loaded report changes pane', async () => {
+    window.location.hash = '#/overview';
+    await renderLoaded(reportWith({}));
+    expect(q('pane-overview')).not.toBeNull();
+
+    await act(async () => {
+      window.location.hash = '#/console';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+
+    // On the loaded path, LoadedPane's Suspense boundary is a descendant of <main> — this
+    // confirms the ancestor never unmounts/loses its ref while the lazy pane chunk suspends.
+    expect(q('console-pane')).not.toBeNull();
+    expect(document.activeElement).toBe(q('app-content'));
+    expect(q('route-announcer')?.textContent).toBe('Console');
+  });
 });
