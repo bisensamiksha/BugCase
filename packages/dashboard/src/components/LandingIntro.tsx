@@ -23,7 +23,7 @@ const VALUE_PROPS: readonly ValueProp[] = [
   {
     id: 'redaction',
     title: 'Honest about redaction',
-    body: 'Page HTML, cookies and headers are scrubbed automatically. Screenshots and element crops are rendered pixels and are not — redact them yourself before sharing.',
+    body: 'Page HTML, cookies and headers are scrubbed automatically. Screenshots and element crops are not — they are rendered pixels, so redact them yourself before sharing.',
   },
   {
     id: 'portable',
