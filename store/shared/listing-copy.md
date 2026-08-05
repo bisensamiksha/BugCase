@@ -94,6 +94,7 @@ Built manifest permission set (`packages/extension/src/manifest.ts`):
 
 ## Links
 
+- **Chrome Web Store listing:** https://chromewebstore.google.com/detail/bugcase-%E2%80%94-bug-reporter-to/inbgbkepikijkgeagehcbaofambgcdck
 - **Privacy Policy:** https://bisensamiksha.github.io/BugCase/legal/privacy-policy
 - **Terms of Use:** https://bisensamiksha.github.io/BugCase/legal/terms
 - **Source / issues:** https://github.com/bisensamiksha/BugCase
