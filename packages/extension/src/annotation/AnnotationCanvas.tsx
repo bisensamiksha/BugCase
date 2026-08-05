@@ -472,7 +472,7 @@ export function KonvaAnnotationCanvas({
       ) : null}
       {status === 'error' ? (
         <p data-testid="annotation-canvas-error" role="alert" style={{ color: palette.red300 }}>
-          Couldn’t load this screenshot. It may have expired — capture again.
+          Couldn’t load this screenshot. It may have expired. Capture again.
         </p>
       ) : null}
 

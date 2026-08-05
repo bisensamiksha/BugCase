@@ -117,7 +117,7 @@ describe('ReproductionControls wording (BUG-06)', () => {
   it('names the normal completed state as tracked, matching its interrupted sibling', () => {
     render('recorded');
     expect(query('reproduction-status')?.textContent).toBe(
-      '✓ Reproduction steps tracked — included on capture',
+      '✓ Reproduction steps tracked, included on capture',
     );
   });
 

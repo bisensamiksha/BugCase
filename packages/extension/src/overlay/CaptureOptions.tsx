@@ -162,21 +162,21 @@ export function CaptureOptions({
                       data-testid={`capture-option-permission-revoked-${option.key}`}
                       style={needsGrantStyle}
                     >
-                      permission not granted — grant it in the toolbar popup to use this
+                      permission not granted. Grant it in the toolbar popup to use this
                     </span>
                   ) : (
                     <span
                       data-testid={`capture-option-needs-permission-${option.key}`}
                       style={hintStyle}
                     >
-                      needs permission — enable in the toolbar popup
+                      needs permission. Enable in the toolbar popup
                     </span>
                   )
                 ) : null}
                 {isPending ? <span style={hintStyle}>Checking…</span> : null}
                 {/*
                   Only when the label above is absent: a failed toggle on a row that already reads
-                  "needs permission — enable in the toolbar popup" would otherwise stack a second,
+                  "needs permission. Enable in the toolbar popup" would otherwise stack a second,
                   near-identical instruction beside it.
                 */}
                 {needsGrant === option.key && !ungranted ? (

@@ -24,7 +24,7 @@ export interface LightboxScreenshotViewerProps {
   readonly peekAsset?: PeekAssetFn;
 }
 
-const EXPIRED_ERROR = 'Couldn’t load this screenshot. It may have expired — capture again.';
+const EXPIRED_ERROR = 'Couldn’t load this screenshot. It may have expired. Capture again.';
 
 /**
  * Extension adapter over the shared {@link Lightbox}. Preserves the preview's public API and testids

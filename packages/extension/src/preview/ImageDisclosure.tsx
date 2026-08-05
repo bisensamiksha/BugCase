@@ -29,7 +29,7 @@ export function ImageDisclosure({ children, testId = 'image-disclosure' }: Image
   return (
     <div data-testid={testId} role="note" style={noteStyle}>
       <strong>Screenshots and element crops are not scrubbed.</strong> They are saved as images, so
-      anything visible on screen when you captured — including a password — is stored in the report
+      anything visible on screen when you captured, including a password, is stored in the report
       as-is.
       {children ? <> {children}</> : null}
     </div>

@@ -17,7 +17,7 @@ export function Popup() {
   return (
     <main className="w-80 p-4 font-sans">
       <h1 className="rounded bg-blue-500 px-2 py-1 text-lg font-bold text-white">
-        BugCase — ready
+        BugCase - ready
       </h1>
       <p className="mt-2 text-sm text-slate-600">
         {name} v{version}

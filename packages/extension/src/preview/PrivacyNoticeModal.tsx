@@ -51,7 +51,7 @@ export function PrivacyNoticeModal({
 
   const scrubberSummary =
     summary.scrubbers.length === 0
-      ? 'No text scrubber rules removed anything from this capture. (Text only — see the note below about images.)'
+      ? 'No text scrubber rules removed anything from this capture. (Text only. See the note below about images.)'
       : `${summary.scrubbers.length} scrubber ${
           summary.scrubbers.length === 1 ? 'rule' : 'rules'
         } ran and removed ${summary.totalScrubberHits} ${
@@ -71,7 +71,7 @@ export function PrivacyNoticeModal({
         Ready to download
       </h2>
       <p style={mutedStyle}>
-        This report is saved to your computer only — nothing is uploaded. Review what it contains
+        This report is saved to your computer only. Nothing is uploaded. Review what it contains
         before you download.
       </p>
 
@@ -83,7 +83,7 @@ export function PrivacyNoticeModal({
         <ul style={listStyle}>
           {summary.scrubbers.map((s) => (
             <li key={s.id}>
-              {s.description} — {s.hits} removed
+              {s.description}: {s.hits} removed
             </li>
           ))}
         </ul>
@@ -109,8 +109,8 @@ export function PrivacyNoticeModal({
           onChange={(e) => setUnderstood(e.target.checked)}
         />
         <span>
-          I understand this report may still contain sensitive data — including anything visible in
-          screenshots or element crops — and will be saved to my device.
+          I understand this report may still contain sensitive data, including anything visible in
+          screenshots or element crops, and will be saved to my device.
         </span>
       </label>
 

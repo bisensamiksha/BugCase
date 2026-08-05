@@ -46,7 +46,7 @@ export function CookiesWarning({ active, hostName }: CookiesWarningProps) {
       <span aria-hidden="true" style={dotStyle} />
       <span>
         BugCase is including {hostName ? `${hostName}'s` : 'this site’s'} cookies in the report. All
-        cookie values are masked — only names and attributes are recorded.
+        cookie values are masked. Only names and attributes are recorded.
       </span>
     </div>
   );

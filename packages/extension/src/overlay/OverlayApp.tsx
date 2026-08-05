@@ -1122,9 +1122,9 @@ export function OverlayApp({
           >
             {`${noticeOff.map((key) => optionLabel(key)).join(', ')} ` +
               (noticeOff.length === 1
-                ? 'was switched off for this capture — the permission isn’t granted. Enable it ' +
+                ? 'was switched off for this capture. The permission isn’t granted. Enable it ' +
                   'from the toolbar popup.'
-                : 'were switched off for this capture — their permissions aren’t granted. Enable ' +
+                : 'were switched off for this capture. Their permissions aren’t granted. Enable ' +
                   'them from the toolbar popup.')}
           </p>
         ) : null}

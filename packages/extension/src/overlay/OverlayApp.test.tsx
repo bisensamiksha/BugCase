@@ -1536,7 +1536,7 @@ describe('OverlayApp permission reconcile', () => {
       false,
     );
     expect(queryTestId('permission-reconcile-notice')?.textContent).toBe(
-      'Installed extensions, Cookies were switched off for this capture — their permissions aren’t ' +
+      'Installed extensions, Cookies were switched off for this capture. Their permissions aren’t ' +
         'granted. Enable them from the toolbar popup.',
     );
   });
@@ -1565,7 +1565,7 @@ describe('OverlayApp permission reconcile', () => {
     });
 
     expect(queryTestId('permission-reconcile-notice')?.textContent).toBe(
-      'Cookies was switched off for this capture — the permission isn’t granted. Enable it from ' +
+      'Cookies was switched off for this capture. The permission isn’t granted. Enable it from ' +
         'the toolbar popup.',
     );
   });
