@@ -364,7 +364,7 @@ export function DomPane({
                       data-testid="dom-source-too-large"
                       className="text-sm text-[var(--bc-fg-muted)]"
                     >
-                      Source too large to highlight — showing plain text.
+                      Source too large to highlight, showing plain text.
                     </p>
                     <pre
                       data-testid="dom-source-plain"

@@ -72,8 +72,8 @@ export function PrivacyPane({ report, reportId }: PrivacyPaneProps) {
 
       <div data-testid="privacy-image-disclosure" role="note" className={DISCLOSURE}>
         <strong className="font-semibold">Screenshots and element crops are not scrubbed.</strong>{' '}
-        They are stored as rendered images, so anything visible on screen when you captured —
-        including a revealed password or other sensitive content — is saved as-is. Only the text
+        They are stored as rendered images, so anything visible on screen when you captured,
+        including a revealed password or other sensitive content, is saved as-is. Only the text
         surfaces below (page HTML, cookies, headers) are automatically scrubbed. Redact sensitive
         regions by hand in the extension before downloading a report you plan to share.
       </div>
@@ -119,8 +119,8 @@ export function PrivacyPane({ report, reportId }: PrivacyPaneProps) {
         )}
         <p className={MUTED}>
           Cookie and storage <em>values</em> in this report are additionally masked by always-on
-          policy, independent of the rule hits above. This applies to the recorded text only — not
-          to the image surfaces noted at the top of this pane.
+          policy, independent of the rule hits above. This applies to the recorded text only, not to
+          the image surfaces noted at the top of this pane.
         </p>
       </section>
 

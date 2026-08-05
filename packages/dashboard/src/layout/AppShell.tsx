@@ -61,7 +61,7 @@ export function AppShell({
       >
         <h1 className="text-base font-bold">BugCase Dashboard</h1>
         <p className="hidden text-xs text-[var(--bc-fg-muted)] sm:block">
-          Everything runs in your browser — nothing is uploaded.
+          Everything runs in your browser. Nothing is uploaded.
         </p>
         {/* Multi-ZIP tab strip (S4-02). */}
         <div
