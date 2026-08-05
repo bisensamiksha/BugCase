@@ -18,12 +18,12 @@ const VALUE_PROPS: readonly ValueProp[] = [
   {
     id: 'local',
     title: 'Your data never leaves this tab',
-    body: 'Reports are read locally, in your browser. No server, no account, no telemetry — nothing is uploaded.',
+    body: 'Reports are read locally, in your browser. No server, no account, no telemetry, and nothing is uploaded.',
   },
   {
     id: 'redaction',
     title: 'Honest about redaction',
-    body: 'Page HTML, cookies and headers are scrubbed automatically. Screenshots and element crops are not — they are rendered pixels, so redact them yourself before sharing.',
+    body: 'Page HTML, cookies and headers are scrubbed automatically. Screenshots and element crops are not. They are rendered pixels, so redact them yourself before sharing.',
   },
   {
     id: 'portable',
@@ -61,8 +61,8 @@ export function LandingIntro() {
         Turn a hard-to-reproduce bug into one shareable file
       </h2>
       <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--bc-fg-muted)]">
-        Drop a BugCase report .zip below — screenshots, console, network, DOM and more, decoded
-        right here in this tab.
+        Drop a BugCase report .zip below: screenshots, console, network, DOM and more, decoded right
+        here in this tab.
       </p>
 
       <ul className="mt-6 grid gap-3 text-left sm:grid-cols-3">
