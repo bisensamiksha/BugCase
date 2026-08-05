@@ -249,4 +249,102 @@ describe('dashboard layout shell', () => {
     expect(q('network-pane')).not.toBeNull();
     expect(q('pane-overview')).toBeNull();
   });
+
+  it('offers a skip link as the first focusable element', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    const skip = q('skip-to-content') as HTMLElement | null;
+    expect(skip).not.toBeNull();
+    expect(skip!.getAttribute('href')).toBe('#main');
+    // It must precede the nav in DOM order or it cannot do its job.
+    const nav = q('app-sidenav')!;
+    expect(skip!.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('gives the content region an id and makes it programmatically focusable', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    const main = q('app-content') as HTMLElement | null;
+    expect(main!.id).toBe('main');
+    expect(main!.tabIndex).toBe(-1);
+  });
+
+  it('marks the banner and contentinfo landmarks', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    expect(q('app-topbar')!.getAttribute('role')).toBe('banner');
+    expect(q('legal-footer')!.getAttribute('role')).toBe('contentinfo');
+  });
+
+  it('exposes a polite live region for route announcements', () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    const live = q('route-announcer') as HTMLElement | null;
+    expect(live!.getAttribute('role')).toBe('status');
+    expect(live!.className).toContain('sr-only');
+  });
+
+  it('activates the skip link without letting the hash router reset the route', async () => {
+    window.location.hash = '#/network';
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+    expect(q('nav-network')?.getAttribute('aria-current')).toBe('page');
+
+    const skip = q('skip-to-content') as HTMLAnchorElement;
+    await act(async () => {
+      skip.click();
+      // jsdom defers an anchor's default navigation via setTimeout(0) (verified directly against
+      // jsdom's HTMLHyperlinkElementUtils-impl.js). Flush it so an unguarded click would already
+      // have let `#main` reach the hash router by the time we assert — parseHash treats an
+      // unrecognized fragment like '#main' as unknown and falls back to Overview, discarding the
+      // active pane and, via App's tab lookup, the active report tab (S4-27 review finding).
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(window.location.hash).toBe('#/network');
+    expect(q('nav-network')?.getAttribute('aria-current')).toBe('page');
+    expect(document.activeElement).toBe(q('app-content'));
+  });
+
+  it('focuses the content region and announces when the user changes pane', async () => {
+    act(() => {
+      root.render(<App read={vi.fn()} />);
+    });
+
+    await act(async () => {
+      window.location.hash = '#/console';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+
+    expect(document.activeElement).toBe(q('app-content'));
+    expect(q('route-announcer')?.textContent).toBe('Console');
+  });
+
+  it('focuses the content region and announces when a loaded report changes pane', async () => {
+    window.location.hash = '#/overview';
+    await renderLoaded(reportWith({}));
+    expect(q('pane-overview')).not.toBeNull();
+
+    await act(async () => {
+      window.location.hash = '#/console';
+      window.dispatchEvent(new Event('hashchange'));
+      await Promise.resolve();
+    });
+
+    // On the loaded path, LoadedPane's Suspense boundary is a descendant of <main> — this
+    // confirms the ancestor never unmounts/loses its ref while the lazy pane chunk suspends.
+    expect(q('console-pane')).not.toBeNull();
+    expect(document.activeElement).toBe(q('app-content'));
+    expect(q('route-announcer')?.textContent).toBe('Console');
+  });
 });

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 
+import { SkipLink } from '../a11y/SkipLink';
 import { CopyLinkButton } from '../components/CopyLinkButton';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -24,6 +25,13 @@ export interface AppShellProps {
    * Defaults to a plain pane+report hash.
    */
   readonly hrefForPane?: (pane: DashboardPane) => string;
+  /**
+   * The content region, so `useRouteFocus` can move focus here on a pane change (S4-27). Optional
+   * because the shell is also rendered standalone in tests.
+   */
+  readonly mainRef?: RefObject<HTMLElement>;
+  /** Live-region text announcing the newly active pane (S4-27). */
+  readonly announcement?: string;
 }
 
 /**
@@ -31,15 +39,24 @@ export interface AppShellProps {
  * panes, and a content region. Layout is Tailwind; color comes from the `--bc-*` theming tokens so
  * the shell follows light/dark automatically. It holds no report or routing state of its own.
  */
-export function AppShell({ route, children, tabs, hrefForPane }: AppShellProps) {
+export function AppShell({
+  route,
+  children,
+  tabs,
+  hrefForPane,
+  mainRef,
+  announcement,
+}: AppShellProps) {
   const href =
     hrefForPane ??
     ((pane: DashboardPane) => formatHash({ activePane: pane, reportId: route.reportId }));
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bc-bg)] text-[var(--bc-fg)]">
+      <SkipLink />
       <header
         data-testid="app-topbar"
         data-print-hide
+        role="banner"
         className="flex items-center gap-3 border-b border-[var(--bc-border)] bg-[var(--bc-surface)] px-4 py-3"
       >
         <h1 className="text-base font-bold">BugCase Dashboard</h1>
@@ -87,7 +104,13 @@ export function AppShell({ route, children, tabs, hrefForPane }: AppShellProps) 
           </ul>
         </nav>
 
-        <main data-testid="app-content" className="min-w-0 flex-1 p-4">
+        <main
+          ref={mainRef}
+          id="main"
+          tabIndex={-1}
+          data-testid="app-content"
+          className="min-w-0 flex-1 p-4"
+        >
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
@@ -95,6 +118,7 @@ export function AppShell({ route, children, tabs, hrefForPane }: AppShellProps) 
       <footer
         data-testid="legal-footer"
         data-print-hide
+        role="contentinfo"
         className="border-t border-[var(--bc-border)] bg-[var(--bc-surface)] px-4 py-2 text-xs text-[var(--bc-fg-muted)]"
       >
         <a
@@ -108,6 +132,11 @@ export function AppShell({ route, children, tabs, hrefForPane }: AppShellProps) 
           Terms of Use
         </a>
       </footer>
+
+      {/* Route changes are announced here rather than by moving visible text (S4-27). */}
+      <p data-testid="route-announcer" role="status" className="sr-only">
+        {announcement ?? ''}
+      </p>
     </div>
   );
 }

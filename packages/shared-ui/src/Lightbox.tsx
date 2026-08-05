@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 
+import { useFocusRestore, useFocusTrap } from './a11y/focus';
 import { useZoomPan } from './useZoomPan';
 
 export interface LightboxProps {
@@ -63,6 +64,21 @@ export function Lightbox({ load, loadKey, alt, disabled, onCancel, errorMessage 
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [src, setSrc] = useState<string | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
+  // The dialog is modal: Tab must not reach the page behind it, and closing must not strand focus
+  // on <body>. `useFocusTrap` is called *without* `onEscape` on purpose — `handleKeyDown` below
+  // already owns Escape (along with the zoom and pan keys), and passing it here would call
+  // `onCancel` twice. `useFocusRestore(true)` is unconditional because this component only ever
+  // renders while open; the caller unmounts it to close, which is what triggers the restore.
+  //
+  // This trap/restore addition (S4-27) reaches BOTH surfaces that consume this component, not just
+  // the dashboard the ticket scoped: `packages/extension/src/preview/Lightbox.tsx` wraps this same
+  // `Lightbox` for the extension's own screenshot viewer. Extension-surface a11y was out of scope for
+  // S4-27, but because the two surfaces share this implementation, the improvement lands there anyway
+  // — verified as a genuine improvement, not a regression (the extension's full test suite passes
+  // unchanged). Flagging it here so the cross-surface impact isn't invisible to a future reader who
+  // only sees this file's dashboard-focused history.
+  useFocusTrap(sectionRef);
+  useFocusRestore(true);
   const drag = useRef<{ x: number; y: number } | null>(null);
   // Keep the latest loader without making it an effect dep (it is a fresh closure each render);
   // `loadKey` is the explicit re-run trigger.

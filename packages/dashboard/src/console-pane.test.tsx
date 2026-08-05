@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ConsolePane } from './panes/ConsolePane';
+import type { ConsoleFilterState } from './router/hash-state';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,6 +27,14 @@ const logOf = (entries: ConsoleEntry[]): ConsoleLog => ({
   entries,
 });
 
+/** `n` distinct entries, for tests that care about count/virtualization rather than content. */
+const logWith = (n: number): ConsoleLog =>
+  logOf(
+    Array.from({ length: n }, (_, i) =>
+      entry({ id: `e${i}`, args: [{ type: 'string', preview: `entry ${i}` }] }),
+    ),
+  );
+
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
 const q = (id: string) => container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
@@ -45,11 +54,32 @@ const typeInto = (el: HTMLInputElement, value: string) =>
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
-function render(log: ConsoleLog | null) {
+function render(log: ConsoleLog | null, initialFilters?: Partial<ConsoleFilterState>) {
   act(() => {
-    root.render(<ConsolePane log={log} />);
+    root.render(
+      initialFilters === undefined ? (
+        <ConsolePane log={log} />
+      ) : (
+        <ConsolePane log={log} initialFilters={initialFilters} />
+      ),
+    );
   });
 }
+
+/**
+ * Flushes exactly one real `requestAnimationFrame` tick, wrapped in `act` so the React state
+ * update `useVirtualWindow`'s `onScroll` schedules inside that callback is committed before the
+ * assertions run. jsdom's `requestAnimationFrame` queue is FIFO, so a callback registered here
+ * (after the row-jump keydown that registers the hook's own raf callback via `onScrollSync`)
+ * always resolves after it.
+ */
+const flushRaf = () =>
+  act(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      }),
+  );
 
 beforeEach(() => {
   container = document.createElement('div');
@@ -176,5 +206,176 @@ describe('ConsolePane', () => {
     );
     const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
     expect(results.violations).toEqual([]);
+  });
+
+  it('has no axe violations when the filters exclude every entry (S4-27)', async () => {
+    // role="listbox" requires role="option" owned children; the empty state's "no matches"
+    // paragraph must not end up as a non-option child of the listbox (aria-required-children).
+    render(logOf([entry({ id: 'a', level: 'log' })]));
+    click(q('console-level-log')!);
+    expect(q('console-no-matches')).not.toBeNull();
+
+    const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
+    expect(results.violations).toEqual([]);
+  });
+
+  it('exposes the entry list as a single-tab-stop listbox (S4-27)', () => {
+    render(logWith(5));
+
+    const list = q('console-list')!;
+    expect(list.getAttribute('role')).toBe('listbox');
+    expect(list.getAttribute('aria-label')).toBe('Console entries');
+    expect(list.tabIndex).toBe(0);
+  });
+
+  it('marks rows as options rather than individual tab stops (S4-27)', () => {
+    render(logWith(5));
+
+    const rows = qa('console-row');
+    expect(rows.length).toBe(5);
+    for (const row of rows) {
+      expect(row.getAttribute('role')).toBe('option');
+      expect(row.hasAttribute('aria-selected')).toBe(true);
+      expect(row.tabIndex).toBe(-1);
+    }
+  });
+
+  it("each row's accessible name contains the text it shows on screen (S4-27)", () => {
+    render(logWith(5));
+
+    const rows = qa('console-row');
+    expect(rows.length).toBe(5);
+    for (const row of rows) {
+      // WCAG 2.5.3 Label in Name: the hand-built `aria-label` must contain the visible text.
+      // The columns are separated by CSS `gap-3`, so the row needs real whitespace text nodes
+      // between the spans — otherwise this reads "log11:59:58App booted" and no longer matches.
+      const visible = row.textContent.replace(/\s+/g, ' ').trim();
+      const name = row.getAttribute('aria-label')!.replace(/\s+/g, ' ').trim();
+      expect(visible).not.toBe('');
+      expect(name).toContain(visible);
+    }
+  });
+
+  it('starts with no active descendant when nothing is selected (S4-27)', () => {
+    render(logWith(5));
+
+    const list = q('console-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    // The disagreement finding-1 caught: nothing should read as selected either.
+    for (const row of qa('console-row')) {
+      expect(row.getAttribute('aria-selected')).toBe('false');
+    }
+  });
+
+  it('the first ArrowDown selects row 0 specifically, not row 1 (S4-27)', () => {
+    render(logWith(5));
+    const list = q('console-list')!;
+
+    act(() => {
+      list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+
+    expect(list.getAttribute('aria-activedescendant')).toBe('console-option-0');
+    expect(document.getElementById('console-option-0')?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps arrows inert when the filters match nothing (S4-27)', () => {
+    render(logWith(5), { query: 'zzz-no-such-entry' });
+
+    const list = q('console-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    expect(() =>
+      act(() => {
+        list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      }),
+    ).not.toThrow();
+  });
+
+  it('renders the row End jumped to even though it starts outside the initial virtual window (S4-27 onScrollSync)', async () => {
+    // 60 rows so the last one sits well past the ~5-row window jsdom's zero clientHeight renders
+    // by default. Only a synchronously-wired onScrollSync brings it into the DOM.
+    render(logWith(60));
+    const list = q('console-list')!;
+
+    act(() => {
+      list.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+    await flushRaf();
+
+    const active = list.getAttribute('aria-activedescendant');
+    expect(active).not.toBeNull();
+    const activeRow = document.getElementById(active!);
+    expect(activeRow).not.toBeNull();
+    expect(activeRow?.getAttribute('role')).toBe('option');
+    expect(activeRow?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('drops aria-activedescendant when a filter removes the selected entry, even though other rows remain (S4-27 clamping)', () => {
+    render(
+      logOf([
+        entry({ id: 'a', args: [{ type: 'string', preview: 'keep-a' }] }),
+        entry({ id: 'b', args: [{ type: 'string', preview: 'keep-b' }] }),
+        entry({ id: 'c', args: [{ type: 'string', preview: 'keep-c' }] }),
+        entry({ id: 'd', args: [{ type: 'string', preview: 'keep-d' }] }),
+        entry({ id: 'e', args: [{ type: 'string', preview: 'drop-e' }] }),
+      ]),
+    );
+
+    // Select the last row (id "e") before a filter removes it from the visible list.
+    click(qa('console-row')[4]!);
+    expect(q('console-detail')?.textContent).toContain('drop-e');
+
+    typeInto(q('console-search') as HTMLInputElement, 'keep');
+    expect(qa('console-row')).toHaveLength(4);
+
+    // "e" is gone but a, b, c, d remain — the reference must go absent, not silently repoint at
+    // row 0 (that mismatch, with row 0 showing aria-selected="false", is finding 1 from review).
+    const list = q('console-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+    for (const row of qa('console-row')) {
+      expect(row.getAttribute('aria-selected')).toBe('false');
+    }
+  });
+
+  it('drops aria-activedescendant when a filter removes every entry, including the selected one (S4-27 clamping)', () => {
+    render(logOf([entry({ id: 'a', level: 'log' })]));
+
+    click(q('console-row')!);
+    expect(q('console-detail')?.textContent).not.toContain('Select an entry');
+
+    click(q('console-level-log')!);
+    expect(qa('console-row')).toHaveLength(0);
+
+    const list = q('console-list')!;
+    expect(list.getAttribute('aria-activedescendant')).toBeNull();
+  });
+
+  it('renders every row once a pane that MOUNTED already filtered to zero rows has its filter loosened (S4-27 residual 2)', () => {
+    // Reachable in production via S4-26: opening a shared link whose hash filter matches nothing
+    // mounts this pane with `visible.length === 0` from the start. The list container gets
+    // Tailwind's `hidden` (`display: none`) in that state, which a real browser reports as
+    // `clientHeight === 0`. `useVirtualWindow` used to measure the viewport once, on mount, and
+    // never again — so loosening the filter afterward rendered only the ~5-row overscan window
+    // instead of the real list, with the remainder left as blank spacer until the user scrolled or
+    // pressed an arrow key.
+    const N = 20;
+    render(logWith(N), { query: 'zzz-no-such-entry' }); // mounts already filtered to zero
+    expect(qa('console-row')).toHaveLength(0);
+
+    const list = q('console-list')!;
+    // jsdom never computes layout (`clientHeight` is always 0); stub it to mirror a real browser —
+    // 0 while `hidden` is applied, a real viewport height once it is not — the same idiom
+    // `use-active-descendant.test.tsx` uses for a fixed `clientHeight`, tied here to the
+    // container's own `hidden` class the way a real browser's `display: none` would behave.
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      get() {
+        return list.classList.contains('hidden') ? 0 : 600; // plenty of room for all 20 rows
+      },
+    });
+
+    typeInto(q('console-search') as HTMLInputElement, '');
+
+    expect(qa('console-row')).toHaveLength(N);
   });
 });

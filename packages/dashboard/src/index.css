@@ -1,3 +1,97 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Keyboard focus indicator (S4-27).
+ *
+ * The repo had no focus styling at all, so the indicator was whatever the UA happened to draw —
+ * which disappears against the accent-filled nav pill and the active report tab. A two-part ring
+ * (page-coloured inner via box-shadow, accent outer via outline) stays visible on every surface the
+ * token contrast matrix (Task 2) permits — `--bc-accent` clears 3:1 against every `--bc-bg`/
+ * `--bc-surface` pairing in both themes.
+ *
+ * Ordinary controls use the focus-visible pseudo-class rather than plain focus, so a pointer click
+ * does not leave a ring behind. No transition, so there is nothing for prefers-reduced-motion to
+ * disable. (The exact rules, and #main's documented exception, are commented in place below.)
+ */
+@layer base {
+  /*
+   * No `.sr-only` exclusion here (S4-27 review, fix round 1) — a `:not(.sr-only)` guard was tried
+   * and reverted. `.sr-only` is a class-attribute selector: it matches on the literal `sr-only`
+   * token in the `class` list, not on computed style. That distinction matters because this app has
+   * two different kinds of sr-only element, not one:
+   *
+   * - Permanently sr-only: `DropZone.tsx`'s file input never loses `sr-only`, so `clip: rect(0, 0,
+   *   0, 0)` clips its entire paint region — outline and box-shadow included — for as long as it
+   *   exists. The ring below is inert on it regardless of whether it matches; it solves its own
+   *   indicator via `peer` on the input plus `peer-focus-visible:` on the adjacent visible label.
+   * - Reveal-on-focus sr-only: `a11y/SkipLink.tsx`'s class is `sr-only focus:not-sr-only
+   *   focus:absolute ...`. Tailwind's `focus:not-sr-only` variant lifts `clip`/`position`/`width`
+   *   under `:focus`, so the link genuinely becomes visible and unclipped on focus — but the
+   *   literal `sr-only` token stays in its `class` attribute regardless (Tailwind compiles the
+   *   variant to a separate rule; it does not rewrite the DOM class list). A `:not(.sr-only)` guard
+   *   therefore excluded the skip link from this ring permanently, focused or not — confirmed via
+   *   `el.matches(':not(.sr-only)')` returning `false` on a `focus:not-sr-only` element regardless
+   *   of focus state. That is exactly backwards for the first thing a keyboard user reaches.
+   *
+   * No selector-level guard can distinguish these two cases (both carry the same class token), so
+   * this rule targets neither specially: it is inert on the permanently-clipped case (nothing to
+   * fix) and correctly reaches the reveal-on-focus case once Tailwind's own `focus:not-sr-only`
+   * rule has already lifted the clip.
+   */
+  :focus-visible {
+    outline: 2px solid var(--bc-accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bc-bg);
+  }
+
+  /*
+   * #main (AppShell.tsx) is a deliberate, documented exception to "focus-visible only."
+   *
+   * It carries `tabIndex={-1}` and is reached only programmatically — the skip link
+   * (a11y/SkipLink.tsx) and useRouteFocus (a11y/focus.ts) both call `.focus()` directly, never via
+   * Tab. That makes it precisely where a sighted keyboard user most needs to see that focus moved
+   * (a hash-router pane swap replaces the content while focus would otherwise silently stay on the
+   * nav link that caused it), and precisely where `:focus-visible` is least reliable: browsers'
+   * heuristics generally keep "keyboard modality" through a script-triggered `.focus()` call made
+   * synchronously inside a keyboard event handler (the skip link's onClick), but useRouteFocus calls
+   * `.focus()` from a `useEffect` — scheduled after commit, outside the click handler's own call
+   * stack — and this project has no reliable way to assert cross-browser behaviour for that case
+   * without real-browser testing (that's the Task 15 Playwright gate, not this stylesheet).
+   *
+   * Rather than ship the app's primary focus-management mechanism with an indicator that might
+   * silently not render in some browsers, #main also gets a plain `:focus` rule, so it renders
+   * unconditionally whenever #main holds focus, `:focus-visible` heuristic or not.
+   *
+   * The known downside of plain `:focus` — a ring appearing after focus that did not come from a
+   * Tab press — is real here, not hypothetical, and it is the COMMON case, not an edge case:
+   * useRouteFocus calls `main.focus()` on every single pane change, regardless of what caused it.
+   * Clicking any of the nine side-nav links with a mouse — the ordinary, expected way most users
+   * change panes — swaps the content and focuses #main exactly the same as a keyboard-driven
+   * change does, leaving a 2px accent ring around the whole content column until focus next moves.
+   * The branch's own E2E suite (`tests/e2e/dashboard-a11y.spec.ts`, "the content region shows a
+   * visible focus ring after a route change") demonstrates precisely this: it clicks a nav link
+   * with `.click()`, not a keyboard press, and then asserts the ring is visible.
+   *
+   * A second, narrower path to the same outcome is clicking blank padding or plain text inside
+   * <main> directly (not on a nested control): `tabIndex={-1}` makes an element click-focusable,
+   * and the HTML click default-action algorithm focuses the nearest focusable ancestor when a
+   * click lands on non-focusable content, so a stray click on whitespace inside <main> also
+   * focuses <main> itself in Chromium and Firefox. Safari is the exception here — by default it
+   * only moves focus on click for text-editable controls, not for a plain `tabindex="-1"`
+   * container, unless the user has "Full Keyboard Access" enabled.
+   *
+   * Either way the exposure is bounded: clicking any actual control inside <main> focuses that
+   * control instead of <main> (only one element holds focus at a time), and the ring clears the
+   * moment focus moves again — it does not linger past its own focus's lifetime. A ring around the
+   * content column after an ordinary mouse-driven pane change is an acceptable, cosmetic trade-off
+   * against a route change that silently fails to show a sighted keyboard user where focus went,
+   * which is the failure this rule exists to prevent.
+   */
+  #main:focus {
+    outline: 2px solid var(--bc-accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--bc-bg);
+  }
+}

@@ -71,4 +71,23 @@
   a {
     text-decoration: none;
   }
+
+  /*
+   * A focus ring (index.css, S4-27) belongs to on-screen keyboard navigation; paper has no
+   * keyboard to navigate with, and a ring baked into a PDF export would look like a rendering bug.
+   * Cancels both index.css rules using the exact same selectors — :focus-visible and #main:focus —
+   * so each pair is an exact-specificity tie; print.css loads after index.css (see main.tsx), so
+   * source order alone would already settle it. `!important` is not covering a specificity gap
+   * here (there isn't one): it's kept only for consistency with every other override in this file,
+   * and as a defensive margin if either selector is ever tightened again (index.css previously
+   * carried :focus-visible:not(.sr-only), which WAS more specific than a bare :focus-visible here —
+   * reverted in the S4-27 review's fix round 1 for an unrelated reason, but it's the kind of change
+   * that could silently reintroduce a specificity gap, which is exactly what !important guards
+   * against regardless of which selector shape either file settles on next).
+   */
+  :focus-visible,
+  #main:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
 }

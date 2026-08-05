@@ -25,7 +25,7 @@ export interface ReproductionPaneProps {
 }
 
 const BTN =
-  'rounded border border-[var(--bc-border)] px-2 py-0.5 text-sm text-[var(--bc-fg)] disabled:opacity-50';
+  'rounded border border-[var(--bc-border-strong)] px-2 py-0.5 text-sm text-[var(--bc-fg)] disabled:opacity-50';
 
 const TYPE_TINT: Record<ReproStepType, string> = {
   click: 'text-[var(--bc-step-click)]',

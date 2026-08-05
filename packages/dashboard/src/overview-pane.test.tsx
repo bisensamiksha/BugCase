@@ -159,4 +159,18 @@ describe('OverviewPane', () => {
     expect(q('overview-empty')).not.toBeNull();
     expect(q('overview-hero-link')).toBeNull();
   });
+
+  it('renders the minor severity badge with full-strength text, not muted-on-muted', () => {
+    // fgMuted on surfaceMuted measures 4.34:1 (light) / 4.04:1 (dark) — below AA. The badge is the
+    // only place the dashboard composed that pair; `fg` on surfaceMuted is 13.35:1 / 8.40:1.
+    const report = {
+      ...fullReport(),
+      userInput: { ...fullReport().userInput, severity: 'minor' as const },
+    };
+    render(report, 'cap-42');
+
+    const badge = q('overview-severity');
+    expect(badge?.className).toContain('text-[var(--bc-fg)]');
+    expect(badge?.className).not.toContain('text-[var(--bc-fg-muted)]');
+  });
 });

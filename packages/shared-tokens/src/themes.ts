@@ -18,6 +18,8 @@ export interface ThemeTokens {
   readonly surface: string;
   readonly surfaceMuted: string;
   readonly border: string;
+  /** Boundary for controls that need one to be identifiable (WCAG 1.4.11). Decorative dividers use `border`. */
+  readonly borderStrong: string;
   readonly fg: string;
   readonly fgMuted: string;
   readonly accent: string;
@@ -60,6 +62,7 @@ export const lightTheme: ThemeTokens = {
   surface: palette.white,
   surfaceMuted: palette.slate100,
   border: palette.slate200,
+  borderStrong: palette.slate500, // NEW — 4.76:1 on white, clears 1.4.11
   fg: palette.slate800,
   fgMuted: palette.slate500,
   accent: palette.blue600,
@@ -71,8 +74,9 @@ export const lightTheme: ThemeTokens = {
   dangerBgStrong: palette.red100,
   dangerBorder: palette.red300,
 
-  warning: palette.amber600,
-  warningStrong: palette.amber700,
+  warning: palette.amber700, // was amber600 — 3.19:1 on white, now 5.02:1
+  warningStrong: palette.amber900, // was amber700 — keeps the two roles distinct now that
+  // `warning` took amber700; 9.07:1 on white
   warningBg: palette.amber50,
   warningBgStrong: palette.amber100,
   warningOnBg: palette.amber900,
@@ -95,43 +99,48 @@ export const lightTheme: ThemeTokens = {
 /**
  * Dark values.
  *
- * Where the dashboard already shipped a `dark:` Tailwind variant, that variant's value is used, so
- * dark mode renders exactly as it does today. Where no dark variant existed — most of the danger
- * group, `success`, and the JSON syntax colours — the light value is **deliberately mirrored**
- * rather than invented: S4-25 moves values, it does not redesign them. Raising the contrast of those
- * roles against a dark surface is a real improvement, but it is a design decision that belongs to
- * the S4-27 accessibility pass, where it can be judged against measured contrast ratios.
+ * S4-25 mirrored the light values for the roles that had no `dark:` Tailwind variant — the danger
+ * group, `success`, and the JSON syntax colours — and explicitly deferred the contrast judgement to
+ * this ticket. S4-27 made it: those mirrors measured between 1.12:1 and 3.70:1 (`danger` on `bg`,
+ * red-600 on slate-900) against a dark surface, so each moved up the primitive scale until the pair
+ * matrix in `contrast.test.ts` passed.
+ * The two structural fixes are `accent`/`accentFg` (white on blue-500 was 3.68:1, so the pill is now
+ * a lighter blue with dark text) and the `dangerBg`/`warningBgStrong` family, which were still
+ * *light* tints inside the dark theme.
  */
 export const darkTheme: ThemeTokens = {
   bg: palette.slate900,
   surface: palette.slate800,
   surfaceMuted: palette.slate700,
   border: palette.slate700,
+  borderStrong: palette.slate500,
   fg: palette.slate200,
   fgMuted: palette.slate400,
-  accent: palette.blue500,
-  accentFg: palette.white,
 
-  // no `dark:` variants shipped for the danger group — mirrored, see the note above
-  danger: palette.red600,
-  dangerStrong: palette.red700,
-  dangerBg: palette.red50,
-  dangerBgStrong: palette.red100,
-  dangerBorder: palette.red300,
+  // White on blue-500 measured 3.68:1. Inverting the pill — lighter field, dark text — clears both
+  // this pair (7.02:1) and accent-as-text on a card (5.75:1); darkening the blue would fix only one.
+  accent: palette.blue400,
+  accentFg: palette.slate900,
 
-  warning: palette.amber600,
-  warningStrong: palette.amber700,
+  danger: palette.red400,
+  dangerStrong: palette.red300,
+  dangerBg: palette.red950,
+  dangerBgStrong: palette.red900,
+  dangerBorder: palette.red700,
+
+  warning: palette.amber300,
+  warningStrong: palette.amber400,
   warningBg: palette.amber950,
-  warningBgStrong: palette.amber100,
+  warningBgStrong: palette.amber900,
   warningOnBg: palette.amber200,
   warningBorder: palette.amber500,
 
-  success: palette.emerald700,
+  success: palette.emerald400,
 
-  syntaxValue: palette.emerald700,
-  syntaxKey: palette.slate500,
-  syntaxSummary: palette.slate600,
-  syntaxGuide: palette.slate200,
+  syntaxValue: palette.emerald400,
+  syntaxKey: palette.slate400,
+  syntaxSummary: palette.slate300,
+  syntaxGuide: palette.slate700,
 
   stepClick: palette.blue300,
   stepInput: palette.emerald300,

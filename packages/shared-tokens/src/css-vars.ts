@@ -9,6 +9,7 @@ export const CSS_VAR_NAME: Record<keyof ThemeTokens, string> = {
   surface: '--bc-surface',
   surfaceMuted: '--bc-surface-muted',
   border: '--bc-border',
+  borderStrong: '--bc-border-strong',
   fg: '--bc-fg',
   fgMuted: '--bc-fg-muted',
   accent: '--bc-accent',

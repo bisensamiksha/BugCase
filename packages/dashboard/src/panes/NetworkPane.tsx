@@ -8,14 +8,14 @@ import type {
 import { compileSearch } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState } from 'react';
 
-
+import { useActiveDescendant } from '../a11y/use-active-descendant';
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { toCurl } from '../lib/curl';
 import { useVirtualWindow } from '../lib/virtual-window';
 import type { NetworkFilterState } from '../router/hash-state';
 
-import { Waterfall, statusClassColor } from './Waterfall';
+import { Waterfall, statusClassColor, statusClassTextColor } from './Waterfall';
 import {
   distinctMethods,
   filterNetwork,
@@ -228,6 +228,29 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
   }, [entries, activeClasses, activeMethods, activeInitiators, compiled]);
 
   const { window: vwin, containerRef, onScroll } = useVirtualWindow(visible.length, ROW_H);
+
+  // The listbox reasons in indices; the pane's existing selection is by id. Re-derive the index
+  // from `selectedId` on every render (rather than caching it in state) so a filter that shrinks
+  // `visible` — or filters the selected row out entirely — can never leave a stale/out-of-range
+  // index behind. `useActiveDescendant` never re-validates the `activeIndex` it's handed, so this
+  // clamping is the pane's responsibility, not the hook's (S4-27). `findIndex` returning -1 (no
+  // selection, or the selected row got filtered out) is passed through as-is — the hook treats a
+  // negative index as "nothing active" and omits `aria-activedescendant`, rather than us faking
+  // index 0 and disagreeing with the row that actually shows `aria-selected="true"`.
+  const activeIndex = visible.findIndex((entry) => entry.id === selectedId);
+  const { listProps, optionId } = useActiveDescendant({
+    count: visible.length,
+    rowHeight: ROW_H,
+    containerRef,
+    idPrefix: 'network-option',
+    activeIndex,
+    onActiveIndexChange: (index) => setSelectedId(visible[index]?.id ?? null),
+    // Without this, aria-activedescendant can name a row the virtual window hasn't rendered yet:
+    // useVirtualWindow only recomputes on a throttled native `scroll` event, which a programmatic
+    // `scrollTop` assignment never fires (and jsdom never fires at all).
+    onScrollSync: onScroll,
+  });
+
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
   const totalMs = range === null ? 0 : range.maxMs - range.minMs;
 
@@ -301,7 +324,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 onClick={() => toggle(setActiveClasses, cls)}
                 style={on ? { backgroundColor: statusClassColor(cls), color: '#fff' } : undefined}
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
-                  on ? '' : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                  on ? '' : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {cls} {classCounts[cls]}
@@ -324,7 +347,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
                   on
                     ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
-                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                    : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {method} {mCounts[method]}
@@ -347,7 +370,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
                   on
                     ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
-                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                    : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {initiator} {iCounts[initiator]}
@@ -363,7 +386,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
           placeholder="Search…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border-strong)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
         />
         <label className="flex items-center gap-1 text-sm text-[var(--bc-fg)]">
           <input
@@ -407,43 +430,71 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
         onScroll={onScroll}
         data-testid="network-list"
         aria-label="Network requests"
-        className="flex-1 overflow-auto rounded border border-[var(--bc-border)]"
+        {...listProps}
+        // `outline-none` used to sit here and silently cancel the shared `:focus-visible` ring
+        // (index.css) on this container's SOLE tab stop — Tailwind's `.outline-none` compiles to
+        // `outline: 2px solid transparent`, which ties on specificity with `:focus-visible` and
+        // loads after it, so only the (invisible-on-page-bg) box-shadow survived (S4-27 review).
+        // Removed; do not reintroduce it here.
+        //
+        // `hidden` when there are no rows (rather than always rendering a full-height empty box):
+        // an empty listbox has nothing to arrow-navigate into, so it is reasonable for it to drop
+        // out of the accessibility tree and tab order along with its visible border, letting the
+        // "no matches" message below stand on its own instead of sitting under a large blank
+        // bordered box. `hidden` only toggles `display`, so `containerRef` stays attached to the
+        // same node the whole time — `useVirtualWindow`'s ref-derived state does not need to
+        // survive a remount when rows reappear.
+        className={`flex-1 overflow-auto rounded border border-[var(--bc-border)] ${
+          visible.length === 0 ? 'hidden' : ''
+        }`}
       >
-        {visible.length === 0 ? (
-          <p data-testid="network-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
-            No requests match the current filters.
-          </p>
-        ) : (
+        {visible.length === 0 ? null : (
           <div style={{ paddingTop: vwin.padTop, paddingBottom: vwin.padBottom }}>
-            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry) => {
+            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry, offset) => {
+              const index = vwin.startIndex + offset;
               const cls = statusClass(entry);
               const current = entry.id === selectedId;
               return (
-                <button
+                <div
                   key={entry.id}
-                  type="button"
+                  id={optionId(index)}
+                  role="option"
+                  tabIndex={-1}
                   data-testid="network-row"
-                  aria-current={current}
-                  aria-label={`${entry.method} ${statusLabel(entry)} ${entry.url} ${durationLabel(entry)}`}
+                  aria-selected={current}
+                  /*
+                   * Must list every visible column, in the order they are read on screen. The size
+                   * column was missing here, so the accessible name omitted a value sighted users
+                   * can see — a WCAG 2.5.3 (Label in Name) failure, and a plain content gap for
+                   * screen-reader users. The waterfall span holds no text (it names its own SVG),
+                   * so it contributes nothing to the visible label.
+                   */
+                  aria-label={`${entry.method} ${statusLabel(entry)} ${entry.url} ${sizeLabel(entry)} ${durationLabel(entry)}`}
                   onClick={() => setSelectedId(entry.id)}
                   style={{ height: ROW_H }}
-                  className={`flex w-full items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
+                  className={`flex w-full cursor-pointer items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
                     current
                       ? 'border-[var(--bc-accent)] bg-[var(--bc-surface)]'
                       : 'border-transparent'
                   }`}
                 >
-                  <span className="w-14 shrink-0 text-[var(--bc-fg-muted)]">{entry.method}</span>
-                  <span className="w-14 shrink-0" style={{ color: statusClassColor(cls) }}>
+                  {/*
+                    The `{' '}` separators are load-bearing, not formatting — the columns are spaced
+                    with CSS `gap-3`, so without them the row's text content runs together as
+                    "POST500https://…27 B480 ms" and no longer matches the accessible name above.
+                    Whitespace-only text nodes do not become flex items, so layout is unaffected.
+                  */}
+                  <span className="w-14 shrink-0 text-[var(--bc-fg-muted)]">{entry.method}</span>{' '}
+                  <span className="w-14 shrink-0" style={{ color: statusClassTextColor(cls) }}>
                     {statusLabel(entry)}
-                  </span>
-                  <span className="min-w-0 flex-[2] truncate text-[var(--bc-fg)]">{entry.url}</span>
+                  </span>{' '}
+                  <span className="min-w-0 flex-[2] truncate text-[var(--bc-fg)]">{entry.url}</span>{' '}
                   <span className="w-16 shrink-0 text-right text-[var(--bc-fg-muted)]">
                     {sizeLabel(entry)}
-                  </span>
+                  </span>{' '}
                   <span className="w-16 shrink-0 text-right text-[var(--bc-fg-muted)]">
                     {durationLabel(entry)}
-                  </span>
+                  </span>{' '}
                   <span className="min-w-0 flex-1">
                     <Waterfall
                       startOffsetMs={startOffsetOf(entry)}
@@ -453,12 +504,20 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                       label={entry.durationMs === null ? 'failed' : `${entry.durationMs} ms`}
                     />
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </div>
+      {visible.length === 0 ? (
+        // A sibling of the listbox, not a child: role="listbox" requires role="option" owned
+        // children (axe: aria-required-children), so this message lives outside it. The listbox
+        // itself stays permanently role="listbox" — just empty — rather than losing its role.
+        <p data-testid="network-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
+          No requests match the current filters.
+        </p>
+      ) : null}
 
       <div
         data-testid="network-detail"
@@ -469,7 +528,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
             <div>
               <p className="font-mono text-sm text-[var(--bc-fg)]">
                 <span className="text-[var(--bc-fg-muted)]">{selected.method}</span>{' '}
-                <span style={{ color: statusClassColor(statusClass(selected)) }}>
+                <span style={{ color: statusClassTextColor(statusClass(selected)) }}>
                   {statusLabel(selected)}
                 </span>
                 {selected.statusText ? ` ${selected.statusText}` : ''}
@@ -486,7 +545,7 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                 type="button"
                 data-testid="network-curl"
                 onClick={() => void copyCurl(selected)}
-                className="mt-2 rounded border border-[var(--bc-border)] px-2 py-0.5 text-xs text-[var(--bc-fg)]"
+                className="mt-2 rounded border border-[var(--bc-border-strong)] px-2 py-0.5 text-xs text-[var(--bc-fg)]"
               >
                 {copiedId === selected.id ? 'Copied' : 'Copy as cURL'}
               </button>

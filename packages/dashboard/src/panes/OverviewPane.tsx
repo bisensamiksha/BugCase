@@ -14,7 +14,9 @@ export interface OverviewPaneProps {
 }
 
 const SEVERITY_BADGE: Record<Severity, string> = {
-  minor: 'bg-[var(--bc-surface-muted)] text-[var(--bc-fg-muted)]',
+  // `fgMuted` on `surfaceMuted` is 4.34:1 — below AA. Minor is already de-emphasised by its neutral
+  // field; muting the text as well made it the least readable badge of the three (S4-27).
+  minor: 'bg-[var(--bc-surface-muted)] text-[var(--bc-fg)]',
   major: 'bg-[var(--bc-warning-bg-strong)] text-[var(--bc-warning-strong)]',
   critical: 'bg-[var(--bc-danger-bg-strong)] text-[var(--bc-danger-strong)]',
 };
@@ -84,7 +86,18 @@ function MetricTile({
       >
         {value}
       </div>
-      <div className="mt-0.5 text-xs text-[var(--bc-fg-muted)]">{label}</div>
+      {/*
+        `fgMuted` is only contrast-audited against `bg`/`surface` (contrast.test.ts's MATRIX), not
+        against `dangerBg` — on it, fgMuted reads at 4.35:1 in the light theme, just under the 4.5:1
+        floor (S4-27 Task 15 axe finding). `dangerStrong` on `dangerBg` is an already-sanctioned pair
+        (MATRIX doubles it as the control-boundary pair too), so the emphasized tile's label switches
+        to it instead of staying on the unsanctioned combination.
+      */}
+      <div
+        className={`mt-0.5 text-xs ${emphasized ? 'text-[var(--bc-danger-strong)]' : 'text-[var(--bc-fg-muted)]'}`}
+      >
+        {label}
+      </div>
     </div>
   );
 }

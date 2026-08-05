@@ -34,7 +34,7 @@ export function MaskedValue({ value, revealed, onToggle, label, testId }: Masked
         aria-pressed={revealed}
         aria-label={revealed ? `Hide value for ${label}` : `Reveal value for ${label}`}
         onClick={onToggle}
-        className="shrink-0 rounded border border-[var(--bc-border)] px-1.5 py-0.5 text-xs text-[var(--bc-fg-muted)]"
+        className="shrink-0 rounded border border-[var(--bc-border-strong)] px-1.5 py-0.5 text-xs text-[var(--bc-fg-muted)]"
       >
         {revealed ? 'Hide' : 'Reveal'}
       </button>

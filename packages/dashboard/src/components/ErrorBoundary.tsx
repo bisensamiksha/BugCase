@@ -53,7 +53,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           type="button"
           data-testid="async-boundary-retry"
           onClick={this.reset}
-          className="mt-2 rounded-[var(--bc-radius)] border border-[var(--bc-danger-border)] px-3 py-1 text-sm font-medium hover:bg-[var(--bc-danger-bg-strong)]"
+          className="mt-2 rounded-[var(--bc-radius)] border border-[var(--bc-danger-strong)] px-3 py-1 text-sm font-medium hover:bg-[var(--bc-danger-bg-strong)]"
         >
           Try again
         </button>

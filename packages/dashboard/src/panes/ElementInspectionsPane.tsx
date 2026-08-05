@@ -158,7 +158,7 @@ export function ElementInspectionsPane({
                 className={`w-full rounded border p-2 text-left text-sm ${
                   isSelected
                     ? 'border-[var(--bc-accent)] bg-[var(--bc-surface)]'
-                    : 'border-[var(--bc-border)]'
+                    : 'border-[var(--bc-border-strong)]'
                 }`}
               >
                 <span className="font-mono text-xs text-[var(--bc-fg-muted)]">{index + 1}. </span>
@@ -245,7 +245,7 @@ export function ElementInspectionsPane({
             value={styleQuery}
             onChange={(event) => setStyleQuery(event.target.value)}
             placeholder="Filter properties…"
-            className="mt-1 block w-full max-w-xs rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+            className="mt-1 block w-full max-w-xs rounded border border-[var(--bc-border-strong)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
           />
           {styleCount === 0 ? (
             <p

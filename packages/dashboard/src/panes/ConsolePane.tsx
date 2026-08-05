@@ -2,6 +2,7 @@ import type { ConsoleArg, ConsoleEntry, ConsoleLevel, ConsoleLog } from '@bugcas
 import { compileSearch } from '@bugcase/shared-ui';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useActiveDescendant } from '../a11y/use-active-descendant';
 import { AsyncState } from '../components/AsyncState';
 import { JsonTree } from '../components/JsonTree';
 import { useVirtualWindow } from '../lib/virtual-window';
@@ -92,6 +93,29 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
   }, [entries, activeLevels, compiled, cutoffMs]);
 
   const { window: vwin, containerRef, onScroll } = useVirtualWindow(visible.length, ROW_H);
+
+  // The listbox reasons in indices; the pane's existing selection is by id. Re-derive the index
+  // from `selectedId` on every render (rather than caching it in state) so a filter that shrinks
+  // `visible` — or filters the selected row out entirely — can never leave a stale/out-of-range
+  // index behind. `useActiveDescendant` never re-validates the `activeIndex` it's handed, so this
+  // clamping is the pane's responsibility, not the hook's (S4-27). `findIndex` returning -1 (no
+  // selection, or the selected row got filtered out) is passed through as-is — the hook treats a
+  // negative index as "nothing active" and omits `aria-activedescendant`, rather than us faking
+  // index 0 and disagreeing with the row that actually shows `aria-selected="true"`.
+  const activeIndex = visible.findIndex((entry) => entry.id === selectedId);
+  const { listProps, optionId } = useActiveDescendant({
+    count: visible.length,
+    rowHeight: ROW_H,
+    containerRef,
+    idPrefix: 'console-option',
+    activeIndex,
+    onActiveIndexChange: (index) => setSelectedId(visible[index]?.id ?? null),
+    // Without this, aria-activedescendant can name a row the virtual window hasn't rendered yet:
+    // useVirtualWindow only recomputes on a throttled native `scroll` event, which a programmatic
+    // `scrollTop` assignment never fires (and jsdom never fires at all).
+    onScrollSync: onScroll,
+  });
+
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
   const showScrubber = range !== null && range.maxMs > range.minMs;
 
@@ -143,7 +167,7 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
                 className={`rounded px-2 py-0.5 font-mono text-xs ${
                   on
                     ? 'bg-[var(--bc-accent)] text-[var(--bc-accent-fg)]'
-                    : 'border border-[var(--bc-border)] text-[var(--bc-fg-muted)]'
+                    : 'border border-[var(--bc-border-strong)] text-[var(--bc-fg-muted)]'
                 }`}
               >
                 {level} {counts[level]}
@@ -159,7 +183,7 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
           placeholder="Search…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+          className="min-w-[160px] flex-1 rounded border border-[var(--bc-border-strong)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]"
         />
         <label className="flex items-center gap-1 text-sm text-[var(--bc-fg)]">
           <input
@@ -217,46 +241,78 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
         onScroll={onScroll}
         data-testid="console-list"
         aria-label="Console entries"
-        className="flex-1 overflow-auto rounded border border-[var(--bc-border)]"
+        {...listProps}
+        // `outline-none` used to sit here and silently cancel the shared `:focus-visible` ring
+        // (index.css) on this container's SOLE tab stop — Tailwind's `.outline-none` compiles to
+        // `outline: 2px solid transparent`, which ties on specificity with `:focus-visible` and
+        // loads after it, so only the (invisible-on-page-bg) box-shadow survived (S4-27 review).
+        // Removed; do not reintroduce it here.
+        //
+        // `hidden` when there are no rows (rather than always rendering a full-height empty box):
+        // an empty listbox has nothing to arrow-navigate into, so it is reasonable for it to drop
+        // out of the accessibility tree and tab order along with its visible border, letting the
+        // "no matches" message below stand on its own instead of sitting under a large blank
+        // bordered box. `hidden` only toggles `display`, so `containerRef` stays attached to the
+        // same node the whole time — `useVirtualWindow`'s ref-derived state does not need to
+        // survive a remount when rows reappear.
+        className={`flex-1 overflow-auto rounded border border-[var(--bc-border)] ${
+          visible.length === 0 ? 'hidden' : ''
+        }`}
       >
-        {visible.length === 0 ? (
-          <p data-testid="console-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
-            No entries match the current filters.
-          </p>
-        ) : (
+        {visible.length === 0 ? null : (
           <div style={{ paddingTop: vwin.padTop, paddingBottom: vwin.padBottom }}>
-            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry) => {
+            {visible.slice(vwin.startIndex, vwin.endIndex + 1).map((entry, offset) => {
+              const index = vwin.startIndex + offset;
               const current = entry.id === selectedId;
               return (
-                <button
+                <div
                   key={entry.id}
-                  type="button"
+                  id={optionId(index)}
+                  role="option"
+                  tabIndex={-1}
                   data-testid="console-row"
-                  aria-current={current}
+                  aria-selected={current}
                   aria-label={`${entry.level} ${timeOf(entry.timestamp)} ${messageOf(entry)}`}
                   onClick={() => setSelectedId(entry.id)}
                   style={{ height: ROW_H }}
-                  className={`flex w-full items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
+                  className={`flex w-full cursor-pointer items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
                     current
                       ? 'border-[var(--bc-accent)] bg-[var(--bc-surface)]'
                       : 'border-transparent'
                   }`}
                 >
+                  {/*
+                    The `{' '}` separators are load-bearing, not formatting. The columns are spaced
+                    with CSS `gap-3`, so without them the row's text content concatenates to
+                    "log11:59:58App booted" while `aria-label` above reads "log 11:59:58 App booted"
+                    — the accessible name then does not contain the visible text, which is a WCAG
+                    2.5.3 (Label in Name) failure for voice-control users. Whitespace-only text
+                    nodes do not become flex items, so this changes the accessible name only and
+                    leaves layout byte-identical (verified: row rects unchanged).
+                  */}
                   <span
                     className={`w-12 shrink-0 ${LEVEL_CLASS[entry.level] ?? 'text-[var(--bc-fg-muted)]'}`}
                   >
                     {entry.level}
-                  </span>
+                  </span>{' '}
                   <span className="w-20 shrink-0 text-[var(--bc-fg-muted)]">
                     {timeOf(entry.timestamp)}
-                  </span>
+                  </span>{' '}
                   <span className="truncate text-[var(--bc-fg)]">{messageOf(entry)}</span>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </div>
+      {visible.length === 0 ? (
+        // A sibling of the listbox, not a child: role="listbox" requires role="option" owned
+        // children (axe: aria-required-children), so this message lives outside it. The listbox
+        // itself stays permanently role="listbox" — just empty — rather than losing its role.
+        <p data-testid="console-no-matches" className="p-3 text-sm text-[var(--bc-fg-muted)]">
+          No entries match the current filters.
+        </p>
+      ) : null}
 
       <div
         data-testid="console-detail"

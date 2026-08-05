@@ -38,7 +38,7 @@ export function CopyLinkButton() {
         data-testid="copy-link"
         onClick={() => void copyLink()}
         title="Copy a link to this view"
-        className="rounded-[var(--bc-radius)] border border-[var(--bc-border)] px-2 py-1 text-xs text-[var(--bc-fg)] hover:bg-[var(--bc-bg)]"
+        className="rounded-[var(--bc-radius)] border border-[var(--bc-border-strong)] px-2 py-1 text-xs text-[var(--bc-fg)] hover:bg-[var(--bc-bg)]"
       >
         Copy link
       </button>

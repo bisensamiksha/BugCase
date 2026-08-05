@@ -97,4 +97,35 @@ describe('Lightbox', () => {
     press('Escape');
     expect(onCancel).not.toHaveBeenCalled();
   });
+
+  it('keeps Tab inside the dialog', async () => {
+    await render();
+
+    // The close button is the last control in the toolbar; Tab from it must wrap, not escape.
+    // At the default (min) zoom, zoom-out and reset are disabled and excluded by getFocusable, so
+    // zoom-in is the first focusable control — asserting the trap's actual wrap target, not just
+    // that focus stayed somewhere inside the container (which would hold trivially even with no
+    // trap at all, since jsdom never moves focus off Tab on its own).
+    const close = q('lightbox-close')!;
+    close.focus();
+    act(() => {
+      close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    });
+
+    expect(document.activeElement).toBe(q('lightbox-zoom-in'));
+  });
+
+  it('returns focus to the element that opened it', async () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+
+    await render();
+    expect(document.activeElement).not.toBe(opener);
+
+    act(() => root.unmount());
+
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
 });

@@ -18,7 +18,7 @@ const MUTED = 'text-sm text-[var(--bc-fg-muted)]';
 const TH = 'px-2 py-1 text-left text-xs font-semibold text-[var(--bc-fg-muted)]';
 const TD = 'px-2 py-1 align-top text-xs text-[var(--bc-fg)]';
 const FILTER =
-  'rounded border border-[var(--bc-border)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]';
+  'rounded border border-[var(--bc-border-strong)] bg-[var(--bc-bg)] px-2 py-1 text-sm text-[var(--bc-fg)]';
 
 function FilterInput({
   id,
@@ -117,7 +117,7 @@ export function StoragePane({ cookies, storage }: StoragePaneProps) {
           data-testid="storage-reveal-all"
           aria-pressed={revealAll}
           onClick={toggleAll}
-          className="rounded border border-[var(--bc-border)] px-2 py-1 text-sm text-[var(--bc-fg)]"
+          className="rounded border border-[var(--bc-border-strong)] px-2 py-1 text-sm text-[var(--bc-fg)]"
         >
           {revealAll ? 'Hide all values' : 'Reveal all values'}
         </button>

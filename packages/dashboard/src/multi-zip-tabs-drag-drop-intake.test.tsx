@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { BugReportV1 } from '@bugcase/schema';
+import axe from 'axe-core';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -217,5 +218,88 @@ describe('multi-ZIP tabs + drag-drop intake', () => {
 
     expect(q('report-tab-report-a')).not.toBeNull();
     expect(q('error')?.textContent).toContain('not a valid ZIP');
+  });
+
+  it('keeps the file input in the tab order (S4-27)', () => {
+    renderApp();
+
+    const input = q('dropzone')!.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    // `hidden` (display:none) removes an element from the tab order entirely; `sr-only` does not.
+    // This is the dashboard's only entry point, so a non-focusable input locks keyboard users out.
+    //
+    // jsdom has no layout/CSS engine — it never loads the compiled Tailwind stylesheet that gives
+    // `hidden` its `display:none`, so `.focus()`/`activeElement` below succeeds regardless of which
+    // class is present and can NOT, on its own, distinguish `hidden` from `sr-only` (confirmed by
+    // mutation testing: reverting to `className="hidden"` left this assertion green). It is kept
+    // because it still guards a different regression class jsdom CAN see — a stray `disabled` or
+    // `tabIndex={-1}` — but the className assertions below are the actually load-bearing check for
+    // this ticket's hidden-vs-sr-only distinction. Real visibility and real Tab traversal belong to
+    // the Playwright/axe task later in this ticket.
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    expect(input.className).not.toContain('hidden');
+    expect(input.className).toContain('sr-only');
+  });
+
+  it('labels the file input so its purpose is announced (S4-27)', () => {
+    renderApp();
+
+    const input = q('dropzone')!.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    expect(input.getAttribute('id')).toBe('dropzone-file-input');
+    const label = container.querySelector<HTMLLabelElement>('label[for="dropzone-file-input"]');
+    expect(label?.textContent).toContain('choose files');
+  });
+
+  it('gives the sr-only file input a visible focus indicator via the peer pattern (S4-27)', () => {
+    renderApp();
+
+    const input = q('dropzone')!.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const label = container.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`)!;
+
+    // jsdom loads no CSS (confirmed above for the hidden-vs-sr-only check), so it can't render the
+    // ring or prove Tab lands on this input with visible styling in a real browser — that
+    // verification belongs to the Playwright/axe task later in this ticket. What IS verifiable
+    // here, statically, is the wiring the "peer" pattern depends on:
+    //   1. the input carries the `peer` marker class;
+    //   2. the label carries a `peer-focus-visible:` utility that targets it;
+    //   3. — load-bearing and easy to get backwards — Tailwind's `peer` variant compiles to
+    //      `.peer:focus-visible ~ &`, a general-sibling selector that only matches LATER siblings,
+    //      so the input must precede the label in DOM order or the rule silently never fires.
+    expect(input.className).toContain('peer');
+    expect(label.className).toMatch(/peer-focus-visible:/);
+    expect(input.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('names the tab strip via a landmark, not an invented tablist role (S4-27)', async () => {
+    renderApp();
+    await drop('dropzone', [zip('a.zip'), zip('b.zip')]);
+
+    const strip = q('report-tab-bar') as HTMLElement;
+
+    // `role="tablist"` was tried and rejected: ARIA requires a tablist's children to carry
+    // `role="tab"` and control a tabpanel. This strip's children are `<a href>` navigation links
+    // (activation is href-driven — the URL is the source of truth for the active report) plus a
+    // close `<button>` each, not tabs — and empirically, axe-core's `aria-required-children` rule
+    // flags `role="tablist"` here with impact "critical" ("Element has children which are not
+    // allowed: button[aria-label], a[aria-current], a"). `<nav>` is a landmark element with its own
+    // implicit role, so `aria-label` is not dropped the way it is on a role-less `<div>`, and it
+    // needs no invented ARIA.
+    expect(strip.tagName).toBe('NAV');
+    expect(strip.getAttribute('role')).toBeNull();
+
+    const results = await axe.run(strip, { rules: { 'color-contrast': { enabled: false } } });
+    expect(results.violations).toEqual([]);
+
+    // Assert the name actually *lands* for assistive tech — via axe's own accessible-name
+    // computation — rather than merely that an `aria-label` string sits on some element. A bare
+    // attribute check would have passed even on the broken role-less `<div>`, which is exactly the
+    // bug this test exists to catch.
+    axe.setup(container);
+    const accessibleName = axe.commons.text.accessibleText(strip);
+    axe.teardown();
+    expect(accessibleName).toBe('Open reports');
   });
 });
