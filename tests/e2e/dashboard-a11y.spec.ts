@@ -236,6 +236,23 @@ test.describe('axe: zero violations on every pane', () => {
       });
     }
   }
+
+  // The panes above all require an open report. The empty state is a distinct DOM — the landing
+  // intro plus the drop zone (S4-28) — and it is the project's public landing page, so it gets the
+  // same gate. color-contrast is the rule that matters here: the intro introduces a filled accent
+  // CTA and muted body copy, neither of which the jsdom axe tests can evaluate.
+  for (const theme of ['light', 'dark'] as const) {
+    test(`empty state with the landing intro (${theme})`, async ({ page }) => {
+      await page.goto(emptyReport.url);
+      await setTheme(page, theme);
+      await expect(page.getByTestId('landing-intro')).toBeVisible();
+      await expect(page.getByTestId('dropzone')).toBeVisible();
+
+      const violations = await analyze(page);
+
+      expect(violations, describeViolations(violations)).toEqual([]);
+    });
+  }
 });
 
 test.describe('keyboard navigation', () => {
@@ -432,13 +449,20 @@ test.describe('keyboard navigation', () => {
 
     // Real Tab presses, not `.focus()` — the ticket's most severe defect was that a keyboard user
     // could not open a report at all, which a `.focus()`-based test cannot catch. Bounded well above
-    // the small number of controls that precede it (skip link, topbar, nine side-nav links).
+    // the controls that precede it: skip link, topbar, nine side-nav links, and the landing intro's
+    // two CTA links (S4-28).
     let reached = false;
+    let presses = 0;
     for (let i = 0; i < 30 && !reached; i++) {
       await page.keyboard.press('Tab');
+      presses += 1;
       reached = await input.evaluate((el) => el === document.activeElement);
     }
     expect(reached).toBe(true);
+    // Headroom, asserted rather than assumed: S4-28 added two tab stops ahead of this input. If a
+    // later ticket adds many more, this fails with a readable number instead of the loop silently
+    // running out and `reached` being false.
+    expect(presses).toBeLessThan(25);
     await expect(input).toBeFocused();
 
     // `sr-only` clips the input's own paint region (outline included), so its indicator lives on the
