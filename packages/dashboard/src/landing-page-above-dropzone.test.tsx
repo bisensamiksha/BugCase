@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
+import type { BugReportV1 } from '@bugcase/schema';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { App } from './App';
 import { LandingIntro } from './components/LandingIntro';
 import { BUGCASE_REPO_URL, BUGCASE_STORE_URL } from './landing-links';
+import { fakeReportSource } from './test-utils/fake-report-source';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -99,5 +102,50 @@ describe('LandingIntro', () => {
     expect(
       container.querySelector('[data-testid="landing-intro"]')?.hasAttribute('data-print-hide'),
     ).toBe(true);
+  });
+});
+
+describe('the landing intro in the app shell', () => {
+  it('renders above the drop zone in the empty state', () => {
+    act(() => {
+      root.render(<App />);
+    });
+
+    const intro = container.querySelector('[data-testid="landing-intro"]');
+    const drop = container.querySelector('[data-testid="dropzone"]');
+    expect(intro).not.toBeNull();
+    expect(drop).not.toBeNull();
+
+    // "Above" is the ticket's actual requirement — asserting mere presence would pass with the
+    // intro rendered underneath the drop zone. DOCUMENT_POSITION_FOLLOWING means `drop` comes
+    // after `intro` in document order.
+    expect(intro!.compareDocumentPosition(drop!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps the existing empty-state status line', () => {
+    act(() => {
+      root.render(<App />);
+    });
+    // Four existing assertions across App.test.tsx and kitchen-sink-report.spec.ts depend on this.
+    expect(container.querySelector('[data-testid="empty"]')).not.toBeNull();
+  });
+
+  it('disappears once a report is open', async () => {
+    const report = { schemaVersion: 'v1', metadata: { id: 'landing1' } } as unknown as BugReportV1;
+    act(() => {
+      root.render(<App initialSource={fakeReportSource(report)} />);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('[data-testid="landing-intro"]')).toBeNull();
+  });
+
+  it('leaves the shell as the only h1 owner', () => {
+    act(() => {
+      root.render(<App />);
+    });
+    expect(container.querySelectorAll('h1')).toHaveLength(1);
   });
 });

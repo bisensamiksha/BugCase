@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouteFocus } from './a11y/focus';
 import { AsyncState, type AsyncStatus } from './components/AsyncState';
 import { DropZone, zipFilesFrom } from './components/DropZone';
+import { LandingIntro } from './components/LandingIntro';
 import { PrintHeader } from './components/PrintHeader';
 import { ReportTabBar } from './components/ReportTabBar';
 import { AppShell } from './layout/AppShell';
@@ -345,6 +346,8 @@ export function App({ read = readReportZip, initialSource }: AppProps = {}) {
         onRetry={() => void handleFiles(lastFilesRef.current)}
         empty={
           <>
+            {/* The dashboard is served at the Pages project root, so this is the public landing page (S4-28). */}
+            <LandingIntro />
             <DropZone onFiles={(files) => void handleFiles(files)} />
             <p data-testid="empty" className="mx-auto mt-4 max-w-3xl text-[var(--bc-fg-muted)]">
               No report loaded yet.
