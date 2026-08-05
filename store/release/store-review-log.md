@@ -11,6 +11,16 @@ and the outcome.
 
 ## Log
 
+### 2026-08-05 — Chrome Web Store — v1.0.0
+
+- Outcome: ✅ published. No reviewer questions were raised; the submission cleared review as filed.
+- Item ID `inbgbkepikijkgeagehcbaofambgcdck`; listing live at
+  https://chromewebstore.google.com/detail/bugcase-%E2%80%94-bug-reporter-to/inbgbkepikijkgeagehcbaofambgcdck
+- Verified the published artifact is the submitted one: the CRX update endpoint serves
+  `INBGBKEPIKIJKGEAGEHCBAOFAMBGCDCK_1_0_0_0.crx` for this item, i.e. version 1.0.0 — the build
+  recorded as `69c24b3e…3466` in [`store-submission-tracker.md`](./store-submission-tracker.md).
+- Edge Add-ons remains `🟡 not yet submitted`; Firefox AMO remains S4-32.
+
 ### 2026-07-31 — Chrome Web Store — v1.0.0
 
 - Submitted `bugcase-chrome-1.0.0.zip` (`69c24b3e…3466`, 586,810 bytes) built from `main` @ `048f4c5`,
@@ -22,4 +32,4 @@ and the outcome.
   BUG-04, BUG-05 and BUG-06. It was caught before submission; nothing was ever published from it.
 - Screenshot 1 was re-shot (PR #191) because BUG-06 reworded the gated capture options' hint from
   "needs permission" to "needs permission — enable in the toolbar popup".
-- Outcome: ⏳ awaiting review.
+- Outcome: ⏳ awaiting review. (Superseded — see the 2026-08-05 entry: published.)
