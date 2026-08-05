@@ -68,6 +68,35 @@ export default tseslint.config(
     settings: { react: { version: '18.2' } },
   },
   {
+    files: [
+      'packages/dashboard/src/**/*.{ts,tsx}',
+      'packages/extension/src/**/*.{ts,tsx}',
+      'packages/shared-ui/src/**/*.{ts,tsx}',
+      'apps/privacy-site/src/**/*.ts',
+    ],
+    ignores: ['**/*.test.*', '**/*.spec.*', '**/__fixtures__/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXText[value=/—/]',
+          message:
+            'Em dash in user-visible JSX text. Reword the sentence; do not substitute a hyphen.',
+        },
+        {
+          selector: 'Literal[value=/—/]',
+          message:
+            'Em dash in user-visible string. Reword the sentence; do not substitute a hyphen.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/—/]',
+          message:
+            'Em dash in user-visible template string. Reword the sentence; do not substitute a hyphen.',
+        },
+      ],
+    },
+  },
+  {
     // Build/test config files live outside any tsconfig; lint them without type-aware rules.
     files: ['**/*.config.{ts,cts,mts}'],
     ...tseslint.configs.disableTypeChecked,
