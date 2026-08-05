@@ -387,4 +387,31 @@ describe('NetworkPane', () => {
     const list = q('network-list')!;
     expect(list.getAttribute('aria-activedescendant')).toBeNull();
   });
+
+  it('renders every row once a pane that MOUNTED already filtered to zero rows has its filter loosened (S4-27 residual 2)', () => {
+    // Same defect and repro as ConsolePane's equivalent test — NetworkPane shares
+    // `useVirtualWindow` and the same `hidden`-when-empty container. Reachable in production via
+    // S4-26: opening a shared link whose hash filter matches nothing mounts this pane with
+    // `visible.length === 0` from the start, so the container starts `hidden`
+    // (`display: none`) — a real browser reports `clientHeight === 0` for that. Loosening the
+    // filter afterward used to render only the ~5-row overscan window instead of the real list.
+    const N = 20;
+    render(logWith(N), { query: 'zzz-no-such-request' }); // mounts already filtered to zero
+    expect(qa('network-row')).toHaveLength(0);
+
+    const list = q('network-list')!;
+    // jsdom never computes layout (`clientHeight` is always 0); stub it to mirror a real browser —
+    // 0 while `hidden` is applied, a real viewport height once it is not (mirrors
+    // use-active-descendant.test.tsx's clientHeight-stubbing idiom).
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      get() {
+        return list.classList.contains('hidden') ? 0 : 600; // plenty of room for all 20 rows
+      },
+    });
+
+    typeInto(q('network-search') as HTMLInputElement, '');
+
+    expect(qa('network-row')).toHaveLength(N);
+  });
 });

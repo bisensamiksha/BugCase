@@ -333,4 +333,33 @@ describe('ConsolePane', () => {
     const list = q('console-list')!;
     expect(list.getAttribute('aria-activedescendant')).toBeNull();
   });
+
+  it('renders every row once a pane that MOUNTED already filtered to zero rows has its filter loosened (S4-27 residual 2)', () => {
+    // Reachable in production via S4-26: opening a shared link whose hash filter matches nothing
+    // mounts this pane with `visible.length === 0` from the start. The list container gets
+    // Tailwind's `hidden` (`display: none`) in that state, which a real browser reports as
+    // `clientHeight === 0`. `useVirtualWindow` used to measure the viewport once, on mount, and
+    // never again — so loosening the filter afterward rendered only the ~5-row overscan window
+    // instead of the real list, with the remainder left as blank spacer until the user scrolled or
+    // pressed an arrow key.
+    const N = 20;
+    render(logWith(N), { query: 'zzz-no-such-entry' }); // mounts already filtered to zero
+    expect(qa('console-row')).toHaveLength(0);
+
+    const list = q('console-list')!;
+    // jsdom never computes layout (`clientHeight` is always 0); stub it to mirror a real browser —
+    // 0 while `hidden` is applied, a real viewport height once it is not — the same idiom
+    // `use-active-descendant.test.tsx` uses for a fixed `clientHeight`, tied here to the
+    // container's own `hidden` class the way a real browser's `display: none` would behave.
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      get() {
+        return list.classList.contains('hidden') ? 0 : 600; // plenty of room for all 20 rows
+      },
+    });
+
+    typeInto(q('console-search') as HTMLInputElement, '');
+
+    expect(qa('console-row')).toHaveLength(N);
+  });
 });

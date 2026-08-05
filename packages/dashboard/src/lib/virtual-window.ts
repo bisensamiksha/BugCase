@@ -66,12 +66,21 @@ export function useVirtualWindow(
   const [viewportH, setViewportH] = useState(0);
   const ticking = useRef(false);
 
+  // Mount-only measurement is not enough: both panes render this container with Tailwind's `hidden`
+  // (`display: none`) whenever `count === 0`, and a real browser reports `clientHeight === 0` for a
+  // `display: none` element. If a pane MOUNTS already filtered to zero rows — reachable via S4-26's
+  // hash-shared filters, e.g. opening a shared link whose filter matches nothing — that 0 gets
+  // captured here and nothing else ever recomputes it: the only other paths are a native `scroll`
+  // event or `onScrollSync`, and neither fires just because rows reappear. Re-running this whenever
+  // `count` changes re-measures exactly when a pane transitions into or out of that hidden empty
+  // state, so loosening the filter afterward sees the container's real (now-visible) height instead
+  // of the stale 0 (S4-27 review, residual 2).
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (el) {
       setViewportH(el.clientHeight);
     }
-  }, []);
+  }, [count]);
 
   const onScroll = useCallback(() => {
     if (ticking.current) {
