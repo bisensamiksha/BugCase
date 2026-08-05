@@ -65,8 +65,8 @@ describe('reproMarkdown', () => {
         '',
         'Recorded 2026-07-18, 2 steps over 0:42.',
         '',
-        '1. (+0:00) Clicked "Login" (button) — `#login`',
-        '2. (+0:03) Typed into input — `input[name="email"]`',
+        '1. (+0:00) Clicked "Login" (button): `#login`',
+        '2. (+0:03) Typed into input: `input[name="email"]`',
         '',
       ].join('\n'),
     );
@@ -78,7 +78,7 @@ describe('reproMarkdown', () => {
 
   it('omits the offset for an unparseable step timestamp', () => {
     const md = reproMarkdown(recording([step({ timestamp: 'nonsense' })]));
-    expect(md).toContain('1. Clicked "Login" (button) — `#login`');
+    expect(md).toContain('1. Clicked "Login" (button): `#login`');
     expect(md).not.toContain('(+');
   });
 
@@ -91,7 +91,7 @@ describe('reproMarkdown', () => {
   it('omits the selector code span when the selector is empty', () => {
     const md = reproMarkdown(recording([step({ selector: '' })]));
     expect(md).toContain('1. (+0:00) Clicked "Login" (button)');
-    expect(md).not.toContain('—');
+    expect(md).not.toContain(': `');
   });
 
   it('grows the code fence when the selector contains backticks', () => {
