@@ -462,7 +462,14 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                   tabIndex={-1}
                   data-testid="network-row"
                   aria-selected={current}
-                  aria-label={`${entry.method} ${statusLabel(entry)} ${entry.url} ${durationLabel(entry)}`}
+                  /*
+                   * Must list every visible column, in the order they are read on screen. The size
+                   * column was missing here, so the accessible name omitted a value sighted users
+                   * can see — a WCAG 2.5.3 (Label in Name) failure, and a plain content gap for
+                   * screen-reader users. The waterfall span holds no text (it names its own SVG),
+                   * so it contributes nothing to the visible label.
+                   */
+                  aria-label={`${entry.method} ${statusLabel(entry)} ${entry.url} ${sizeLabel(entry)} ${durationLabel(entry)}`}
                   onClick={() => setSelectedId(entry.id)}
                   style={{ height: ROW_H }}
                   className={`flex w-full cursor-pointer items-center gap-3 border-l-2 px-3 text-left font-mono text-sm ${
@@ -471,17 +478,23 @@ export function NetworkPane({ log, initialFilters, onFiltersChange }: NetworkPan
                       : 'border-transparent'
                   }`}
                 >
-                  <span className="w-14 shrink-0 text-[var(--bc-fg-muted)]">{entry.method}</span>
+                  {/*
+                    The `{' '}` separators are load-bearing, not formatting — the columns are spaced
+                    with CSS `gap-3`, so without them the row's text content runs together as
+                    "POST500https://…27 B480 ms" and no longer matches the accessible name above.
+                    Whitespace-only text nodes do not become flex items, so layout is unaffected.
+                  */}
+                  <span className="w-14 shrink-0 text-[var(--bc-fg-muted)]">{entry.method}</span>{' '}
                   <span className="w-14 shrink-0" style={{ color: statusClassTextColor(cls) }}>
                     {statusLabel(entry)}
-                  </span>
-                  <span className="min-w-0 flex-[2] truncate text-[var(--bc-fg)]">{entry.url}</span>
+                  </span>{' '}
+                  <span className="min-w-0 flex-[2] truncate text-[var(--bc-fg)]">{entry.url}</span>{' '}
                   <span className="w-16 shrink-0 text-right text-[var(--bc-fg-muted)]">
                     {sizeLabel(entry)}
-                  </span>
+                  </span>{' '}
                   <span className="w-16 shrink-0 text-right text-[var(--bc-fg-muted)]">
                     {durationLabel(entry)}
-                  </span>
+                  </span>{' '}
                   <span className="min-w-0 flex-1">
                     <Waterfall
                       startOffsetMs={startOffsetOf(entry)}

@@ -281,14 +281,23 @@ export function ConsolePane({ log, initialFilters, onFiltersChange }: ConsolePan
                       : 'border-transparent'
                   }`}
                 >
+                  {/*
+                    The `{' '}` separators are load-bearing, not formatting. The columns are spaced
+                    with CSS `gap-3`, so without them the row's text content concatenates to
+                    "log11:59:58App booted" while `aria-label` above reads "log 11:59:58 App booted"
+                    — the accessible name then does not contain the visible text, which is a WCAG
+                    2.5.3 (Label in Name) failure for voice-control users. Whitespace-only text
+                    nodes do not become flex items, so this changes the accessible name only and
+                    leaves layout byte-identical (verified: row rects unchanged).
+                  */}
                   <span
                     className={`w-12 shrink-0 ${LEVEL_CLASS[entry.level] ?? 'text-[var(--bc-fg-muted)]'}`}
                   >
                     {entry.level}
-                  </span>
+                  </span>{' '}
                   <span className="w-20 shrink-0 text-[var(--bc-fg-muted)]">
                     {timeOf(entry.timestamp)}
-                  </span>
+                  </span>{' '}
                   <span className="truncate text-[var(--bc-fg)]">{messageOf(entry)}</span>
                 </div>
               );

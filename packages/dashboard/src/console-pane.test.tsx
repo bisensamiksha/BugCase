@@ -240,6 +240,22 @@ describe('ConsolePane', () => {
     }
   });
 
+  it("each row's accessible name contains the text it shows on screen (S4-27)", () => {
+    render(logWith(5));
+
+    const rows = qa('console-row');
+    expect(rows.length).toBe(5);
+    for (const row of rows) {
+      // WCAG 2.5.3 Label in Name: the hand-built `aria-label` must contain the visible text.
+      // The columns are separated by CSS `gap-3`, so the row needs real whitespace text nodes
+      // between the spans — otherwise this reads "log11:59:58App booted" and no longer matches.
+      const visible = row.textContent.replace(/\s+/g, ' ').trim();
+      const name = row.getAttribute('aria-label')!.replace(/\s+/g, ' ').trim();
+      expect(visible).not.toBe('');
+      expect(name).toContain(visible);
+    }
+  });
+
   it('starts with no active descendant when nothing is selected (S4-27)', () => {
     render(logWith(5));
 

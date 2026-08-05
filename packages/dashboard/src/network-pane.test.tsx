@@ -294,6 +294,22 @@ describe('NetworkPane', () => {
     }
   });
 
+  it("each row's accessible name contains the text it shows on screen (S4-27)", () => {
+    render(logWith(5));
+
+    const rows = qa('network-row');
+    expect(rows.length).toBe(5);
+    for (const row of rows) {
+      // WCAG 2.5.3 Label in Name. This also pins the size column into the name: the label used to
+      // list method/status/url/duration and skip size, so screen-reader users lost a column that
+      // is on screen. Columns are spaced with CSS `gap-3`, hence the whitespace text nodes too.
+      const visible = row.textContent.replace(/\s+/g, ' ').trim();
+      const name = row.getAttribute('aria-label')!.replace(/\s+/g, ' ').trim();
+      expect(visible).not.toBe('');
+      expect(name).toContain(visible);
+    }
+  });
+
   it('starts with no active descendant when nothing is selected (S4-27)', () => {
     render(logWith(5));
 

@@ -114,6 +114,19 @@ async function analyze(page: Page): Promise<AxeViolation[]> {
       }
     ).axe.run(document, {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
+      /*
+       * `label-content-name-mismatch` (WCAG 2.5.3 Label in Name, Level A) carries axe's
+       * `experimental` tag, and axe ships every experimental rule `enabled: false`. A tag-based
+       * `runOnly` SELECTS rules but does not ENABLE a disabled one, so the tag list above runs 63
+       * of axe's ~100 rules and silently skips this one — it has to be switched on by id.
+       *
+       * It is worth switching on: this is the rule that catches an `aria-label` drifting away from
+       * the text a user can actually see, and both listbox rows here build their name by hand. A
+       * manual Lighthouse pass (S4-27) found real violations that this gate could not see, and
+       * Lighthouse itself scores the rule at WEIGHT 0 — its accessibility category reported 100 on
+       * every pane with the violations present, so neither tool flagged it by default.
+       */
+      rules: { 'label-content-name-mismatch': { enabled: true } },
     });
     return results.violations;
   });
