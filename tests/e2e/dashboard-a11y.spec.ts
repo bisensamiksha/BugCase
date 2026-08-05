@@ -138,8 +138,51 @@ async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
 async function outlineOf(locator: ReturnType<Page['locator']>) {
   return locator.evaluate((el) => {
     const style = getComputedStyle(el);
-    return { style: style.outlineStyle, width: style.outlineWidth };
+    return {
+      style: style.outlineStyle,
+      width: style.outlineWidth,
+      color: style.outlineColor,
+      backgroundColor: style.backgroundColor,
+    };
   });
+}
+
+/**
+ * Alpha channel (0–1) of a `rgb()`/`rgba()` computed-style color string. Computed styles never come
+ * back as the `transparent` keyword (browsers normalize it to `rgba(0, 0, 0, 0)`), so this is the
+ * only shape that needs parsing; an unparseable string is treated as opaque so a format this
+ * function doesn't understand fails loud in the caller's "differs from background" check rather
+ * than silently passing here.
+ */
+function alphaOf(color: string): number {
+  const match = /rgba?\(([^)]+)\)/.exec(color);
+  const parts = match?.[1]?.split(',').map((part) => part.trim()) ?? [];
+  return parts.length === 4 ? Number(parts[3]) : 1;
+}
+
+/**
+ * Asserts a focus outline is not just PRESENT (style/width) but actually VISIBLE.
+ *
+ * S4-27 review, residual 1: Tailwind's `.outline-none` compiles to `outline: 2px solid transparent`
+ * — the SAME `outlineStyle` ("solid") and `outlineWidth` ("2px") as the real focus ring
+ * (`outline: 2px solid var(--bc-accent)`). Only `outlineColor` differs, so a style/width-only check
+ * cannot tell a real ring from an invisible one; `.outline-none` was re-added to `ConsolePane` and
+ * every prior style/width-only assertion here kept passing. Deliberately does not hardcode the
+ * accent color (e.g. `rgb(37, 99, 235)`): the theme can flip and `--bc-accent` differs per theme.
+ * Instead this rejects a fully transparent outline and one that happens to match the element's own
+ * background — either way nothing would actually be visible on screen.
+ */
+function expectVisibleOutline(outline: {
+  style: string;
+  width: string;
+  color: string;
+  backgroundColor: string;
+}): void {
+  expect(outline.style).not.toBe('none');
+  expect(outline.width).not.toBe('0px');
+  expect(outline.color).not.toBe('transparent');
+  expect(alphaOf(outline.color)).toBeGreaterThan(0);
+  expect(outline.color).not.toBe(outline.backgroundColor);
 }
 
 test.describe('sanity: the compiled stylesheet is actually applied', () => {
@@ -312,8 +355,7 @@ test.describe('keyboard navigation', () => {
     console.log(
       `[S4-27 review] console-list focus outline after real Tab: ${JSON.stringify(outline)}`,
     );
-    expect(outline.style).not.toBe('none');
-    expect(outline.width).not.toBe('0px');
+    expectVisibleOutline(outline);
   });
 
   test('the network list shows a visible focus ring after a real Tab press, not just .focus()', async ({
@@ -338,8 +380,7 @@ test.describe('keyboard navigation', () => {
     console.log(
       `[S4-27 review] network-list focus outline after real Tab: ${JSON.stringify(outline)}`,
     );
-    expect(outline.style).not.toBe('none');
-    expect(outline.width).not.toBe('0px');
+    expectVisibleOutline(outline);
   });
 
   test('End scrolls the console list past the virtual window and the active row still exists', async ({
