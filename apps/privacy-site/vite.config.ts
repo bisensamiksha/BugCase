@@ -14,13 +14,13 @@ function readMarkdown(...files: string[]): string {
 
 /** Map each HTML entry (by request path) to its title + markdown sources. */
 const PAGES: Record<string, { title: string; sources: string[] }> = {
-  '/index.html': { title: 'BugCase — Legal', sources: ['index-content.md'] },
+  '/index.html': { title: 'BugCase - Legal', sources: ['index-content.md'] },
   '/privacy-policy.html': {
-    title: 'BugCase — Privacy Policy',
+    title: 'BugCase - Privacy Policy',
     sources: ['privacy-policy-v2.md', 'legal-definitions.md'],
   },
   '/terms.html': {
-    title: 'BugCase — Terms of Use',
+    title: 'BugCase - Terms of Use',
     sources: ['terms.md', 'legal-definitions.md'],
   },
 };
