@@ -11,16 +11,16 @@
 
 | Store                  | Artifact                   | SHA-256         | Submitted    | Review state         | Reviewer feedback | Resolution                                                     |
 | ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | -------------------------------------------------------------- |
-| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ✅ published         | —                 | Published 2026-08-05 · item `inbgbkepikijkgeagehcbaofambgcdck` |
-| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | —                 | —                                                              |
-| Firefox AMO            | —                          | —               | —            | ⬜ S4-32             | —                 | —                                                              |
+| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ✅ published         | None              | Published 2026-08-05 · item `inbgbkepikijkgeagehcbaofambgcdck` |
+| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | None              | None                                                           |
+| Firefox AMO            | N/A                        | N/A             | N/A          | ⬜ S4-32             | N/A               | N/A                                                            |
 
 **Live listing:** https://chromewebstore.google.com/detail/bugcase-%E2%80%94-bug-reporter-to/inbgbkepikijkgeagehcbaofambgcdck
-(the same URL the dashboard landing links to — canonical copy in
+(the same URL the dashboard landing links to, canonical copy in
 [`../shared/listing-copy.md`](../shared/listing-copy.md)).
 
-**Upload candidate — built 2026-07-31 from `main` @ `048f4c5`, tagged `v1.0.0` (PR #190 BUG-06,
-PR #191 screenshot):**
+**Upload candidate:** built 2026-07-31 from `main` @ `048f4c5`, tagged `v1.0.0` (PR #190 BUG-06,
+PR #191 screenshot):\*\*
 
 ```
 sha256  69c24b3e4cb2c4e833caec5422d1f2c0e3c1ea9b3ca1f44f827fb2dc56343466
@@ -29,15 +29,15 @@ size    586,810 bytes · 24 entries · 9 sourcemaps excluded
 
 Verified before recording: `verify:edge-brave` passes (MV3 valid, manifest at root, service worker and
 all declared icons present, no `.map` files); `check:permission-justifications` matches 10/10; and both
-recent fixes are present in the artifact — BUG-05 (`bugcase/overlay-open`, `bugcase/overlay-state`) and
+recent fixes are present in the artifact: BUG-05 (`bugcase/overlay-open`, `bugcase/overlay-state`) and
 BUG-06 (`bugcase/overlay-draft`, plus the reworded reproduction copy "Track reproduction steps" /
 "never video or audio").
 
 **Reproducible across platforms.** The same hash was produced by a local macOS build and by the
-tag-driven `release.yml` run on `ubuntu-latest` — the GitHub Release asset for `v1.0.0` is byte-identical
+tag-driven `release.yml` run on `ubuntu-latest`; the GitHub Release asset for `v1.0.0` is byte-identical
 to the ZIP uploaded to the store. GitHub, the store, and this row all pin the same bytes.
 
-### Superseded candidates — do not upload
+### Superseded candidates: do not upload
 
 | SHA-256         | Size    | Built      | Source commit | Missing                        |
 | --------------- | ------- | ---------- | ------------- | ------------------------------ |
@@ -47,7 +47,7 @@ to the ZIP uploaded to the store. GitHub, the store, and this row all pin the sa
 `aae5371c…60b1` was the original `v1.0.0` GitHub Release asset and the package first uploaded to the
 Chrome draft. The release was re-cut at `048f4c5` on 2026-07-31 and that asset no longer exists.
 
-⚠️ **Re-package before submitting if `main` has moved.** This hash pins one specific build — a
+⚠️ **Re-package before submitting if `main` has moved.** This hash pins one specific build. A
 mismatch between what you upload and what is recorded here makes the trail worthless. Re-run
 `rm dist/*.zip && pnpm build:chrome && pnpm package:chrome && pnpm verify:edge-brave` and update the
 rows above.
