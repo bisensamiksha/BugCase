@@ -13,14 +13,14 @@
 | ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | -------------------------------------------------------------- |
 | Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ✅ published         | None              | Published 2026-08-05 · item `inbgbkepikijkgeagehcbaofambgcdck` |
 | Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | None              | None                                                           |
-| Firefox AMO            | N/A                        | N/A             | N/A          | ⬜ S4-32             | N/A               | N/A                                                            |
+| Firefox AMO            | Pending                    | Pending         | Pending      | ⬜ S4-32             | Pending           | Pending                                                        |
 
 **Live listing:** https://chromewebstore.google.com/detail/bugcase-%E2%80%94-bug-reporter-to/inbgbkepikijkgeagehcbaofambgcdck
 (the same URL the dashboard landing links to, canonical copy in
 [`../shared/listing-copy.md`](../shared/listing-copy.md)).
 
 **Upload candidate:** built 2026-07-31 from `main` @ `048f4c5`, tagged `v1.0.0` (PR #190 BUG-06,
-PR #191 screenshot):\*\*
+PR #191 screenshot)
 
 ```
 sha256  69c24b3e4cb2c4e833caec5422d1f2c0e3c1ea9b3ca1f44f827fb2dc56343466
