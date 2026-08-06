@@ -5,7 +5,7 @@ export interface PrintHeaderProps {
   readonly report: BugReportV1 | null | undefined;
 }
 
-const NOT_RECORDED = 'Not recorded';
+const EMPTY = '-';
 
 /**
  * Identifying header for printed output (S4-25).
@@ -25,9 +25,9 @@ export function PrintHeader({ report }: PrintHeaderProps) {
   return (
     <header data-testid="print-header" data-print-only className="hidden">
       <p className="text-sm font-bold">BugCase report</p>
-      <p className="text-xs">{page?.url || NOT_RECORDED}</p>
+      <p className="text-xs">{page?.url || EMPTY}</p>
       <p className="text-xs">
-        {page?.capturedAt || NOT_RECORDED} · {browser || NOT_RECORDED}
+        {page?.capturedAt || EMPTY} · {browser || EMPTY}
       </p>
     </header>
   );

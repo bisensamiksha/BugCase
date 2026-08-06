@@ -59,7 +59,7 @@ export function cookieRows(entries: readonly CookieEntry[], filter: string): Coo
         masked: entry.masked,
         domain: entry.domain,
         path: entry.path,
-        expires: entry.session ? 'Session' : (entry.expiresAt ?? 'Not recorded'),
+        expires: entry.session ? 'Session' : (entry.expiresAt ?? '-'),
         flags: cookieFlags(entry),
       }),
     )
