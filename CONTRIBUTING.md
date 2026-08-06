@@ -1,6 +1,6 @@
 # Contributing to BugCase
 
-Thanks for your interest in BugCase — a source-available, privacy-first
+Thanks for your interest in BugCase, a source-available, privacy-first
 browser extension that captures a downloadable bug-report ZIP, plus a
 companion dashboard that renders the ZIP entirely in the browser.
 
@@ -92,9 +92,9 @@ In the PR description:
 
 Automated tests (`pnpm test`, `pnpm test:e2e`) run on every PR, but before a Chrome Web Store / Edge /
 AMO submission a human also works the extension across the messy real web. Follow the
-[manual site checklist](./qa/manual-site-checklist.md) — scenario archetypes (SPAs, iframes, strict
-CSP, service-worker PWAs, video, login flows, …) with named example sites — in **both Chrome and
-Firefox**, and record the run in a copy of the
+[manual site checklist](./qa/manual-site-checklist.md), covering scenario archetypes (SPAs, iframes,
+strict CSP, service-worker PWAs, video, login flows, …) with named example sites, in **both Chrome
+and Firefox**, and record the run in a copy of the
 [results template](./qa/manual-qa-results-template.md). A release ships only when every archetype has a
 green run (or an explicitly accepted limitation) in both browsers.
 

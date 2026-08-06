@@ -1,4 +1,4 @@
-# BugCase — Legal
+# BugCase - Legal
 
 BugCase is a privacy-first bug-capture tool that runs entirely on your device. No telemetry, no backend, nothing uploaded.
 

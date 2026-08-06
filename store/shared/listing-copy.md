@@ -1,8 +1,8 @@
-# Store listing — shared copy (single source of truth)
+# Store listing: shared copy (single source of truth)
 
 > **This file is the one place listing copy is authored.** The Chrome
 > ([`../chrome/listing.md`](../chrome/listing.md)), Edge ([`../edge/listing.md`](../edge/listing.md)),
-> and — later — Firefox AMO (S4-32) listings **derive from here** and only add store-specific deltas
+> and, later, Firefox AMO (S4-32) listings **derive from here** and only add store-specific deltas
 > (field names, length limits, submission steps). Editing a claim, description, or permission
 > justification here changes it everywhere, so the stores can never drift.
 >
@@ -13,29 +13,29 @@
 
 ## Identity
 
-| Field              | Value                                    | Notes                                                                                                           |
-| ------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Store item name    | **BugCase — Bug Reporter Tool**          | Matches the manifest `name`; do not rename in one store only.                                                   |
-| Short name / brand | **BugCase**                              | Matches the manifest `short_name`; used throughout the copy.                                                    |
-| Category           | **Developer Tools**                      | Same on Chrome and Edge.                                                                                        |
-| Homepage / support | https://bisensamiksha.github.io/BugCase/ | Manifest `homepage_url`; issues at the public repo.                                                             |
-| Version            | _read from the built manifest_           | **Never hard-code a version in copy** — the store shows the uploaded package version (the 1.0.0 bump is S4-24). |
+| Field              | Value                                    | Notes                                                                                                          |
+| ------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Store item name    | **BugCase - Bug Reporter Tool**          | Matches the manifest `name`; do not rename in one store only.                                                  |
+| Short name / brand | **BugCase**                              | Matches the manifest `short_name`; used throughout the copy.                                                   |
+| Category           | **Developer Tools**                      | Same on Chrome and Edge.                                                                                       |
+| Homepage / support | https://bisensamiksha.github.io/BugCase/ | Manifest `homepage_url`; issues at the public repo.                                                            |
+| Version            | _read from the built manifest_           | **Never hard-code a version in copy**: the store shows the uploaded package version (the 1.0.0 bump is S4-24). |
 
-## Tagline (≤ 132 chars — Chrome summary / Edge short description)
+## Tagline (≤ 132 chars: Chrome summary / Edge short description)
 
-> Privacy-first bug capture. Capture screenshots, console, network, DOM and more into one local ZIP — no backend, no telemetry.
+> Privacy-first bug capture. Capture screenshots, console, network, DOM and more into one local ZIP, no backend, no telemetry.
 
-(125 characters — safe for both stores' 132-char short-description limit.)
+(124 characters, safe for both stores' 132-char short-description limit.)
 
 ## Single-purpose statement (Chrome-required)
 
-> BugCase captures a comprehensive, privacy-first bug report of the current page — screenshots,
-> console logs, network activity, a DOM snapshot, storage, and reproduction context — and saves it
+> BugCase captures a comprehensive, privacy-first bug report of the current page: screenshots,
+> console logs, network activity, a DOM snapshot, storage, and reproduction context, and saves it
 > locally as a shareable ZIP. No captured data leaves the user's browser.
 
 ## Detailed description
 
-> **BugCase turns a hard-to-reproduce bug into one shareable file — without sending your data anywhere.**
+> **BugCase turns a hard-to-reproduce bug into one shareable file, without sending your data anywhere.**
 >
 > Click the toolbar button on any page and BugCase captures the context a developer actually needs:
 > a screenshot, the console log, network requests and responses, a DOM snapshot, cookies and storage,
@@ -51,7 +51,7 @@
 > - **Text is scrubbed automatically.** Page HTML, cookies, and request/response headers run through
 >   always-on scrubbers before the report is written; cookie and storage values are masked by default.
 > - **You stay in control of images.** Screenshots and element crops are saved as rendered images and
->   are **not** automatically scrubbed — anything visible on screen when you captured is stored as-is.
+>   are **not** automatically scrubbed. Anything visible on screen when you captured is stored as-is.
 >   Use the built-in **Annotate** tool to redact sensitive regions by hand before you share.
 >
 > **Minimal permissions**
@@ -61,7 +61,7 @@
 >
 > **What's in a report**
 > Screenshot(s) · console log · network log (with response bodies when you enable the on-demand
-> capture) · DOM snapshot · cookies & storage (masked) · reproduction steps · page & browser metadata —
+> capture) · DOM snapshot · cookies & storage (masked) · reproduction steps · page & browser metadata,
 > plus a self-contained `report.html` viewer so anyone can open the report offline, with no server.
 >
 > Open source. No account. No tracking.
@@ -72,10 +72,10 @@
 - All processing is local; reports are saved to Downloads and are never uploaded by BugCase.
 - Report history stores **metadata only** (timestamps, origin, severity, size, title), on-device.
 - Text surfaces (HTML, cookies, headers) are scrubbed; cookie/storage values masked.
-- **Screenshots and element crops are NOT auto-scrubbed** — the user redacts them by hand via
-  Annotate. (Do not write copy implying images are automatically sanitized — BUG-01.)
+- **Screenshots and element crops are NOT auto-scrubbed**: the user redacts them by hand via
+  Annotate. (Do not write copy implying images are automatically sanitized. See BUG-01.)
 
-## Permissions (canonical list — Chrome detail in [`../chrome/permission-justifications.md`](../chrome/permission-justifications.md))
+## Permissions (canonical list, with Chrome detail in [`../chrome/permission-justifications.md`](../chrome/permission-justifications.md))
 
 Built manifest permission set (`packages/extension/src/manifest.ts`):
 
