@@ -6,7 +6,7 @@ export type Target = 'chrome' | 'firefox';
 
 const COMMON = {
   manifest_version: 3 as const,
-  name: 'BugCase — Bug Reporter Tool',
+  name: 'BugCase - Bug Reporter Tool',
   short_name: 'BugCase',
   description: 'Privacy-first bug report capture. No backend, no telemetry.',
   // MV3 has no `privacy_policy` manifest key — the hosted policy URL is a store-listing field

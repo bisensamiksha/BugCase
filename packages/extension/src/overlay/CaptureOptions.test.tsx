@@ -216,7 +216,7 @@ describe('CaptureOptions permission labels', () => {
     // MINOR 3: Settings never reconciles and stubs the check to `true`, so a user can tick a gated
     // option there without ever granting — "revoked" would be false in the common case.
     expect(query('capture-option-permission-revoked-cookies')?.textContent).toBe(
-      'permission not granted — grant it in the toolbar popup to use this',
+      'permission not granted. Grant it in the toolbar popup to use this',
     );
     expect(query('capture-option-needs-permission-cookies')).toBeNull();
   });
@@ -246,7 +246,7 @@ describe('CaptureOptions permission labels', () => {
   });
 
   it('does not stack the toggle hint on a row whose label already explains it', async () => {
-    // MINOR 2: after a failed toggle the row used to read both "needs permission — enable in the
+    // MINOR 2: after a failed toggle the row used to read both "needs permission. Enable in the
     // toolbar popup" and "Enable from the toolbar popup".
     const notGranted = Promise.resolve(false);
     act(() => {

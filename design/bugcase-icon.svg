@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="BugCase — a bug inside a privacy shield">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="BugCase: a bug inside a privacy shield">
   <!--
     BugCase brand mark (S4-17). A beetle (software "bug") inside a shield ("privacy-first").
     Single flat-fill master in brand blue-600 (#2563eb); transparent outside the shield. Kept
     bold and low-detail so it stays legible when rasterized down to 16px. Source of truth for
-    packages/extension/public/icons/icon-{16,32,48,128}.png — regenerate via `pnpm icons:generate`.
+    packages/extension/public/icons/icon-{16,32,48,128}.png. Regenerate via `pnpm icons:generate`.
   -->
   <!-- Shield: flat top, rounded corners, tapering to a rounded point. -->
   <path

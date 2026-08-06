@@ -95,7 +95,7 @@ export function ReportHistory({
     <fieldset data-testid="report-history" style={sectionStyle}>
       <legend style={legendStyle}>Report history</legend>
       <p style={mutedStyle}>
-        Past downloads on this device. Only metadata is kept — never the report contents.
+        Past downloads on this device. Only metadata is kept, never the report contents.
       </p>
 
       {entries === null ? (

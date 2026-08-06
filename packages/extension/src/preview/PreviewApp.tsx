@@ -417,7 +417,7 @@ export function PreviewApp({
       {inspectionRows.length > 0 ? (
         <div data-testid="element-inspection-rows" style={{ marginTop: '8px' }}>
           <p style={{ margin: '0 0 4px', fontSize: '12px', color: palette.slate600 }}>
-            Each inspected element also stores a cropped screenshot. Those are raw pixels — annotate
+            Each inspected element also stores a cropped screenshot. Those are raw pixels. Annotate
             or remove any that show something sensitive.
           </p>
           {inspectionRows.map(({ inspection, crop, index }) => {

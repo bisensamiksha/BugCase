@@ -85,12 +85,12 @@ describe('PrintHeader', () => {
     expect(text()).toContain('BugCase report');
   });
 
-  it('falls back to an em dash for absent fields rather than printing "undefined"', () => {
+  it('falls back to "Not recorded" for absent fields rather than printing "undefined"', () => {
     act(() => {
       root.render(<PrintHeader report={reportWith({ metadata: { page: null, tool: null } })} />);
     });
 
     expect(text()).not.toContain('undefined');
-    expect(text()).toContain('—');
+    expect(text()).toContain('Not recorded');
   });
 });

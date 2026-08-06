@@ -285,7 +285,7 @@ export function OptionsApp({
           <fieldset style={sectionStyle}>
             <legend style={legendStyle}>Blocked headers</legend>
             <p style={mutedStyle}>
-              Header names whose values are masked in captured network data — one per line.
+              Header names whose values are masked in captured network data. One per line.
             </p>
             <textarea
               data-testid="blocked-headers"

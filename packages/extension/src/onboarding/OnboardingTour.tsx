@@ -18,14 +18,14 @@ export const ONBOARDING_SLIDES: readonly OnboardingSlide[] = [
   {
     title: 'What BugCase captures',
     points: [
-      'A screenshot of the page, plus the console and network logs, a DOM snapshot, and page metadata — only what you choose to include.',
+      'A screenshot of the page, plus the console and network logs, a DOM snapshot, and page metadata. Only what you choose to include.',
       'Everything is assembled into a single report ZIP on your device.',
     ],
   },
   {
     title: 'What it never captures',
     points: [
-      'No telemetry, no backend, no remote logging — BugCase has no server.',
+      'No telemetry, no backend, no remote logging. BugCase has no server.',
       'Passwords and sensitive input values are masked by default, and you can review and remove anything before saving.',
       'Nothing leaves your browser until you download the ZIP yourself.',
     ],
@@ -34,7 +34,7 @@ export const ONBOARDING_SLIDES: readonly OnboardingSlide[] = [
     title: 'How to use it',
     points: [
       'On a page with a bug, click the BugCase toolbar icon and pick what to include.',
-      'Review the capture — annotate or redact the screenshot on the preview screen.',
+      'Review the capture, then annotate or redact the screenshot on the preview screen.',
       'Download the ZIP and attach it to your bug report.',
     ],
   },

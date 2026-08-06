@@ -37,7 +37,7 @@ function stepLine(step: ReproductionStep, index: number, startedAt: string): str
   const offset = stepOffsetMs(startedAt, step.timestamp);
   const prefix = offset === null ? `${index + 1}.` : `${index + 1}. (+${formatOffset(offset)})`;
   const line = `${prefix} ${step.description}`;
-  return step.selector ? `${line} — ${inlineCode(step.selector)}` : line;
+  return step.selector ? `${line}: ${inlineCode(step.selector)}` : line;
 }
 
 /** GitHub-issue-ready Markdown: header + summary sentence + numbered step list. */

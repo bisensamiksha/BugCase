@@ -2,7 +2,7 @@
   <!--
     Edge Add-ons store logo (300×300), S4-23. The bug-in-shield mark centered on a white card with
     the wordmark, so the store tile reads as one product with the extension icon.
-    Source of truth for store/edge/assets/store-logo-300x300.png — regenerate: `pnpm store:assets`.
+    Source of truth for store/edge/assets/store-logo-300x300.png. Regenerate: `pnpm store:assets`.
   -->
   <rect width="300" height="300" fill="#ffffff"/>
 

@@ -100,7 +100,7 @@ export function RedactTextPanel({ reportId, send, disabled }: RedactTextPanelPro
     <section style={wrapStyle} data-testid="redact-text-panel">
       <strong>Redact text</strong>
       <p style={noteStyle}>
-        Remove an exact string from this report — the DOM snapshot, element inspections, console,
+        Remove an exact string from this report: the DOM snapshot, element inspections, console,
         network, and storage. Images are <strong>not</strong> covered; use <strong>Annotate</strong>{' '}
         for screenshots.
       </p>
@@ -131,7 +131,7 @@ export function RedactTextPanel({ reportId, send, disabled }: RedactTextPanelPro
       {status.kind === 'done' ? (
         <p style={noteStyle} data-testid="redact-text-status" role="status">
           {total === 0
-            ? 'Not found in this report — nothing changed.'
+            ? 'Not found in this report, so nothing changed.'
             : `Redacted ${total} occurrence${total === 1 ? '' : 's'} ` +
               `(${status.reportHits} in report data, ${status.assetHits} in the DOM snapshot).`}
         </p>

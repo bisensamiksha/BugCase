@@ -1,6 +1,6 @@
 # BugCase Terms of Use
 
-**Version v2 — last updated 2026-07-23**
+**Version v2, last updated 2026-07-23**
 
 <nav class="legal-nav"><a href="./index.html">Legal home</a> · <a href="./privacy-policy.html">Privacy Policy</a></nav>
 
@@ -14,7 +14,7 @@ The dashboard today runs entirely in your browser: there is no account, no hoste
 
 ## Acceptable use
 
-Use BugCase to capture and review bug reports from pages you are authorized to inspect. Do not use it to circumvent the privacy protections described in the [Privacy Policy](https://bisensamiksha.github.io/BugCase/legal/privacy-policy), and remember that screenshots and element crops are not auto-scrubbed — you are responsible for redacting anything sensitive before you share a report.
+Use BugCase to capture and review bug reports from pages you are authorized to inspect. Do not use it to circumvent the privacy protections described in the [Privacy Policy](https://bisensamiksha.github.io/BugCase/legal/privacy-policy), and remember that screenshots and element crops are not auto-scrubbed; you are responsible for redacting anything sensitive before you share a report.
 
 ## No warranty
 

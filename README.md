@@ -5,8 +5,8 @@
 <h1 align="center">BugCase</h1>
 
 <p align="center">
-  A privacy-first browser extension that captures a complete, shareable bug report —
-  console, network, DOM, screenshots, and more — as a single ZIP. No backend. No telemetry.
+  A privacy-first browser extension that captures a complete, shareable bug report
+  (console, network, DOM, screenshots, and more) as a single ZIP. No backend. No telemetry.
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ machine" into a self-contained evidence package: click the toolbar icon, choose 
 include, and BugCase captures the page's console logs, network traffic, DOM snapshot,
 screenshots, storage, and environment into a single downloadable **ZIP**.
 
-Everything runs **on your device**. There is no server, no account, and no telemetry — the
+Everything runs **on your device**. There is no server, no account, and no telemetry: the
 report is generated locally and saved to your Downloads folder. You decide if and where to
 share it. Each ZIP also embeds a **self-contained `report.html`** that opens the whole report
 in a browser with **zero network requests**, and a companion **dashboard** (hosted on GitHub
@@ -46,9 +46,9 @@ Pages) can render any ZIP entirely in the browser.
   always be declined.
 - **Honest about redaction.** Text surfaces (page HTML, cookies, headers) are scrubbed
   automatically. Screenshots and element crops are rendered pixels and are **not**
-  auto-scrubbed — BugCase says so plainly and gives you a manual redaction tool.
+  auto-scrubbed. BugCase says so plainly and gives you a manual redaction tool.
 - **Portable evidence.** A report is just a ZIP with a schema-validated `report.json` and a
-  `report.html` that works offline forever — no proprietary viewer required.
+  `report.html` that works offline forever, with no proprietary viewer required.
 - **Cross-browser.** One codebase targets Chrome, Edge, and Firefox, with browser
   differences kept behind small helpers.
 
@@ -76,18 +76,18 @@ Pages) can render any ZIP entirely in the browser.
 
 - One ZIP containing `report.json`, all assets, and a self-contained `report.html`
 - A GitHub Pages **dashboard** with panes for overview, console, network, DOM, screenshots,
-  reproduction, element inspections, storage, and privacy — all rendered in your browser
+  reproduction, element inspections, storage, and privacy, all rendered in your browser
 
 ## Privacy & legal
 
-BugCase runs entirely on your device — no backend, no telemetry, no accounts. Reports are
+BugCase runs entirely on your device: no backend, no telemetry, no accounts. Reports are
 generated locally and saved to your Downloads folder; nothing is uploaded by BugCase.
 
 - **Privacy Policy:** <https://bisensamiksha.github.io/BugCase/legal/privacy-policy>
 - **Terms of Use:** <https://bisensamiksha.github.io/BugCase/legal/terms>
 
-> Screenshots and element crops are stored as rendered images and are **not** auto-scrubbed —
-> only text surfaces (page HTML, cookies, headers) are. Redact sensitive regions by hand
+> Screenshots and element crops are stored as rendered images and are **not** auto-scrubbed.
+> Only text surfaces (page HTML, cookies, headers) are. Redact sensitive regions by hand
 > before sharing a report.
 
 ## Built with
@@ -104,7 +104,7 @@ BugCase is a pnpm monorepo. Each package has one clear responsibility.
 BugCase/
 ├─ packages/
 │  ├─ extension/        # MV3 browser extension (Chrome + Firefox): capture UI + engine
-│  ├─ dashboard/        # GitHub Pages report viewer — renders a ZIP entirely in-browser
+│  ├─ dashboard/        # GitHub Pages report viewer: renders a ZIP entirely in-browser
 │  ├─ report-template/  # Single-file, self-contained report.html build (embedded in each ZIP)
 │  ├─ schema/           # BugReportV1 types + Zod validators + ZIP layout (shared contract)
 │  └─ shared-ui/        # UI/logic shared by the extension and the dashboard
@@ -122,7 +122,7 @@ BugCase/
 ### Prerequisites
 
 - **Node.js `>= 22.13.0`** (see [`.nvmrc`](./.nvmrc))
-- **pnpm `>= 9`** — `corepack enable` will pin the version from `package.json`
+- **pnpm `>= 9`**: `corepack enable` will pin the version from `package.json`
 
 ### Install
 
@@ -174,15 +174,15 @@ pnpm --filter @bugcase/dashboard dev
 
 ## How it works
 
-1. **Capture** — a content script injects a Shadow-DOM overlay; the MV3 service worker
+1. **Capture**: a content script injects a Shadow-DOM overlay; the MV3 service worker
    (an event page on Firefox) orchestrates the capture engine, attaching the `debugger`
    on-demand for network bodies and full-page screenshots.
-2. **Contract** — everything is assembled into a `BugReportV1` object validated by Zod
+2. **Contract**: everything is assembled into a `BugReportV1` object validated by Zod
    (`@bugcase/schema`) so a malformed report can never be written.
-3. **Package** — the report, its assets, and a pre-built self-contained `report.html` are
+3. **Package**: the report, its assets, and a pre-built self-contained `report.html` are
    written into a ZIP via JSZip.
-4. **Review** — before download, a preview screen lets you inspect, annotate, and redact.
-5. **View** — open `report.html` offline, or drop the ZIP into the dashboard; both render the
+4. **Review**: before download, a preview screen lets you inspect, annotate, and redact.
+5. **View**: open `report.html` offline, or drop the ZIP into the dashboard; both render the
    same panes with no network access.
 
 ## Browser support
@@ -190,7 +190,7 @@ pnpm --filter @bugcase/dashboard dev
 | Browser | Status    | Notes                                                                                                      |
 | ------- | --------- | ---------------------------------------------------------------------------------------------------------- |
 | Chrome  | Supported | Primary target                                                                                             |
-| Edge    | Supported | Chromium — same build as Chrome                                                                            |
+| Edge    | Supported | Chromium, same build as Chrome                                                                             |
 | Firefox | Supported | Background is an event page; full-page CDP screenshots fall back to scroll-stitch (documented Firefox gap) |
 
 BugCase is **source-available and in active development toward its first store release**
@@ -211,6 +211,6 @@ Contributions are welcome. Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) an
 ## License
 
 **Source-available, not open source.** BugCase is licensed under the
-[PolyForm Small Business License 1.0.0](./LICENSE) — free to use and modify for small
+[PolyForm Small Business License 1.0.0](./LICENSE), free to use and modify for small
 businesses and individuals (see the license for the exact thresholds). See also
 [`NOTICE`](./NOTICE) for the required attribution.

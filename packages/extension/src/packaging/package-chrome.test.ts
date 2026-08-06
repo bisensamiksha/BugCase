@@ -24,7 +24,7 @@ type Manifest = Record<string, unknown>;
 function validManifest(overrides: Manifest = {}): Manifest {
   return {
     manifest_version: 3,
-    name: 'BugCase — Bug Reporter Tool',
+    name: 'BugCase - Bug Reporter Tool',
     short_name: 'BugCase',
     description: 'Privacy-first bug report capture. No backend, no telemetry.',
     version: extensionVersion,

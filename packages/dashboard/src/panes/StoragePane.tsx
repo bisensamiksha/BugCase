@@ -208,7 +208,7 @@ export function StoragePane({ cookies, storage }: StoragePaneProps) {
                                 {flag}
                               </span>
                             ))
-                          : '—'}
+                          : 'None'}
                       </td>
                     </tr>
                   ))}

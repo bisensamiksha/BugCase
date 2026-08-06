@@ -43,6 +43,6 @@ export const OPTIONAL_PERMISSIONS: readonly OptionalPermission[] = [
   {
     name: '<all_urls>',
     label: 'All sites',
-    why: 'Lets you capture pages on any site. Granted per-site at runtime — never required at install.',
+    why: 'Lets you capture pages on any site. Granted per-site at runtime, never required at install.',
   },
 ];

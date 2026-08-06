@@ -1,4 +1,4 @@
-# Microsoft Edge Add-ons — submission checklist
+# Microsoft Edge Add-ons: submission checklist
 
 > Prepared here in S4-23; the actual submission + review tracking is **S4-24**. Edge accepts the same
 > Chromium package as Chrome, so no separate build is required.
@@ -18,7 +18,7 @@
 
 ## Listing fields (from [`listing.md`](./listing.md) → shared copy)
 
-- [ ] Name: **BugCase — Bug Reporter Tool** (≤ 45 chars).
+- [ ] Name: **BugCase - Bug Reporter Tool** (≤ 45 chars).
 - [ ] Short description = shared tagline (≤ 132 chars).
 - [ ] Description = shared detailed description (≤ 10,000 chars).
 - [ ] Category: **Developer tools**.
@@ -35,7 +35,7 @@
 ## Track (in S4-24)
 
 - [ ] Record artifact hash, submission date, and review state in [`../release/store-submission-tracker.md`](../release/store-submission-tracker.md) (created in S4-24).
-- [ ] Verify the Chrome ZIP installs on **Edge** and that the **Brave** install path works (Brave listing decision stays open — S4-24).
+- [ ] Verify the Chrome ZIP installs on **Edge** and that the **Brave** install path works (Brave listing decision stays open, tracked in S4-24).
 
 ## Notes
 

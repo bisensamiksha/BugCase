@@ -211,7 +211,7 @@ export function SandboxedDomSnapshotViewer({
       ) : null}
       {status === 'error' ? (
         <p data-testid="dom-error" role="alert" style={{ color: palette.red700 }}>
-          Couldn’t load this DOM snapshot. It may have expired — capture again.
+          Couldn’t load this DOM snapshot. It may have expired. Capture again.
         </p>
       ) : null}
       {status === 'loaded' && html !== null ? (

@@ -62,7 +62,7 @@ export function ElementPickerControls({
     return (
       <section data-testid="element-picker-controls" aria-label="Element inspector">
         <p data-testid="element-picker-status" style={statusStyle}>
-          ◎ Click elements to inspect — {count} so far (Esc to cancel)
+          ◎ Click elements to inspect. {count} so far (Esc to cancel)
         </p>
         {budgetNotice ? (
           <p data-testid="element-picker-budget-notice" role="status" style={noticeStyle}>

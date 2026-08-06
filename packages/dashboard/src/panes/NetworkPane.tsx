@@ -56,7 +56,7 @@ function seedSet<T extends string>(
 /** Fixed row height (px) — keeps virtualization to simple windowing (no dynamic measurement). */
 const ROW_H = 28;
 
-const DASH = '—';
+const NOT_RECORDED = 'Not recorded';
 
 /** Human-readable byte size without ever rendering "null". */
 function formatBytes(bytes: number): string {
@@ -75,11 +75,11 @@ function statusLabel(entry: NetworkEntry): string {
 }
 
 function durationLabel(entry: NetworkEntry): string {
-  return entry.durationMs === null ? DASH : `${entry.durationMs} ms`;
+  return entry.durationMs === null ? NOT_RECORDED : `${entry.durationMs} ms`;
 }
 
 function sizeLabel(entry: NetworkEntry): string {
-  return entry.response === null ? DASH : formatBytes(entry.response.sizeBytes);
+  return entry.response === null ? NOT_RECORDED : formatBytes(entry.response.sizeBytes);
 }
 
 /** Render a captured body: JSON as a JsonTree, other text as `<pre>`, binary as a note. Never HTML. */
