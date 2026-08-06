@@ -5,8 +5,8 @@
 <h1 align="center">BugCase</h1>
 
 <p align="center">
-  A privacy-first browser extension that captures a complete, shareable bug report:
-  console, network, DOM, screenshots, and more, as a single ZIP. No backend. No telemetry.
+  A privacy-first browser extension that captures a complete, shareable bug report
+  (console, network, DOM, screenshots, and more) as a single ZIP. No backend. No telemetry.
 </p>
 
 <p align="center">

@@ -12,7 +12,7 @@
 | Store                  | Artifact                   | SHA-256         | Submitted    | Review state         | Reviewer feedback | Resolution                                                     |
 | ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | -------------------------------------------------------------- |
 | Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ✅ published         | None              | Published 2026-08-05 · item `inbgbkepikijkgeagehcbaofambgcdck` |
-| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | None              | None                                                           |
+| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | Pending           | Pending                                                        |
 | Firefox AMO            | Pending                    | Pending         | Pending      | ⬜ S4-32             | Pending           | Pending                                                        |
 
 **Live listing:** https://chromewebstore.google.com/detail/bugcase-%E2%80%94-bug-reporter-to/inbgbkepikijkgeagehcbaofambgcdck

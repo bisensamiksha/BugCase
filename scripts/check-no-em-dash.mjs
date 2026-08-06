@@ -17,6 +17,8 @@ export const CONTENT_GLOBS = [
   'apps/privacy-site/src/**/*.html',
   'apps/privacy-site/src/**/*.md',
   'design/*.svg',
+  'packages/*/index.html',
+  'packages/*/src/**/*.html',
 ];
 
 /**

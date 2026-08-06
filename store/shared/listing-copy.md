@@ -29,8 +29,8 @@
 
 ## Single-purpose statement (Chrome-required)
 
-> BugCase captures a comprehensive, privacy-first bug report of the current page: screenshots,
-> console logs, network activity, a DOM snapshot, storage, and reproduction context, and saves it
+> BugCase captures a comprehensive, privacy-first bug report of the current page (screenshots,
+> console logs, network activity, a DOM snapshot, storage, and reproduction context) and saves it
 > locally as a shareable ZIP. No captured data leaves the user's browser.
 
 ## Detailed description

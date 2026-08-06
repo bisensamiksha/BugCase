@@ -30,6 +30,6 @@ and the outcome.
   accepted the replacement package under the same version number (`1.0.0`) over the draft's earlier upload.
 - The replaced draft package was `aae5371c…60b1` (2026-07-25, commit `6afc58c`), which predated BUG-03,
   BUG-04, BUG-05 and BUG-06. It was caught before submission; nothing was ever published from it.
-- Screenshot 1 was re-shot (PR #191) because BUG-06 reworded the gated capture options' hint from
-  "needs permission" to "needs permission: enable in the toolbar popup".
+- Screenshot 1 was re-shot (PR #191) because BUG-06 reworded the gated capture options' hint to
+  name the toolbar popup (reworded again in S4-36).
 - Outcome: ⏳ awaiting review. (Superseded; see the 2026-08-05 entry: published.)

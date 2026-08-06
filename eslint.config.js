@@ -73,6 +73,7 @@ export default tseslint.config(
       'packages/extension/src/**/*.{ts,tsx}',
       'packages/shared-ui/src/**/*.{ts,tsx}',
       'apps/privacy-site/**/*.ts',
+      'packages/schema/src/**/*.ts',
     ],
     ignores: ['**/*.test.*', '**/*.spec.*', '**/__fixtures__/**'],
     rules: {
