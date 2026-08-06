@@ -85,12 +85,14 @@ describe('PrintHeader', () => {
     expect(text()).toContain('BugCase report');
   });
 
-  it('falls back to "Not recorded" for absent fields rather than printing "undefined"', () => {
+  it('falls back to a hyphen for absent fields rather than printing "undefined"', () => {
     act(() => {
       root.render(<PrintHeader report={reportWith({ metadata: { page: null, tool: null } })} />);
     });
 
     expect(text()).not.toContain('undefined');
-    expect(text()).toContain('Not recorded');
+    // Assert the full "<capturedAt> · <browser>" line, not a bare '-': a lone hyphen would also
+    // match an ISO date or a hyphenated URL, so it would pass even if the fallback never rendered.
+    expect(text()).toContain('- · -');
   });
 });

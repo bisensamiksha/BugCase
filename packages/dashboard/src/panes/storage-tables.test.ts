@@ -40,9 +40,7 @@ describe('cookieRows', () => {
     expect(cookieRows([cookie({ session: false })], '')[0]?.expires).toBe(
       '2026-08-01T00:00:00.000Z',
     );
-    expect(cookieRows([cookie({ session: false, expiresAt: null })], '')[0]?.expires).toBe(
-      'Not recorded',
-    );
+    expect(cookieRows([cookie({ session: false, expiresAt: null })], '')[0]?.expires).toBe('-');
   });
 
   it('filters case-insensitively on name', () => {

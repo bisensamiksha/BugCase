@@ -227,11 +227,11 @@ export function OverviewPane({ report, reportId }: OverviewPaneProps) {
           <Card testid="overview-card-page" title="Page">
             {page ? (
               <>
-                <Field label="Title" value={page.title || 'Not recorded'} />
+                <Field label="Title" value={page.title || '-'} />
                 <Field label="URL" value={page.url} />
                 <Field label="Origin" value={page.origin} />
                 <Field label="Captured" value={page.capturedAt} />
-                <Field label="Referrer" value={page.referrer || 'None'} />
+                <Field label="Referrer" value={page.referrer || '-'} />
               </>
             ) : (
               <Empty>Page metadata not captured.</Empty>
@@ -242,9 +242,9 @@ export function OverviewPane({ report, reportId }: OverviewPaneProps) {
             {browser ? (
               <>
                 <Field label="Target" value={meta?.tool?.browserBuildTarget ?? 'unknown'} />
-                <Field label="Version" value={meta?.tool?.version ?? 'Not recorded'} />
+                <Field label="Version" value={meta?.tool?.version ?? '-'} />
                 <Field label="Timezone" value={browser.timezone} />
-                <Field label="Languages" value={browser.languages.join(', ') || 'Not recorded'} />
+                <Field label="Languages" value={browser.languages.join(', ') || '-'} />
               </>
             ) : (
               <Empty>Browser info not captured.</Empty>
