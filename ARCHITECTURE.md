@@ -1,7 +1,6 @@
 # Architecture
 
-How BugCase is put together, and why. This is the map; the reasoning behind individual decisions
-belongs in the ADRs (see [Decision records](#decision-records)).
+How BugCase is put together, and why.
 
 If you are here to make a change, the shortest useful summary is: **the extension captures, the
 schema is the contract, and two different viewers render the result.** Almost every design
@@ -25,26 +24,34 @@ explains most of what follows:
 
 A pnpm monorepo. Each package has one responsibility, and the dependency arrows only point one way.
 
+```mermaid
+flowchart TD
+    subgraph surfaces["Surfaces: one writer, two readers"]
+        ext["<b>@bugcase/extension</b><br/>captures and writes the ZIP"]
+        dash["<b>@bugcase/dashboard</b><br/>hosted viewer, GitHub Pages"]
+        tpl["<b>@bugcase/report-template</b><br/>single-file viewer"]
+    end
+
+    subgraph foundation["Foundation: depended on, depends on nothing internal"]
+        schema["<b>@bugcase/schema</b><br/>BugReportV1 types<br/>Zod validators<br/>ZIP layout constants"]
+        ui["<b>@bugcase/shared-ui</b><br/><b>@bugcase/shared-tokens</b><br/>shared panes and design tokens"]
+    end
+
+    ext --> schema
+    dash --> schema
+    tpl --> schema
+    ext --> ui
+    dash --> ui
+    tpl --> ui
+
+    tpl -. "built first, then embedded<br/>inside every ZIP" .-> ext
 ```
-                    ┌───────────────────┐
-                    │  @bugcase/schema  │  BugReportV1 types + Zod validators + ZIP layout
-                    └─────────┬─────────┘  the contract everything else agrees on
-          ┌───────────────────┼───────────────────┐
-          │                   │                   │
-┌─────────▼────────┐ ┌────────▼────────┐ ┌────────▼──────────┐
-│ @bugcase/        │ │ @bugcase/       │ │ @bugcase/         │
-│   extension      │ │   dashboard     │ │   report-template │
-│                  │ │                 │ │                   │
-│ captures + writes│ │ hosted viewer   │ │ single-file viewer │
-│ the ZIP          │ │ (GitHub Pages)  │ │ embedded in the ZIP│
-└─────────┬────────┘ └────────┬────────┘ └────────┬──────────┘
-          │                   │                   │
-          └───────────────────┼───────────────────┘
-                    ┌─────────▼─────────┐
-                    │ @bugcase/shared-ui│  panes/viewers used by more than one surface
-                    │ shared-tokens     │  design tokens (light/dark/print)
-                    └───────────────────┘
-```
+
+Solid arrows read "depends on". They all point one way, into the foundation, and nothing in the
+foundation points back out. The dotted edge is the awkward one worth knowing about: the report
+template is **both** a build-time dependency of the extension **and** an independent reader of the
+same format. A change to the report format has to land in the writer and both readers at once, which
+is most of why these share one repo.
 
 | Package                    | Responsibility                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------- |
@@ -62,38 +69,62 @@ both viewers.
 
 ## Capture flow
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant M as MAIN world
+    participant C as Content script
+    participant A as Annotation bundle
+    participant SW as Background worker
+
+    Note over M: Injected at document_start.<br/>Sees the page's own console and fetch.
+    loop Every console call, fetch and XHR
+        M->>M: Append to a 500-entry ring buffer,<br/>evict oldest. Nothing transmitted.
+    end
+
+    U->>C: Click the toolbar icon
+    Note over C: Overlay mounts in a Shadow DOM,<br/>so page CSS cannot restyle or hide it.
+    C-->>U: Choose what to capture
+    U->>C: Options, severity, steps, notes
+
+    C->>M: Ask for the buffered entries
+    M-->>C: Console and network entries
+    Note over M,C: Untrusted. The page controls every byte<br/>crossing this bridge.
+
+    C->>SW: CAPTURE_REPORT
+    SW->>SW: Collect DOM snapshot, storage, cookies,<br/>history, extensions, browser metadata
+    SW->>SW: Scroll-stitch full-page screenshot,<br/>viewport as fallback
+
+    alt Opt-in ON, Chromium only
+        SW->>SW: Attach chrome.debugger, banner visible
+        SW->>SW: Fetch network response bodies
+        SW->>SW: Detach
+    else Opt-in OFF, or Firefox
+        SW->>SW: Skip response bodies
+    end
+
+    SW->>SW: Scrub text surfaces, record a<br/>per-rule summary as evidence
+    SW-->>C: Held report
+
+    C-->>U: Review screen: inspect everything
+    opt User redacts an image
+        C->>A: Inject on demand, pass the screenshot
+        U->>A: Draw redactions
+        A->>A: Composite and discard the original pixels
+        A-->>C: Flattened image
+    end
+
+    U->>C: Consent, then Download
+    C->>SW: Finalize
+    SW->>SW: Zod-validate BugReportV1,<br/>fold in the prebuilt report.html
+    SW-->>U: report.zip in Downloads
 ```
- user clicks toolbar icon
-          │
-          ▼
- ┌──────────────────┐   overlay is injected into the page in a Shadow DOM
- │  content script  │   so the page's own CSS cannot restyle or hide it
- └────────┬─────────┘
-          │  user picks what to include, adds severity/steps/notes
-          ▼
- ┌──────────────────┐   MV3 service worker (an event page on Firefox).
- │   background     │   Orchestrates collectors; attaches chrome.debugger on
- │   service worker │   demand for network bodies + full-page screenshots.
- └────────┬─────────┘
-          │  collectors: console + network ring buffers, DOM snapshot, cookies,
-          │  storage, history, extensions, browser/screen/zoom metadata
-          ▼
- ┌──────────────────┐   text surfaces scrubbed here: page HTML, cookies, headers.
- │    scrubbers     │   Records a per-rule summary the Privacy pane surfaces,
- └────────┬─────────┘   so the user sees evidence, not a claim.
-          │
-          ▼
- ┌──────────────────┐   preview + annotate + redact BEFORE anything is written.
- │  review screen   │   Redaction is destructive: originals are discarded.
- └────────┬─────────┘
-          │
-          ▼
- ┌──────────────────┐   Zod-validated BugReportV1 → JSZip → report.zip,
- │    ZIP writer    │   with a prebuilt report.html folded in.
- └────────┬─────────┘
-          ▼
-    Downloads folder
-```
+
+Three things this shows that prose keeps burying. The **ring buffer runs before anyone asks**, which
+is the only reason a report can contain the error that prompted it. The **debugger branch is the
+exception, not the path**, and it is the one step a user must switch on. And the **annotation bundle
+is a separate injected surface**, which is a bundle-size decision, not an accident.
 
 **Two worlds, one bridge.** Console and network interception must run in the page's **MAIN** world
 to see the page's own `console` and `fetch`/`XHR`. Extension logic runs in the **isolated** world.
@@ -126,7 +157,43 @@ exist. A single HTML file with everything inlined is not.
 
 ## Trust boundaries
 
-The security-relevant edges, in the order an attacker would meet them:
+```mermaid
+flowchart LR
+    subgraph hostile["Hostile by assumption"]
+        page["<b>The captured page</b><br/>controls DOM, console output<br/>and network responses"]
+        badzip["<b>A report ZIP</b><br/>viewers open files<br/>from strangers"]
+        screen["<b>What is on screen</b><br/>passwords, tokens,<br/>account numbers"]
+    end
+
+    subgraph checks["Where the check happens"]
+        bridge["Typed cross-world bridge<br/><i>narrow, no shared objects</i>"]
+        zod["Zod validation<br/><i>on write and on read</i>"]
+        sandbox["Sandboxed frame<br/><i>never the viewer's own DOM</i>"]
+        human["Manual redaction<br/><i>destructive, before write</i>"]
+    end
+
+    subgraph guarded["What is being protected"]
+        priv["Extension privileges<br/>debugger, cookies, history, management"]
+        viewer["The viewer's document"]
+        user["The user, and whoever<br/>they send the report to"]
+    end
+
+    page --> bridge --> priv
+    badzip --> zod --> viewer
+    badzip --> sandbox --> viewer
+    screen --> human --> user
+
+    style hostile fill:none,stroke:#c0392b,stroke-width:2px
+    style guarded fill:none,stroke:#27ae60,stroke-width:2px
+    style checks fill:none,stroke:#7f8c8d,stroke-width:2px
+```
+
+⚠️ **The bottom row is the weak one.** The first three checks are code and hold automatically. The
+fourth is a human deciding to redact, and it fails whenever someone is in a hurry. That is a known,
+accepted limitation, not an oversight: see [SECURITY.md](./SECURITY.md) for why the automatic
+version was tried and reverted.
+
+The same edges in the order an attacker would meet them:
 
 1. **The captured page is hostile.** It controls the DOM, the console output, and the network
    responses that end up in a report. Everything crossing the MAIN-world bridge is untrusted
@@ -183,10 +250,10 @@ runtime checks are a manual `web-ext` procedure (`qa/manual-site-checklist.md`).
   fails if the two differ. The store artifact, the GitHub Release asset, and the recorded SHA-256
   are the same bytes.
 
-## Decision records
+## Where the rationale lives
 
-This document says what the system **is**. Architecture Decision Records say what was **rejected**
-and what is being lived with, which is the part that does not survive in code.
-
-They will live in `adr/` at the repo root, covering hybrid capture, the source-available license,
-the monorepo layout, Konva, and optional permissions. Not yet written; they are the next ticket.
+The "why" behind the choices above is spread through this document deliberately, closest to the
+thing it explains: [the central constraint](#the-central-constraint) for the no-backend
+consequences, [capture flow](#capture-flow) for the two-tier capture design,
+[trust boundaries](#trust-boundaries) for the permission model, and
+[cross-browser strategy](#cross-browser-strategy) for the Firefox position.

@@ -94,7 +94,13 @@ pnpm lint              # root ESLint 9, no new warnings
 pnpm typecheck         # exit 0
 pnpm test              # exit 0
 pnpm check:no-em-dash  # user-visible copy uses no em dashes
+pnpm check:mermaid     # every diagram still parses
+pnpm test:workflows    # CI/release workflow contracts and build-gate scripts
 ```
+
+Both content gates are already enforced by a test, so you cannot forget them: `pnpm test` covers the
+em dash gate, and `pnpm test:workflows` covers the mermaid one. CI runs both. Invoking the
+`check:*` scripts directly is just faster feedback while you are editing docs.
 
 If you touched anything the extension builds from, also run the Firefox parity gate, because CI
 will:
