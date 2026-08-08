@@ -189,6 +189,7 @@ pnpm --filter @bugcase/dashboard dev
 | `pnpm lint`                                | ESLint 9 (run from the repo root)      |
 | `pnpm format`                              | Prettier write                         |
 | `pnpm check:no-em-dash`                    | Gate on em dashes in user-visible copy |
+| `pnpm check:mermaid`                       | Gate on diagrams that fail to parse    |
 | `node scripts/check-firefox-lint.mjs`      | Firefox parity gate (see below)        |
 
 > **Note:** lint with the **root** `pnpm lint`. Per-package `lint` scripts are known-broken
