@@ -11,6 +11,25 @@ and the outcome.
 
 ## Log
 
+### 2026-08-07: Chrome Web Store: v1.0.1
+
+- Submitted `bugcase-chrome-1.0.1.zip` (`49d51a0b…f5c1`, 592,991 bytes) built from `main` @ `d085902`,
+  tag `v1.0.1`. Filed as an update to the existing published item `inbgbkepikijkgeagehcbaofambgcdck`.
+- Contents are S4-36 only: the extension renamed to "BugCase - Bug Reporter Tool" and user-visible
+  strings reworded off em dashes, plus CI gates to keep them out. **No capture-engine, schema,
+  manifest-permission, or message-contract change.** The permission set is the same 10 as 1.0.0, so no
+  new permission review is expected.
+- ⚠️ **Screenshot 1 is stale as of this build and was submitted anyway.** The screenshot PNGs were not
+  touched between `v1.0.0` and `v1.0.1` (only their README was, for the em dash pass). But
+  `screenshot-1-capture-overlay.png` still shows the gated capture rows in their pre-S4-36 phrasing,
+  which used an em dash before "enable in the toolbar popup"; the shipped build now reads
+  "needs permission. Enable in the toolbar popup". The listing therefore shows copy the submitted
+  package no longer contains. Not review-blocking, since stores do not require pixel-current
+  screenshots, but it should be re-shot. Found 2026-08-07 while recording this row, after submission.
+  The overlay's own title is still "BugCase" (`short_name`), so the rename itself invalidated no
+  screenshot.
+- Outcome: ⏳ awaiting review.
+
 ### 2026-08-05: Chrome Web Store: v1.0.0
 
 - Outcome: ✅ published. No reviewer questions were raised; the submission cleared review as filed.

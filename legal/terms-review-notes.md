@@ -20,5 +20,5 @@ Open questions for the reviewer:
 Engineering facts the reviewer should know:
 
 - **No MV3 privacy manifest key** — the store privacy-policy URL is a listing field (see `store/privacy-links.md`).
-- **Canonical URLs are GitHub Pages** — a later custom domain (S4-35) would be a redirect/swap, not a re-canonicalization.
+- **Canonical URLs are GitHub Pages** — a later custom domain (S5-05) would be a redirect/swap, not a re-canonicalization.
 - **BUG-01 honesty** — screenshots and element crops are stored as rendered pixels and are NOT auto-scrubbed; the policy states this plainly and must keep doing so.

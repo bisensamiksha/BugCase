@@ -1,7 +1,7 @@
 name: Release
 
 # Tag-driven release. Push a `vX.Y.Z` tag that matches the extension package version (see
-# .github/workflows/README.md). Store submission (Chrome/Edge/AMO) stays in S4-24 / S4-32; this
+# .github/workflows/README.md). Store submission (Chrome/Edge/AMO) stays in S4-24 / S5-04; this
 # workflow only builds, proves reproducibility, and attaches artifacts to the GitHub Release.
 on:
   push:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   # Reuse the full PR/main validation matrix (lint, typecheck, unit, build, chromium+firefox E2E) on
-  # the tagged commit — one source of truth. Firefox packaging is an additive matrix entry (S4-31).
+  # the tagged commit — one source of truth. Firefox packaging is an additive matrix entry (S5-03).
   validate:
     uses: ./.github/workflows/ci.yml
 

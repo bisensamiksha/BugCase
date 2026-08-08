@@ -1,8 +1,7 @@
 # Code of Conduct
 
-> **Status:** stub. This is a starting point adapted from the
-> [Contributor Covenant](https://www.contributor-covenant.org), v2.1, and may
-> be expanded as the project and its community grow.
+> Adapted from the [Contributor Covenant](https://www.contributor-covenant.org), v2.1.
+> It is in force: the reporting channel below is real and monitored.
 
 ## Our pledge
 

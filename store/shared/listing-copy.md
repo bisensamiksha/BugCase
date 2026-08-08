@@ -2,7 +2,7 @@
 
 > **This file is the one place listing copy is authored.** The Chrome
 > ([`../chrome/listing.md`](../chrome/listing.md)), Edge ([`../edge/listing.md`](../edge/listing.md)),
-> and, later, Firefox AMO (S4-32) listings **derive from here** and only add store-specific deltas
+> and, later, Firefox AMO (S5-04) listings **derive from here** and only add store-specific deltas
 > (field names, length limits, submission steps). Editing a claim, description, or permission
 > justification here changes it everywhere, so the stores can never drift.
 >

@@ -43,9 +43,9 @@ needed.
    - `bugcase-report-template-<version>.html` — the self-contained report template
    - `bugcase-dashboard-<version>.zip` — the built dashboard
 4. Uploading to the Chrome Web Store / Edge Add-ons / AMO is a **separate, credentialed** step
-   (S4-24 / S4-32); this pipeline holds no store secrets.
+   (S4-24 / S5-04); this pipeline holds no store secrets.
 
-The Firefox target (S4-31) is added later as an additive matrix entry — no rewrite.
+The Firefox target (S5-03) is added later as an additive matrix entry — no rewrite.
 
 ## Reproducible builds & hash verification
 

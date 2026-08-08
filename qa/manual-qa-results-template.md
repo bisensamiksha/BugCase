@@ -38,7 +38,7 @@ image-pixel warning shown. Use ✅ / ❌ / ⚠️ (see note). Link any bug you f
 | …                | …               | …       |         |         |             |         |         |             |
 
 > ⚠️ means "works, with a known/accepted limitation" — always explain it in Notes (e.g. "Firefox: no
-> network response bodies — S4-29", "DRM frames black — expected").
+> network response bodies, S5-01", "DRM frames black — expected").
 
 ## Per-archetype coverage (release gate)
 

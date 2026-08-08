@@ -159,7 +159,7 @@ Testers should recognize these so they don't file duplicates:
 - **Screenshots/crops are raw pixels (BUG-01).** The scrubbers only touch text (DOM, cookies,
   headers). Anything visible on screen at capture time is in the image as-is. The pre-download warning
   covers this.
-- **Firefox debugger gap (S4-29).** Firefox cannot attach the debugger the way Chrome does, so network
+- **Firefox debugger gap (S5-01).** Firefox cannot attach the debugger the way Chrome does, so network
   **response bodies** are absent in Firefox captures. Note it as a documented limitation, not a bug.
 - **DRM video frames** may be black in screenshots (OS-level readback protection).
 

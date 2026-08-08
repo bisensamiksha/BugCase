@@ -1,0 +1,11 @@
+{
+  "warnings": 8,
+  "measuredOn": "2026-08-07",
+  "measuredAt": "main @ d085902",
+  "breakdown": {
+    "MANIFEST_PERMISSIONS": 1,
+    "UNSAFE_VAR_ASSIGNMENT": 6,
+    "DANGEROUS_EVAL": 1
+  },
+  "note": "Ratchet only. `warnings` is the cap the CI gate enforces; the rest is provenance for a human. Lower it whenever a real fix drops the count, never raise it. Errors always fail regardless. See docs in ARCHITECTURE.md and store/release for why each warning is still here: MANIFEST_PERMISSIONS is the Chromium-only `debugger` permission the gecko manifest branch still inherits (owned by S5-02); UNSAFE_VAR_ASSIGNMENT and DANGEROUS_EVAL are bundler output that the AMO source submission answers (owned by S5-04)."
+}
