@@ -17,6 +17,7 @@
     "store:assets": "node scripts/generate-store-assets.mjs",
     "check:permission-justifications": "node scripts/check-permission-justifications.mjs",
     "check:no-em-dash": "node scripts/check-no-em-dash.mjs",
+    "check:csp": "node scripts/check-csp.mjs",
     "check:mermaid": "node scripts/check-mermaid.mjs",
     "package:chrome": "pnpm --filter @bugcase/extension run package:chrome",
     "verify:edge-brave": "node scripts/verify-edge-brave-artifacts.mjs",

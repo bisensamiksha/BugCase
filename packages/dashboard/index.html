@@ -2,6 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      Enforced Content-Security-Policy (S4-31). Delivered as a meta tag because GitHub Pages cannot
+      set response headers. Every directive was measured against a real report, not assumed.
+      The policy of record, each relaxation with its reason, and the meta-tag limitations are in
+      apps/privacy-site/src/csp.md, which `pnpm check:csp` keeps in sync with this tag.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src data:; media-src data:; connect-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BugCase Dashboard</title>
   </head>

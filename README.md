@@ -190,6 +190,7 @@ pnpm --filter @bugcase/dashboard dev
 | `pnpm format`                              | Prettier write                         |
 | `pnpm check:no-em-dash`                    | Gate on em dashes in user-visible copy |
 | `pnpm check:mermaid`                       | Gate on diagrams that fail to parse    |
+| `pnpm check:csp`                           | Gate on the shipped CSP + csp.md sync  |
 | `node scripts/check-firefox-lint.mjs`      | Firefox parity gate (see below)        |
 
 > **Note:** lint with the **root** `pnpm lint`. Per-package `lint` scripts are known-broken
