@@ -56,6 +56,10 @@ jobs:
       - run: pnpm build
       # S4-14 size budget: the empty-data report.html must stay under 5 MiB.
       - run: node scripts/check-report-html-size.mjs
+      # S4-31 CSP gate. Runs here rather than in `lint` because it is strictest after a build: with
+      # apps/privacy-site/dist present it also verifies each legal page's style-src hash against the
+      # bytes that page actually emitted, which nothing else can catch without a browser.
+      - run: pnpm check:csp
 
   # S4-29 Firefox parity ratchet. `pnpm build` (the `build` job) resolves to the extension's
   # `build` script, which is `build:chrome` — so without this job the Firefox target is never
@@ -91,6 +95,10 @@ jobs:
       # browser projects run it, so build the template for both (this job does not run `pnpm build`).
       - name: Build self-contained report.html (report.html integration test)
         run: pnpm --filter @bugcase/report-template build
+      # S4-31: the CSP spec is the only one that runs against the *hosted* origin rather than
+      # report.html over file://, so it serves these two builds over HTTP.
+      - name: Build dashboard + legal pages (CSP spec)
+        run: pnpm --filter @bugcase/dashboard build && pnpm --filter @bugcase/privacy-site build
       - name: Install Playwright browser (${{ matrix.browser }})
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       - name: Run E2E (${{ matrix.browser }})

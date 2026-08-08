@@ -95,6 +95,7 @@ pnpm typecheck         # exit 0
 pnpm test              # exit 0
 pnpm check:no-em-dash  # user-visible copy uses no em dashes
 pnpm check:mermaid     # every diagram still parses
+pnpm check:csp         # shipped CSP stays strict and csp.md stays in sync
 pnpm test:workflows    # CI/release workflow contracts and build-gate scripts
 ```
 

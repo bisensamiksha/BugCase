@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { marked } from 'marked';
 
 export interface RenderLegalPageInput {
@@ -22,6 +24,34 @@ const STYLE = `
   nav.legal-nav { margin: 0 0 2rem; font-size: 0.9rem; }
 `.trim();
 
+/**
+ * Enforced Content-Security-Policy for every legal page (S4-31).
+ *
+ * These pages are build-time Markdown with one inline `<style>` and no scripts at all, so they
+ * take the strictest policy in the repo: everything falls through to `default-src 'none'`, and the
+ * one stylesheet is allowed **by hash** rather than by `'unsafe-inline'`. The hash is computed from
+ * the same `STYLE` constant that is interpolated into the page below, so the two cannot drift.
+ *
+ * The dashboard's policy is necessarily looser and lives in `packages/dashboard/index.html`; the
+ * reasons for every difference are recorded in `csp.md` next to this file.
+ *
+ * `script-src` and `object-src` are stated explicitly even though `default-src 'none'` already
+ * covers them, because the ticket's acceptance criteria name them individually.
+ *
+ * Deliberately absent: `report-uri` / `report-to` would be remote logging, which this product
+ * promises it does not do. `frame-ancestors` and `sandbox` are silently ignored in a meta-delivered
+ * policy, and GitHub Pages cannot set response headers, so they are not claimed here (see csp.md).
+ */
+export const LEGAL_CSP = [
+  "default-src 'none'",
+  `style-src 'sha256-${createHash('sha256').update(STYLE, 'utf8').digest('base64')}'`,
+  "script-src 'none'",
+  "connect-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -40,6 +70,7 @@ export function renderLegalPage({ title, markdown }: RenderLegalPageInput): stri
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="${LEGAL_CSP}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)}</title>
     <style>${STYLE}</style>
