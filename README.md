@@ -214,16 +214,31 @@ not silence warnings to make it go down.
 
 ## How it works
 
-1. **Capture**: a content script injects a Shadow-DOM overlay; the MV3 service worker
-   (an event page on Firefox) orchestrates the capture engine, attaching the `debugger`
-   on-demand for network bodies and full-page screenshots.
-2. **Contract**: everything is assembled into a `BugReportV1` object validated by Zod
-   (`@bugcase/schema`) so a malformed report can never be written.
-3. **Package**: the report, its assets, and a pre-built self-contained `report.html` are
-   written into a ZIP via JSZip.
-4. **Review**: before download, a preview screen lets you inspect, annotate, and redact.
-5. **View**: open `report.html` offline, or drop the ZIP into the dashboard; both render the
-   same panes with no network access.
+```mermaid
+flowchart TD
+    start(["You hit a bug"]) --> capture
+
+    subgraph device["Everything below happens on your device"]
+        direction TB
+        capture["<b>1. Capture</b><br/>A Shadow-DOM overlay lets you pick what to include.<br/>The background worker collects console, network, DOM,<br/>storage and environment."]
+        contract["<b>2. Contract</b><br/>Assembled into a BugReportV1 object and validated by Zod,<br/>so a malformed report can never be written."]
+        review["<b>3. Review</b><br/>Inspect everything before it exists as a file.<br/>Annotate and redact: redaction is destructive."]
+        package["<b>4. Package</b><br/>report.json, assets, and a self-contained report.html<br/>zipped together."]
+        capture --> contract --> review --> package
+    end
+
+    package --> zip[("report.zip<br/>in your Downloads")]
+
+    zip --> offline["<b>Open report.html</b><br/>Zero network requests.<br/>Works offline, forever."]
+    zip --> hosted["<b>Drop it in the dashboard</b><br/>Rendered in your browser.<br/>Nothing is uploaded."]
+
+    zip -.-> share["<b>Share it, or do not</b><br/>Your call. Nothing has left<br/>your machine up to this point."]
+
+    style device fill:none,stroke:#7f8c8d,stroke-width:2px,stroke-dasharray:4
+```
+
+There is no step where a report is uploaded, because there is no server to upload it to. The dotted
+edge is the only one that can send data anywhere, and you are the one who takes it.
 
 ## Browser support
 

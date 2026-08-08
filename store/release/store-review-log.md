@@ -19,15 +19,18 @@ and the outcome.
   strings reworded off em dashes, plus CI gates to keep them out. **No capture-engine, schema,
   manifest-permission, or message-contract change.** The permission set is the same 10 as 1.0.0, so no
   new permission review is expected.
-- ⚠️ **Screenshot 1 is stale as of this build and was submitted anyway.** The screenshot PNGs were not
-  touched between `v1.0.0` and `v1.0.1` (only their README was, for the em dash pass). But
-  `screenshot-1-capture-overlay.png` still shows the gated capture rows in their pre-S4-36 phrasing,
-  which used an em dash before "enable in the toolbar popup"; the shipped build now reads
-  "needs permission. Enable in the toolbar popup". The listing therefore shows copy the submitted
-  package no longer contains. Not review-blocking, since stores do not require pixel-current
-  screenshots, but it should be re-shot. Found 2026-08-07 while recording this row, after submission.
-  The overlay's own title is still "BugCase" (`short_name`), so the rename itself invalidated no
-  screenshot.
+- **Screenshot 1 differs from this build by one punctuation mark. Deliberately not re-shot.** The
+  PNGs were untouched between `v1.0.0` and `v1.0.1` (only their README changed, for the em dash
+  pass). `screenshot-1-capture-overlay.png` shows the three gated capture rows in their pre-S4-36
+  phrasing, which used an em dash before "enable in the toolbar popup"; the shipped build now reads
+  "needs permission. Enable in the toolbar popup". Every other string in the frame was checked
+  against source and is identical, and the overlay title is still "BugCase" (`short_name`), so the
+  rename invalidated nothing. Same words, same meaning, in small secondary hint text. Stores do not
+  require pixel-current screenshots, so there is no policy issue and nothing a user could be misled
+  by. **Decision (2026-08-08): leave it.** Fold a re-shoot into the next time this screenshot changes
+  for a substantive reason; re-shooting now costs a manual session and risks new inconsistencies to
+  fix an invisible one. Recorded here only so the trail shows the listing image and the submitted
+  package are known to differ, and why that was accepted.
 - Outcome: ⏳ awaiting review.
 
 ### 2026-08-05: Chrome Web Store: v1.0.0
