@@ -85,6 +85,21 @@ describe('CI/CD workflow contract', () => {
       expect(asText).toContain('typecheck:workflows');
       expect(asText).toContain('test:workflows');
     });
+
+    // S4-29. `pnpm build` resolves to build:chrome, so without a dedicated job the Firefox target
+    // is never built in CI and the parked Firefox work can rot unnoticed.
+    it('builds and lints the Firefox target in its own parallel job', () => {
+      const firefox = ci.jobs?.['firefox-parity'];
+      expect(firefox).toBeTruthy();
+
+      const steps = JSON.stringify(firefox?.steps ?? []);
+      expect(steps).toContain('pnpm build:firefox');
+      expect(steps).toContain('check-firefox-lint.mjs');
+
+      // Parallel, not chained behind another job: a Firefox regression must not be masked by an
+      // unrelated failure upstream, and must not lengthen the critical path.
+      expect(firefox?.needs).toBeUndefined();
+    });
   });
 
   describe('gh-pages.yml', () => {

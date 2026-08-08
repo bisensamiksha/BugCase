@@ -57,6 +57,21 @@ jobs:
       # S4-14 size budget: the empty-data report.html must stay under 5 MiB.
       - run: node scripts/check-report-html-size.mjs
 
+  # S4-29 Firefox parity ratchet. `pnpm build` (the `build` job) resolves to the extension's
+  # `build` script, which is `build:chrome` — so without this job the Firefox target is never
+  # built in CI. Firefox is published nowhere (its store tickets are parked in sprint 5), which
+  # is exactly why it needs a gate: parked work rots silently. Its own job, not a step appended
+  # to `build`, so it runs in parallel and a Firefox regression is legible in the job list.
+  firefox-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:firefox
+      # Errors fail; warnings may not exceed scripts/firefox-lint-baseline.json.
+      - run: node scripts/check-firefox-lint.mjs
+
   e2e:
     name: e2e (${{ matrix.browser }})
     runs-on: ubuntu-latest

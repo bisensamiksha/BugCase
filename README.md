@@ -18,13 +18,23 @@
 </p>
 
 <p align="center">
+  <a href="https://chromewebstore.google.com/detail/inbgbkepikijkgeagehcbaofambgcdck"><strong>Install for Chrome</strong></a> ·
   <a href="https://bisensamiksha.github.io/BugCase/">Dashboard</a> ·
   <a href="https://bisensamiksha.github.io/BugCase/legal/privacy-policy">Privacy Policy</a> ·
   <a href="https://bisensamiksha.github.io/BugCase/legal/terms">Terms of Use</a> ·
-  <a href="./CONTRIBUTING.md">Contributing</a>
+  <a href="./ARCHITECTURE.md">Architecture</a> ·
+  <a href="./CONTRIBUTING.md">Contributing</a> ·
+  <a href="./SECURITY.md">Security</a>
 </p>
 
 ---
+
+## Install
+
+**[Get BugCase on the Chrome Web Store][store]** (also works in Edge and Brave if you load it
+unpacked; see [Browser support](#browser-support)).
+
+Prefer to build it yourself? See [Getting started](#getting-started).
 
 ## About the project
 
@@ -78,6 +88,14 @@ Pages) can render any ZIP entirely in the browser.
 - A GitHub Pages **dashboard** with panes for overview, console, network, DOM, screenshots,
   reproduction, element inspections, storage, and privacy, all rendered in your browser
 
+## Screenshots
+
+|                                                                                                                                                                                                         |                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![The BugCase capture overlay open over an article, listing capture options](./store/chrome/screenshots/screenshot-1-capture-overlay.png)<br>**Capture.** Pick what to include, on any page.            | ![The BugCase dashboard Overview pane showing severity, stat tiles and report metadata](./store/chrome/screenshots/screenshot-2-dashboard-overview.png)<br>**Overview.** The report at a glance. |
+| ![The Network pane showing requests, a waterfall column and a selected request's headers](./store/chrome/screenshots/screenshot-3-network-pane.png)<br>**Network.** Requests, timings, headers, bodies. | ![The review screen listing report sections with the Redact text panel](./store/chrome/screenshots/screenshot-4-review-redact.png)<br>**Review and redact.** Before anything is written.         |
+| ![The consent step showing scrubbers, permissions used and the image disclosure](./store/chrome/screenshots/screenshot-5-privacy-consent.png)<br>**Consent.** Evidence of what was removed.             | ![The BugCase settings page](./store/chrome/screenshots/screenshot-6-settings.png)<br>**Settings.** Defaults, opt-ins, allowlist.                                                                |
+
 ## Privacy & legal
 
 BugCase runs entirely on your device: no backend, no telemetry, no accounts. Reports are
@@ -110,12 +128,14 @@ BugCase/
 │  └─ shared-ui/        # UI/logic shared by the extension and the dashboard
 ├─ apps/
 │  └─ privacy-site/     # Hosted legal pages (privacy policy + terms) → /legal/
-├─ scripts/             # Build, packaging, icon, and reproducibility utilities
+├─ scripts/             # Build, packaging, icon, reproducibility, and CI-gate utilities
 ├─ tests/               # Playwright E2E specs + CI workflow contract tests
 ├─ qa/                  # Manual QA site checklist + results template
-├─ store/  legal/       # Store link inventory + legal review notes
+├─ store/  legal/       # Store listings, screenshots, release tracker + legal review notes
 └─ design/              # Icon source (SVG) + generator
 ```
+
+For how the pieces fit together and why, see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 
 ## Getting started
 
@@ -157,20 +177,40 @@ pnpm --filter @bugcase/dashboard dev
 
 ## Development & testing
 
-| Command                                    | What it does                       |
-| ------------------------------------------ | ---------------------------------- |
-| `pnpm install`                             | Install all workspace dependencies |
-| `pnpm build`                               | Build every package                |
-| `pnpm build:chrome` / `pnpm build:firefox` | Build the extension for one target |
-| `pnpm --filter @bugcase/dashboard dev`     | Run the dashboard locally with HMR |
-| `pnpm -r typecheck`                        | TypeScript across all packages     |
-| `pnpm -r test`                             | Vitest unit + integration tests    |
-| `pnpm test:e2e`                            | Playwright end-to-end tests        |
-| `pnpm lint`                                | ESLint 9 (run from the repo root)  |
-| `pnpm format`                              | Prettier write                     |
+| Command                                    | What it does                           |
+| ------------------------------------------ | -------------------------------------- |
+| `pnpm install`                             | Install all workspace dependencies     |
+| `pnpm build`                               | Build every package                    |
+| `pnpm build:chrome` / `pnpm build:firefox` | Build the extension for one target     |
+| `pnpm --filter @bugcase/dashboard dev`     | Run the dashboard locally with HMR     |
+| `pnpm -r typecheck`                        | TypeScript across all packages         |
+| `pnpm -r test`                             | Vitest unit + integration tests        |
+| `pnpm test:e2e`                            | Playwright end-to-end tests            |
+| `pnpm lint`                                | ESLint 9 (run from the repo root)      |
+| `pnpm format`                              | Prettier write                         |
+| `pnpm check:no-em-dash`                    | Gate on em dashes in user-visible copy |
+| `node scripts/check-firefox-lint.mjs`      | Firefox parity gate (see below)        |
 
 > **Note:** lint with the **root** `pnpm lint`. Per-package `lint` scripts are known-broken
 > and should not be used.
+
+### The Firefox parity gate
+
+CI builds the Firefox target on every PR and runs `web-ext lint` over it. The gate is a
+**ratchet**: any lint _error_ fails the build, and the _warning_ count may not rise above the
+number recorded in [`scripts/firefox-lint-baseline.json`](./scripts/firefox-lint-baseline.json).
+
+It exists because Firefox is built but published nowhere. `pnpm build` resolves to the Chrome
+target, so before this gate nothing in CI ever compiled the Firefox build, and it could have
+broken silently for months. Run it yourself with:
+
+```bash
+pnpm build:firefox && node scripts/check-firefox-lint.mjs
+```
+
+If you fix something that lowers the warning count, lower the baseline in the same PR. The
+baseline is an honest record of how far the Firefox build is from being publishable, so please do
+not silence warnings to make it go down.
 
 ## How it works
 
@@ -187,15 +227,28 @@ pnpm --filter @bugcase/dashboard dev
 
 ## Browser support
 
-| Browser | Status    | Notes                                                                                                      |
-| ------- | --------- | ---------------------------------------------------------------------------------------------------------- |
-| Chrome  | Supported | Primary target                                                                                             |
-| Edge    | Supported | Chromium, same build as Chrome                                                                             |
-| Firefox | Supported | Background is an event page; full-page CDP screenshots fall back to scroll-stitch (documented Firefox gap) |
+| Browser | Status                       | Notes                                                                       |
+| ------- | ---------------------------- | --------------------------------------------------------------------------- |
+| Chrome  | ✅ **Published**             | Primary target. Install from the [Chrome Web Store][store].                 |
+| Edge    | 🟡 Compatible, not published | Chromium, runs the same build; load it unpacked (see above).                |
+| Brave   | 🟡 Compatible, not published | Chromium, runs the same build; load it unpacked.                            |
+| Firefox | 🟡 Builds, not published     | `build:firefox` works and is CI-gated, but there is no AMO listing **yet**. |
 
-BugCase is **source-available and in active development toward its first store release**
-(Chrome + Edge first, Firefox AMO trailing). Until then, build from source and load it
-unpacked as shown above.
+**Chrome is the only browser BugCase is published on.** Everything else builds and runs, but you
+have to load it unpacked yourself.
+
+Two honest caveats if you use the Firefox build:
+
+- **No network response bodies.** Firefox has no equivalent of `chrome.debugger`, so that capture
+  step is skipped. Full-page screenshots fall back to scroll-stitch.
+- **It has never been through the manual QA sweep.** The 39-site pass that gated the Chrome
+  release was Chrome-only, and Playwright cannot load MV3 extensions in Firefox, so no automated
+  test exercises the capture engine there either.
+
+Firefox and Edge publication are deferred rather than abandoned. The work is scoped and ready; it
+is waiting on Chrome showing enough demand to justify a second store.
+
+[store]: https://chromewebstore.google.com/detail/inbgbkepikijkgeagehcbaofambgcdck
 
 ## Contributing
 
@@ -207,6 +260,12 @@ Contributions are welcome. Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) an
    green.
 3. Run the manual QA checklist in [`qa/`](./qa) when your change affects capture behavior.
 4. Open a focused pull request describing the change and how you verified it.
+
+## Security
+
+Found a vulnerability? **Please do not open a public issue.** Report it privately through
+[GitHub Security Advisories](https://github.com/bisensamiksha/BugCase/security/advisories/new).
+See [`SECURITY.md`](./SECURITY.md) for scope, what to include, and response expectations.
 
 ## License
 

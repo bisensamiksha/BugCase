@@ -13,6 +13,11 @@ const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const CONTENT_GLOBS = [
   'README.md',
   'CONTRIBUTING.md',
+  // S4-29 added these two; they are repo front-door docs like the two above.
+  // CODE_OF_CONDUCT.md is deliberately NOT here: it is a near-verbatim Contributor Covenant
+  // adaptation, and rewording upstream boilerplate to satisfy a house style is not worth it.
+  'SECURITY.md',
+  'ARCHITECTURE.md',
   'store/**/*.md',
   'apps/privacy-site/src/**/*.html',
   'apps/privacy-site/src/**/*.md',

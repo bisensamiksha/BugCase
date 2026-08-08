@@ -1,7 +1,7 @@
 # Packaging BugCase for the Chrome Web Store (and Edge Add-ons)
 
 This runbook covers producing the upload-ready Chrome package. Firefox/AMO packaging is a separate
-path (`web-ext`, tracked in S4-31).
+path (`web-ext`, tracked in S5-03).
 
 ## One command
 
@@ -62,7 +62,7 @@ false "errors":
 
 So it structurally cannot certify a Chrome build "clean". The Chrome gate is therefore the
 purpose-built validator above; `web-ext lint` remains the **Firefox** manifest gate
-(`pnpm --filter @bugcase/extension run lint:firefox-manifest`, formalized in S4-31).
+(`pnpm --filter @bugcase/extension run lint:firefox-manifest`, formalized in S5-03).
 
 ## "Signed ZIP" / uploading
 

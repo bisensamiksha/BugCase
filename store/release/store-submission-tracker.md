@@ -2,18 +2,45 @@
 
 > The durable record of every browser-store submission of the BugCase extension. The _act_ of
 > submitting happens in the store dashboards (human accounts + gestures); this file is the auditable
-> trail. Chrome + Edge are filed in **S4-24**; **S4-32** appends the Firefox AMO row(s) here.
+> trail. Chrome + Edge are filed in **S4-24**; **S5-04** appends the Firefox AMO row(s) here.
 >
 > Artifact = the single Chromium ZIP `dist/bugcase-chrome-<version>.zip` (S4-18). Get its SHA-256 from
 > `node scripts/verify-edge-brave-artifacts.mjs` (also gates manifest validity + ZIP layout before upload).
 
+## v1.0.1
+
+| Store                  | Artifact                   | SHA-256         | Submitted  | Review state         | Reviewer feedback | Resolution |
+| ---------------------- | -------------------------- | --------------- | ---------- | -------------------- | ----------------- | ---------- |
+| Chrome Web Store       | `bugcase-chrome-1.0.1.zip` | `49d51a0b…f5c1` | 2026-08-07 | ⏳ in review         | Pending           | Pending    |
+| Microsoft Edge Add-ons | Pending                    | Pending         | Pending    | 🟡 not yet submitted | Pending           | Pending    |
+| Firefox AMO            | Pending                    | Pending         | Pending    | 🅿️ parked (S5-04)    | Pending           | Pending    |
+
+**Upload candidate:** built 2026-08-07 from `main` @ `d085902`, tagged `v1.0.1` (S4-36, PRs #201 + #202)
+
+```
+sha256  49d51a0b8a196e98a3180739c3a006cb8c3744df9cfc56876413dde53892f5c1
+size    592,991 bytes · 24 entries · 9 sourcemaps excluded
+```
+
+**What changed from 1.0.0.** S4-36 only: the extension was renamed to **"BugCase - Bug Reporter Tool"**
+and every user-visible string was reworded off em dashes, with CI gates (`check:no-em-dash`) added to keep
+them out. No capture-engine, schema, manifest-permission, or message-contract change. The permission set
+is byte-for-byte the same 10 as 1.0.0, so this submission should not attract new permission review.
+
+Verified before recording: `verify:edge-brave` passes (MV3 valid at v1.0.1, manifest at root, service
+worker and all declared icons present, no `.map` files); `check:permission-justifications` matches 10/10
+against the built manifest.
+
+⚠️ **Edge is still unfiled at both versions.** It was deferred for the Chrome-only launch, not blocked;
+the same Chromium artifact is verified compatible (see [`edge-brave-verification.md`](./edge-brave-verification.md)).
+
 ## v1.0.0
 
-| Store                  | Artifact                   | SHA-256         | Submitted    | Review state         | Reviewer feedback | Resolution                                                     |
-| ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | -------------------------------------------------------------- |
-| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ✅ published         | None              | Published 2026-08-05 · item `inbgbkepikijkgeagehcbaofambgcdck` |
-| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | Pending           | Pending                                                        |
-| Firefox AMO            | Pending                    | Pending         | Pending      | ⬜ S4-32             | Pending           | Pending                                                        |
+| Store                  | Artifact                   | SHA-256         | Submitted    | Review state         | Reviewer feedback | Resolution                                                                           |
+| ---------------------- | -------------------------- | --------------- | ------------ | -------------------- | ----------------- | ------------------------------------------------------------------------------------ |
+| Chrome Web Store       | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | 2026-07-31   | ✅ published         | None              | Published 2026-08-05 · item `inbgbkepikijkgeagehcbaofambgcdck` · superseded by 1.0.1 |
+| Microsoft Edge Add-ons | `bugcase-chrome-1.0.0.zip` | `69c24b3e…3466` | _yyyy-mm-dd_ | 🟡 not yet submitted | Pending           | Pending                                                                              |
+| Firefox AMO            | Pending                    | Pending         | Pending      | 🅿️ parked (S5-04)    | Pending           | Pending                                                                              |
 
 **Live listing:** https://chromewebstore.google.com/detail/bugcase-%E2%80%94-bug-reporter-to/inbgbkepikijkgeagehcbaofambgcdck
 (the same URL the dashboard landing links to, canonical copy in
