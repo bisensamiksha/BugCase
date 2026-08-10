@@ -6,6 +6,7 @@ import { SandboxFrame } from '../components/SandboxFrame';
 import { formatByteSize } from '../lib/format-bytes';
 import type { ReportSource } from '../lib/report-source';
 import { highlightHtml, type HighlightResult } from '../lib/shiki';
+import { formatHash } from '../router/hash-router';
 import type { DomTab, DomViewState } from '../router/hash-state';
 
 import {
@@ -46,6 +47,7 @@ const TAB_IDS: Record<SnapshotTab, { tab: string; panel: string }> = {
  */
 export function DomPane({
   dom,
+  reportId,
   source,
   initialElementQuery,
   initialTab,
@@ -327,15 +329,39 @@ export function DomPane({
               id={TAB_IDS.rendered.panel}
               aria-labelledby={TAB_IDS.rendered.tab}
               hidden={tab !== 'rendered'}
-              className="min-h-0 flex-1"
+              className="flex min-h-0 flex-1 flex-col"
             >
               {tab === 'rendered' ? (
-                <SandboxFrame
-                  html={previewHtml}
-                  title="DOM snapshot preview"
-                  data-testid="dom-preview-frame"
-                  className="h-full w-full rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-white"
-                />
+                <>
+                  {/*
+                    Only the page's markup is captured (S2-13 stores outerHTML as text; the ZIP has
+                    no slot for CSS, fonts or images), and `SNAPSHOT_CSP` deliberately refuses to
+                    fetch the rest at view time, because that would tell the captured site someone
+                    is reading a bug report about it. Correct behaviour, but it renders most real
+                    pages as near-plain text, which reads as a broken pane unless we say so.
+                    Informational styling on purpose: a warning would confirm the wrong conclusion.
+                  */}
+                  <p
+                    data-testid="dom-preview-fidelity-notice"
+                    className="mb-2 rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-[var(--bc-surface)] px-3 py-2 text-xs text-[var(--bc-fg-muted)]"
+                  >
+                    External stylesheets and images are not loaded here. BugCase never contacts the
+                    captured site, so this preview shows structure and inline styling only.{' '}
+                    <a
+                      href={formatHash({ activePane: 'screenshots', reportId })}
+                      className="text-[var(--bc-accent)] underline"
+                    >
+                      See the Screenshots pane
+                    </a>{' '}
+                    for how the page looked.
+                  </p>
+                  <SandboxFrame
+                    html={previewHtml}
+                    title="DOM snapshot preview"
+                    data-testid="dom-preview-frame"
+                    className="min-h-0 w-full flex-1 rounded-[var(--bc-radius)] border border-[var(--bc-border)] bg-white"
+                  />
+                </>
               ) : null}
             </div>
             <div

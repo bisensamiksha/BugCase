@@ -11,8 +11,8 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: PolyForm Small Business 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20SB%201.0.0-blue" /></a>
-  <img alt="Node >= 22.13" src="https://img.shields.io/badge/node-%3E%3D22.13-339933?logo=node.js&logoColor=white" />
-  <img alt="pnpm >= 9" src="https://img.shields.io/badge/pnpm-%3E%3D9-F69220?logo=pnpm&logoColor=white" />
+  <img alt="Node &gt;= 22.13" src="https://img.shields.io/badge/node-%3E%3D22.13-339933?logo=node.js&logoColor=white" />
+  <img alt="pnpm &gt;= 9" src="https://img.shields.io/badge/pnpm-%3E%3D9-F69220?logo=pnpm&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" />
   <a href="https://github.com/bisensamiksha/BugCase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bisensamiksha/BugCase/actions/workflows/ci.yml/badge.svg" /></a>
 </p>

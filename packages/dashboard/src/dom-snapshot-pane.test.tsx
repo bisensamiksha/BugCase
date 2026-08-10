@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ReportSource } from './lib/report-source';
 import { DomPane } from './panes/DomPane';
 import { ACTIVE_MATCH_ATTR } from './panes/dom-search';
+import { formatHash } from './router/hash-router';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -200,6 +201,52 @@ describe('DomPane', () => {
     expect(plain.textContent).toContain('<p>x</p>');
     expect(q('dom-source-too-large')).not.toBeNull();
     expect(q('dom-source-highlighted')).toBeNull();
+  });
+
+  describe('fidelity notice (S4-32)', () => {
+    it('explains the omission in the rendered tab, without reading as an error', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+      const notice = q('dom-preview-fidelity-notice');
+      expect(notice).not.toBeNull();
+
+      // All three facts a reader needs: what is missing, why, and where appearance lives.
+      const text = notice!.textContent ?? '';
+      expect(text).toMatch(/stylesheets/i);
+      expect(text).toMatch(/images/i);
+      expect(text).toMatch(/never contacts/i);
+      expect(text).toMatch(/screenshots/i);
+
+      // This is the product working correctly, not a failure. Announcing it as an alert would
+      // interrupt screen-reader users and reinforce the exact misreading the notice exists to fix.
+      expect(notice!.getAttribute('role')).toBeNull();
+      expect(notice!.closest('[role="alert"]')).toBeNull();
+    });
+
+    it('links to the Screenshots pane through the hash router, keeping the report id', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+      const link = q('dom-preview-fidelity-notice')?.querySelector('a');
+      expect(link).not.toBeNull();
+      // Built from formatHash, not hand-written, so a route-format change cannot strand it.
+      expect(link!.getAttribute('href')).toBe(
+        formatHash({ activePane: 'screenshots', reportId: 'r1' }),
+      );
+    });
+
+    it('is absent from the Source tab, where it would be meaningless', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+      click(q('dom-tab-source')!);
+      await until(() => q('dom-source-highlighted') ?? q('dom-source-plain'));
+      expect(q('dom-preview-fidelity-notice')).toBeNull();
+    });
+
+    it('does not squeeze the preview frame out of the panel', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+      // The notice shares the tabpanel with the frame; the frame must still be rendered and
+      // flex-sized rather than collapsed by the added sibling.
+      const panel = document.getElementById('dom-panel-rendered');
+      expect(panel?.querySelector('[data-testid="dom-preview-frame"]')).not.toBeNull();
+      expect(panel?.className).toContain('flex-1');
+    });
   });
 
   it('has no axe violations', async () => {
