@@ -39,6 +39,32 @@ const TAB_IDS: Record<SnapshotTab, { tab: string; panel: string }> = {
 };
 
 /**
+ * Props for one snapshot tabpanel, with the layout classes applied **only while it is active**
+ * (BUG-07).
+ *
+ * The `hidden` attribute alone does not survive a display utility. Tailwind's preflight hides it
+ * with `[hidden]:where(:not([hidden="until-found"])){display:none}`, and `:where()` contributes no
+ * specificity — so that rule ties with `.flex`/`.grid`/`.block` at (0,1,0) and loses on source
+ * order, because preflight is emitted before the utilities. A hidden panel left holding `flex` is
+ * therefore still laid out, and since these panels are `flex-1` it claimed half the pane as an
+ * empty box that pushed the visible panel below the fold.
+ *
+ * Keeping the class list off the inactive panel makes that unrepresentable rather than merely
+ * fixed: the trap is one `flex` away from returning if each panel spells this out inline.
+ */
+function tabPanelProps(view: SnapshotTab, active: boolean, activeClassName: string) {
+  return {
+    role: 'tabpanel',
+    id: TAB_IDS[view].panel,
+    'aria-labelledby': TAB_IDS[view].tab,
+    hidden: !active,
+    // The `hidden` *utility* as well as the attribute: a later rule can outrank preflight, but
+    // nothing here outranks `.hidden` when it is the only display class in play.
+    className: active ? activeClassName : 'hidden',
+  } as const;
+}
+
+/**
  * DOM snapshot pane (S4-09). Renders the scrubbed snapshot two ways — a fully locked sandboxed
  * iframe (shared `SandboxFrame`) and a lazily Shiki-highlighted raw source view — plus CSS-selector
  * element search over an inert `DOMParser` copy. The active match is baked into the preview srcDoc
@@ -324,13 +350,7 @@ export function DomPane({
               </button>
             </div>
 
-            <div
-              role="tabpanel"
-              id={TAB_IDS.rendered.panel}
-              aria-labelledby={TAB_IDS.rendered.tab}
-              hidden={tab !== 'rendered'}
-              className="flex min-h-0 flex-1 flex-col"
-            >
+            <div {...tabPanelProps('rendered', tab === 'rendered', 'flex min-h-0 flex-1 flex-col')}>
               {tab === 'rendered' ? (
                 <>
                   {/*
@@ -365,11 +385,11 @@ export function DomPane({
               ) : null}
             </div>
             <div
-              role="tabpanel"
-              id={TAB_IDS.source.panel}
-              aria-labelledby={TAB_IDS.source.tab}
-              hidden={tab !== 'source'}
-              className="min-h-0 flex-1 overflow-auto rounded-[var(--bc-radius)] border border-[var(--bc-border)]"
+              {...tabPanelProps(
+                'source',
+                tab === 'source',
+                'min-h-0 flex-1 overflow-auto rounded-[var(--bc-radius)] border border-[var(--bc-border)]',
+              )}
             >
               {tab === 'source' ? (
                 highlight === null ? (

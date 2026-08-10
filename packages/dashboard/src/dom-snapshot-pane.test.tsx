@@ -249,6 +249,64 @@ describe('DomPane', () => {
     });
   });
 
+  describe('inactive tab panel (BUG-07)', () => {
+    // Tailwind preflight's `[hidden]:where(:not([hidden="until-found"])){display:none}` ties with
+    // any display utility at specificity (0,1,0) — `:where()` counts zero — and loses on source
+    // order, so a `flex` left on a hidden panel keeps it laid out as an empty `flex-1` box.
+    //
+    // jsdom cannot see this: its `getComputedStyle` special-cases the `hidden` attribute and
+    // answers `display: none` whatever the stylesheet says, so asserting computed display here
+    // would pass with the bug present. The class list is the part jsdom can honestly check; the
+    // rendered geometry is covered in a real engine by tests/e2e/dom-source-tab-layout.spec.ts.
+    const DISPLAY_UTILITIES = new Set([
+      'block',
+      'inline-block',
+      'inline',
+      'flex',
+      'inline-flex',
+      'table',
+      'inline-table',
+      'grid',
+      'inline-grid',
+      'contents',
+      'flow-root',
+      'list-item',
+      'hidden',
+    ]);
+    const displayClassesOf = (el: Element) =>
+      [...el.classList].filter((name) => DISPLAY_UTILITIES.has(name));
+
+    it('strips the layout classes off the rendered panel while Source is active', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+      click(q('dom-tab-source')!);
+      await until(() => q('dom-source-highlighted') ?? q('dom-source-plain'));
+
+      const rendered = document.getElementById('dom-panel-rendered')!;
+      expect(rendered.hasAttribute('hidden')).toBe(true);
+      expect(displayClassesOf(rendered)).toEqual(['hidden']);
+      expect(rendered.className).not.toContain('flex-1');
+    });
+
+    it('strips them off the source panel while Rendered is active', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+
+      const sourcePanel = document.getElementById('dom-panel-source')!;
+      expect(sourcePanel.hasAttribute('hidden')).toBe(true);
+      expect(displayClassesOf(sourcePanel)).toEqual(['hidden']);
+      expect(sourcePanel.className).not.toContain('flex-1');
+    });
+
+    it('keeps the active panel fully styled', async () => {
+      await render(snap(), stubSource(SNAPSHOT));
+
+      // The fix must not cost the visible panel its flex sizing (the S4-32 notice depends on it).
+      const rendered = document.getElementById('dom-panel-rendered')!;
+      expect(rendered.hasAttribute('hidden')).toBe(false);
+      expect(rendered.className).toContain('flex-1');
+      expect(displayClassesOf(rendered)).toEqual(['flex']);
+    });
+  });
+
   it('has no axe violations', async () => {
     await render(snap(), stubSource(SNAPSHOT));
     typeInto(q('dom-search-input') as HTMLInputElement, 'button.cta');
