@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest something BugCase should do.
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        BugCase is deliberately narrow: it captures a bug report from the current tab, entirely on
+        your machine. There is no backend, no account, and no telemetry, and requests that would
+        need one are unlikely to be accepted. Everything else is fair game.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation you hit, not the feature you have in mind. It often has more than one solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like BugCase to do?
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How do you handle it today?
+      description: Any workaround, even an annoying one.
+    validations:
+      required: false

@@ -1,0 +1,9 @@
+# Blank issues stay enabled: a reporter who cannot fit either form should not be turned away.
+blank_issues_enabled: true
+contact_links:
+  - name: Security or privacy problem
+    url: https://github.com/bisensamiksha/BugCase/blob/main/SECURITY.md
+    about: Please report privately, not in a public issue. The security policy explains how.
+  - name: What BugCase collects, and what it does not
+    url: https://bisensamiksha.github.io/BugCase/legal/privacy-policy
+    about: The privacy policy, including which parts of a capture are scrubbed automatically and which are not.
