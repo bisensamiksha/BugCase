@@ -31,7 +31,14 @@ and the outcome.
   for a substantive reason; re-shooting now costs a manual session and risks new inconsistencies to
   fix an invisible one. Recorded here only so the trail shows the listing image and the submitted
   package are known to differ, and why that was accepted.
-- Outcome: ⏳ awaiting review.
+- Outcome: ✅ **published 2026-08-11**, no reviewer feedback and no permission questions, four days
+  after filing. The unchanged 10-permission set carried over from the published 1.0.0 item, as
+  expected. v1.0.0 is now superseded on the live listing.
+- **What this release does _not_ contain.** `v1.0.1` is tagged at `d085902`, which is behind `main`:
+  S4-29 (repo docs + Firefox CI ratchet), S4-30 (ADRs), S4-31 (strict CSP), and S4-32 (DOM snapshot
+  fidelity notice) all merged **after** the tag. Worth stating because BUG-07 (the DOM pane's Source
+  tab opening on an empty box) is a regression introduced by S4-32, so **no released build is
+  affected**; the fix is preventive for the next release, not a hotfix for this one.
 
 ### 2026-08-05: Chrome Web Store: v1.0.0
 
