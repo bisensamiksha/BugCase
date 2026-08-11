@@ -1,0 +1,96 @@
+name: Bug report
+description: Something in BugCase does not work the way you expected.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you attach anything, please read this
+
+        **Do not attach a `.bugcase` report, a screenshot, or an element crop unless you have
+        checked it yourself first.** GitHub issues are public, and anyone can read what you post.
+
+        BugCase captures what was on screen. Screenshots and element crops are stored as raw
+        pixels, so if a password, token, or personal detail was visible when you captured, it is
+        visible in the image too. Text in the page markup is scrubbed automatically; **images are
+        not**. Open the report and use the redaction tool, or crop the image, before uploading.
+
+        If reproducing the bug needs a capture you are not comfortable posting publicly, describe
+        it here instead and say so. A clear description beats a redacted screenshot.
+  - type: input
+    id: version
+    attributes:
+      label: BugCase version
+      description: 'Find it at chrome://extensions with Developer mode on, or in the extension listing.'
+      placeholder: '1.0.1'
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      description: 'From chrome://version (first line).'
+      placeholder: 'Chrome 141.0.7390.55 on macOS 15.2'
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      description: |
+        This matters more than it looks. The report viewer ships inside the extension, so a viewer
+        bug may already be fixed in the hosted dashboard while your installed copy still has it.
+      options:
+        - Capturing (the toolbar popup or the on-page overlay)
+        - Annotating or redacting a capture
+        - The report viewer inside a downloaded .bugcase file
+        - The hosted dashboard at bisensamiksha.github.io/BugCase
+        - The extension settings page
+        - Something else / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, starting from a fresh tab if you can.
+      placeholder: |
+        1. Open https://example.com
+        2. Click the BugCase toolbar icon
+        3. Click Capture
+        4. Open the downloaded .bugcase file
+    validations:
+      required: true
+  - type: textarea
+    id: site
+    attributes:
+      label: What kind of page were you on?
+      description: |
+        If you cannot share the URL, describe the page: a login form, a single-page app, a page in
+        an iframe, heavy custom styling, and so on. Many capture bugs depend on page structure.
+    validations:
+      required: false
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors (optional)
+      description: |
+        Right-click the page, Inspect, Console tab. Copy any red errors. Check them for personal
+        data before pasting.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy-ack
+    attributes:
+      label: Privacy check
+      options:
+        - label: I have checked any file or screenshot I am attaching, and it contains no passwords, tokens, or personal data.
+          required: true
