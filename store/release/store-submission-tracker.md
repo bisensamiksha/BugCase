@@ -9,11 +9,11 @@
 
 ## v1.0.1
 
-| Store                  | Artifact                   | SHA-256         | Submitted  | Review state         | Reviewer feedback | Resolution |
-| ---------------------- | -------------------------- | --------------- | ---------- | -------------------- | ----------------- | ---------- |
-| Chrome Web Store       | `bugcase-chrome-1.0.1.zip` | `49d51a0b…f5c1` | 2026-08-07 | ⏳ in review         | Pending           | Pending    |
-| Microsoft Edge Add-ons | Pending                    | Pending         | Pending    | 🟡 not yet submitted | Pending           | Pending    |
-| Firefox AMO            | Pending                    | Pending         | Pending    | 🅿️ parked (S5-04)    | Pending           | Pending    |
+| Store                  | Artifact                   | SHA-256         | Submitted  | Review state         | Reviewer feedback | Resolution                                                                        |
+| ---------------------- | -------------------------- | --------------- | ---------- | -------------------- | ----------------- | --------------------------------------------------------------------------------- |
+| Chrome Web Store       | `bugcase-chrome-1.0.1.zip` | `49d51a0b…f5c1` | 2026-08-07 | ✅ published         | None              | Published 2026-08-11 · item `inbgbkepikijkgeagehcbaofambgcdck` · supersedes 1.0.0 |
+| Microsoft Edge Add-ons | Pending                    | Pending         | Pending    | 🟡 not yet submitted | Pending           | Pending                                                                           |
+| Firefox AMO            | Pending                    | Pending         | Pending    | 🅿️ parked (S5-04)    | Pending           | Pending                                                                           |
 
 **Upload candidate:** built 2026-08-07 from `main` @ `d085902`, tagged `v1.0.1` (S4-36, PRs #201 + #202)
 
